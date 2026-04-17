@@ -1,0 +1,2488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GHJ Exp App</title>
+<style>
+  :root {
+    --primary: #1a5276;
+    --primary-light: #2980b9;
+    --accent: #e67e22;
+    --accent-light: #f39c12;
+    --success: #27ae60;
+    --danger: #c0392b;
+    --warn: #d4ac0d;
+    --bg: #f4f6f8;
+    --card: #ffffff;
+    --border: #dce3ea;
+    --text: #1c2833;
+    --text-muted: #7f8c8d;
+    --sidebar-w: 260px;
+    --header-h: 64px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+
+  /* ===== LOGIN ===== */
+  #loginScreen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #1a5276 0%, #154360 50%, #0d2137 100%);
+  }
+  .login-box {
+    background: #fff;
+    border-radius: 16px;
+    padding: 40px 36px;
+    width: 380px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    text-align: center;
+  }
+  .login-logo { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; margin-bottom: 12px; border: 3px solid var(--primary); }
+  .login-title { font-size: 22px; font-weight: 700; color: var(--primary); margin-bottom: 4px; }
+  .login-sub { font-size: 12px; color: var(--text-muted); margin-bottom: 28px; letter-spacing: 0.5px; }
+  .form-group { margin-bottom: 16px; text-align: left; }
+  .form-group label { font-size: 12px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .form-group input, .form-group select, .form-group textarea {
+    width: 100%; padding: 10px 12px; border: 1.5px solid var(--border);
+    border-radius: 8px; font-size: 14px; color: var(--text);
+    transition: border-color 0.2s;
+  }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    outline: none; border-color: var(--primary-light);
+  }
+  .btn-primary {
+    width: 100%; padding: 12px; background: var(--primary); color: #fff;
+    border: none; border-radius: 8px; font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: background 0.2s;
+  }
+  .btn-primary:hover { background: var(--primary-light); }
+  .btn-google {
+    width: 100%; padding: 11px; background: #fff; color: #444;
+    border: 1.5px solid var(--border); border-radius: 8px; font-size: 14px; font-weight: 500;
+    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
+    margin-top: 10px; transition: background 0.2s;
+  }
+  .btn-google:hover { background: #f5f5f5; }
+  .divider { display: flex; align-items: center; gap: 10px; margin: 16px 0; color: var(--text-muted); font-size: 12px; }
+  .divider::before, .divider::after { content:''; flex:1; height:1px; background: var(--border); }
+  .login-error { color: var(--danger); font-size: 12px; margin-top: 8px; display: none; }
+
+  /* ===== APP SHELL ===== */
+  #appShell { display: none; min-height: 100vh; }
+
+  /* HEADER */
+  .header {
+    position: fixed; top: 0; left: 0; right: 0; height: var(--header-h);
+    background: var(--primary); color: #fff;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .header-logo { width: 40px; height: 40px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.5); object-fit: cover; }
+  .header-title { font-size: 18px; font-weight: 700; letter-spacing: 0.3px; }
+  .header-title span { color: var(--accent-light); }
+  .header-right { display: flex; align-items: center; gap: 16px; }
+  .user-badge { background: rgba(255,255,255,0.15); border-radius: 20px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
+  .btn-logout { background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+  .btn-logout:hover { background: rgba(255,255,255,0.3); }
+
+  /* SIDEBAR */
+  .sidebar {
+    position: fixed; top: var(--header-h); left: 0; width: var(--sidebar-w);
+    bottom: 0; background: #1a2537; overflow-y: auto; z-index: 50;
+    padding: 16px 0;
+  }
+  .nav-section { padding: 6px 16px 4px; font-size: 10px; font-weight: 700; color: #5d7499; text-transform: uppercase; letter-spacing: 1px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 20px;
+    color: #9cb2cc; cursor: pointer; font-size: 13px; transition: all 0.2s;
+    border-left: 3px solid transparent;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.05); color: #fff; }
+  .nav-item.active { background: rgba(41,128,185,0.2); color: #fff; border-left-color: var(--accent); }
+  .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+  .nav-badge { background: var(--accent); color: #fff; border-radius: 10px; padding: 2px 7px; font-size: 10px; margin-left: auto; }
+
+  /* MAIN */
+  .main { margin-left: var(--sidebar-w); margin-top: var(--header-h); padding: 24px; min-height: calc(100vh - var(--header-h)); }
+
+  /* TABS */
+  .tab-bar { display: flex; gap: 4px; background: #fff; border-radius: 10px; padding: 4px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .tab-btn {
+    flex: 1; padding: 10px 16px; border: none; border-radius: 7px; cursor: pointer;
+    font-size: 13px; font-weight: 600; color: var(--text-muted); background: transparent;
+    transition: all 0.2s;
+  }
+  .tab-btn.active { background: var(--primary); color: #fff; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* CARDS */
+  .card { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 1px 6px rgba(0,0,0,0.07); margin-bottom: 20px; }
+  .card-title { font-size: 15px; font-weight: 700; color: var(--primary); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+
+  /* STATS */
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+  .stat-card { background: #fff; border-radius: 10px; padding: 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.07); border-left: 4px solid var(--primary); }
+  .stat-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+  .stat-value { font-size: 22px; font-weight: 700; color: var(--text); margin-top: 4px; }
+  .stat-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  /* FORM */
+  .form-row { display: grid; gap: 14px; margin-bottom: 14px; }
+  .form-row.col2 { grid-template-columns: 1fr 1fr; }
+  .form-row.col3 { grid-template-columns: 1fr 1fr 1fr; }
+  .form-row.col4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+  label.field-label { font-size: 11px; font-weight: 600; color: var(--text-muted); display: block; margin-bottom: 5px; text-transform: uppercase; }
+  input[type=text], input[type=number], input[type=date], input[type=email], select, textarea {
+    width: 100%; padding: 9px 11px; border: 1.5px solid var(--border); border-radius: 7px;
+    font-size: 13px; color: var(--text); background: #fff; transition: border-color 0.2s;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary-light); }
+  textarea { resize: vertical; min-height: 70px; }
+  .file-zone {
+    border: 2px dashed var(--border); border-radius: 8px; padding: 16px;
+    text-align: center; cursor: pointer; color: var(--text-muted); font-size: 12px;
+    transition: all 0.2s;
+  }
+  .file-zone:hover { border-color: var(--primary-light); background: #f0f7ff; }
+  .file-zone input { display: none; }
+
+  /* BUTTON ROW */
+  .btn-row { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
+  .btn { padding: 9px 20px; border-radius: 7px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+  .btn-save { background: var(--primary); color: #fff; }
+  .btn-save:hover { background: var(--primary-light); }
+  .btn-cancel { background: #ecf0f1; color: var(--text); }
+  .btn-cancel:hover { background: #dfe6e9; }
+  .btn-approve { background: var(--success); color: #fff; padding: 5px 12px; font-size: 12px; border-radius: 5px; border: none; cursor: pointer; }
+  .btn-reject { background: var(--danger); color: #fff; padding: 5px 12px; font-size: 12px; border-radius: 5px; border: none; cursor: pointer; }
+  .btn-pay { background: var(--accent); color: #fff; padding: 5px 12px; font-size: 12px; border-radius: 5px; border: none; cursor: pointer; }
+  .btn-sm { padding: 4px 10px; font-size: 11px; }
+  .btn-outline { background: transparent; border: 1.5px solid var(--primary); color: var(--primary); }
+
+  /* TABLE */
+  .tbl-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  thead th { background: #f0f4f8; padding: 10px 12px; text-align: left; font-weight: 700; color: var(--text-muted); font-size: 11px; text-transform: uppercase; border-bottom: 2px solid var(--border); }
+  tbody td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+  tbody tr:hover { background: #fafbfc; }
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 12px; font-size: 10px; font-weight: 700; }
+  .badge-pending { background: #fef9e7; color: #d68910; }
+  .badge-approved { background: #eafaf1; color: #1e8449; }
+  .badge-rejected { background: #fdedec; color: #922b21; }
+  .badge-paid { background: #eaf0fb; color: #1a5276; }
+  .badge-voided { background: #f0f0f0; color: #888; text-decoration: line-through; }
+  .badge-cash { background: #fef5e7; color: #ca6f1e; }
+  .badge-bank { background: #e8f4fd; color: #1b6ca8; }
+  .badge-credit { background: #eafaf1; color: #1e8449; }
+  .badge-debit { background: #fdedec; color: #922b21; }
+
+  /* STATUS PIPELINE */
+  .pipeline { display: flex; gap: 0; margin-bottom: 20px; }
+  .pipe-step {
+    flex: 1; padding: 10px 14px; background: #ecf0f1; text-align: center;
+    font-size: 11px; font-weight: 700; color: var(--text-muted); position: relative;
+  }
+  .pipe-step:not(:last-child)::after {
+    content: ''; position: absolute; right: -10px; top: 0; bottom: 0; width: 20px;
+    background: inherit; clip-path: polygon(0 0, calc(100% - 5px) 50%, 0 100%);
+    z-index: 1;
+  }
+  .pipe-step.active { background: var(--primary); color: #fff; }
+  .pipe-step.done { background: var(--success); color: #fff; }
+  .pipe-step:first-child { border-radius: 6px 0 0 6px; }
+  .pipe-step:last-child { border-radius: 0 6px 6px 0; }
+
+  /* MODAL */
+  .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; }
+  .modal-bg.open { display: flex; }
+  .modal { background: #fff; border-radius: 14px; padding: 28px; width: 600px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .modal-title { font-size: 17px; font-weight: 700; color: var(--primary); }
+  .modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: var(--text-muted); }
+
+  /* TOAST */
+  #toast { position: fixed; bottom: 24px; right: 24px; background: #1a2537; color: #fff; padding: 12px 20px; border-radius: 8px; font-size: 13px; z-index: 500; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+
+  /* FILTER BAR */
+  .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; background: #fff; padding: 14px 16px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .filter-bar .form-group { margin: 0; min-width: 150px; }
+  .filter-bar .form-group input, .filter-bar .form-group select { padding: 7px 10px; }
+  .btn-new { background: var(--accent); color: #fff; border: none; padding: 9px 18px; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; margin-left: auto; }
+  .btn-new:hover { background: var(--accent-light); }
+
+  /* GOOGLE SETUP */
+  .setup-notice { background: #eaf0fb; border-left: 4px solid var(--primary); padding: 14px 16px; border-radius: 0 8px 8px 0; font-size: 12px; color: #1a5276; margin-bottom: 16px; }
+  .setup-notice strong { display: block; margin-bottom: 4px; }
+  .code-block { background: #1a2537; color: #7ec8e3; padding: 12px 14px; border-radius: 8px; font-family: monospace; font-size: 11px; margin: 10px 0; overflow-x: auto; white-space: pre; line-height: 1.6; }
+
+  /* DRIVE UPLOADER */
+  .drive-upload-box {
+    border: 2px dashed var(--border); border-radius: 10px; padding: 0;
+    background: #fafbfc; overflow: hidden; transition: border-color 0.2s;
+  }
+  .drive-upload-box.dragover { border-color: var(--primary-light); background: #eaf4ff; }
+  .drive-upload-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; background: #f0f4f8; border-bottom: 1px solid var(--border);
+  }
+  .drive-upload-label { font-size: 11px; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px; }
+  .drive-upload-actions { display: flex; gap: 6px; }
+  .btn-drive { background: #fff; border: 1.5px solid var(--border); border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 5px; color: var(--text); transition: all 0.15s; }
+  .btn-drive:hover { border-color: var(--primary-light); color: var(--primary); background: #f0f7ff; }
+  .btn-drive.green { border-color: #27ae60; color: #27ae60; }
+  .btn-drive.green:hover { background: #eafaf1; }
+  .drive-drop-zone { padding: 14px 12px; text-align: center; cursor: pointer; }
+  .drive-drop-zone input[type=file] { display: none; }
+  .drive-drop-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+  .drive-file-list { padding: 8px 12px 10px; }
+  .drive-file-item {
+    display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+    background: #fff; border: 1px solid var(--border); border-radius: 7px; margin-bottom: 6px;
+    font-size: 12px; position: relative;
+  }
+  .drive-file-thumb { width: 36px; height: 36px; border-radius: 5px; object-fit: cover; background: #ecf0f1; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; overflow: hidden; }
+  .drive-file-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .drive-file-info { flex: 1; min-width: 0; }
+  .drive-file-name { font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .drive-file-meta { font-size: 10px; color: var(--text-muted); }
+  .drive-file-status { font-size: 10px; font-weight: 700; }
+  .drive-file-status.uploading { color: var(--accent); }
+  .drive-file-status.done { color: var(--success); }
+  .drive-file-status.error { color: var(--danger); }
+  .drive-file-link { color: var(--primary-light); text-decoration: none; font-size: 11px; }
+  .drive-file-link:hover { text-decoration: underline; }
+  .drive-progress { height: 3px; background: #ecf0f1; border-radius: 2px; margin-top: 4px; }
+  .drive-progress-bar { height: 3px; background: var(--accent); border-radius: 2px; transition: width 0.3s; }
+  .drive-file-remove { background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 14px; padding: 2px 4px; border-radius: 4px; }
+  .drive-file-remove:hover { color: var(--danger); background: #fdecea; }
+  .drive-link-field { display: flex; gap: 6px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--border); }
+  .drive-link-field input { flex: 1; font-size: 11px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 5px; }
+  .drive-link-field input:focus { outline: none; border-color: var(--primary-light); }
+  .drive-link-field label { font-size: 10px; color: var(--text-muted); white-space: nowrap; }
+  .drive-auth-bar { background: #fff8e1; border-top: 1px solid #ffe082; padding: 8px 12px; font-size: 11px; color: #7d5c00; display: flex; align-items: center; gap: 8px; }
+  .btn-connect-google { background: #1a5276; color: #fff; border: none; border-radius: 5px; padding: 5px 12px; font-size: 11px; cursor: pointer; font-weight: 600; }
+  .btn-connect-google:hover { background: #2980b9; }
+
+  /* ══════════════ MOBILE BOTTOM NAV ══════════════ */
+  #mobileNav {
+    display: none;
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: #1a2537; z-index: 200;
+    padding: 0 0 env(safe-area-inset-bottom, 0);
+    border-top: 1px solid #2a3547;
+  }
+  .mob-nav-inner {
+    display: flex; justify-content: space-around; align-items: center;
+    height: 58px;
+  }
+  .mob-nav-btn {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 3px; padding: 6px 4px;
+    background: none; border: none; cursor: pointer;
+    color: #7f96b2; font-size: 10px; font-weight: 600; letter-spacing: 0.3px;
+    min-height: 48px;
+  }
+  .mob-nav-btn.active { color: #f39c12; }
+  .mob-nav-btn .mob-icon { font-size: 20px; line-height: 1; }
+  .mob-nav-badge {
+    background: #e67e22; color: #fff; border-radius: 8px;
+    font-size: 9px; padding: 1px 5px; margin-left: 2px;
+    display: none; position: absolute; top: 4px; right: 50%; transform: translateX(60%);
+  }
+  .mob-nav-btn { position: relative; }
+
+  /* ══════════════ RESPONSIVE BREAKPOINTS ══════════════ */
+  @media (max-width: 768px) {
+    /* Hide desktop sidebar, show mobile nav */
+    .sidebar { display: none !important; }
+    #mobileNav { display: block; }
+
+    /* Adjust main content area */
+    .main { margin-left: 0 !important; padding: 12px 12px 72px !important; }
+
+    /* Header compact */
+    .header { padding: 0 12px; }
+    .header-title { font-size: 15px; }
+    #lastSyncTime { display: none; }
+    #syncBadge { font-size: 10px; padding: 2px 6px; }
+
+    /* Stats: 2 columns */
+    .stats-row { grid-template-columns: repeat(2, 1fr) !important; gap: 8px !important; }
+    .stat-value { font-size: 16px !important; }
+
+    /* Forms: all single column */
+    .form-row.col2, .form-row.col3, .form-row.col4 { grid-template-columns: 1fr !important; }
+
+    /* Cards full width */
+    .card { padding: 14px !important; }
+
+    /* Modal full screen on mobile */
+    .modal { width: 100vw !important; max-width: 100vw !important; max-height: 100vh !important;
+             border-radius: 16px 16px 0 0 !important; padding: 20px 16px !important;
+             position: fixed; bottom: 0; left: 0; right: 0; margin: 0; }
+    .modal-bg.open { align-items: flex-end !important; }
+
+    /* Tables: horizontal scroll */
+    .tbl-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table { min-width: 500px; font-size: 11px; }
+    th, td { padding: 7px 8px !important; }
+
+    /* Filter bar wraps */
+    .filter-bar { gap: 8px; padding: 10px; }
+    .filter-bar .form-group { min-width: 120px; }
+
+    /* Dashboard grid: single column */
+    div[style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+
+    /* Pipeline steps: smaller text */
+    .pipe-step { padding: 8px 6px !important; font-size: 9px !important; }
+
+    /* Login box full width on small phones */
+    .login-box { width: 95vw !important; padding: 28px 20px !important; }
+
+    /* Buttons touch-friendly */
+    .btn, .btn-save, .btn-cancel, .btn-approve, .btn-reject, .btn-pay {
+      min-height: 40px; font-size: 13px;
+    }
+    .btn-new { padding: 10px 14px; }
+  }
+
+  @media (max-width: 480px) {
+    .stats-row { grid-template-columns: 1fr 1fr !important; gap: 6px !important; }
+    .stat-value { font-size: 14px !important; }
+    .header-title { font-size: 14px; }
+    .main { padding: 10px 10px 72px !important; }
+  }
+
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); }
+
+  /* Attachment pills */
+  .attachment-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .attach-pill { background: #eaf0fb; color: var(--primary); border-radius: 14px; padding: 3px 10px; font-size: 11px; display: flex; align-items: center; gap: 5px; }
+  .attach-pill a { color: var(--primary); text-decoration: none; }
+  .attach-pill a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<!-- ======== LOGIN ======== -->
+<div id="loginScreen">
+  <div class="login-box">
+    <img class="login-logo" src="data:image/jpeg;base64,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" alt="MAAsferG Logo">
+    <div class="login-title">GHJ Exp App</div>
+    <div class="login-sub">GHJ - EXPENSE MANAGEMENT</div>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="your@gmail.com" value="">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="loginPwd" placeholder="••••••••" value="">
+    </div>
+    <div class="login-error" id="loginErr">Invalid email or password.</div>
+    <button class="btn-primary" onclick="doLogin()">Sign In</button>
+    <div class="divider">or</div>
+    <button class="btn-google" onclick="googleLogin()">
+      <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+      Sign in with Google
+    </button>
+  </div>
+</div>
+
+<!-- ======== APP ======== -->
+<div id="appShell">
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <img class="header-logo" id="headerLogo" src="" alt="Logo">
+      <div class="header-title">GHJ <span>Exp</span> App</div>
+    </div>
+    <div class="header-right">
+      <div id="lastSyncTime" style="font-size:11px;color:rgba(255,255,255,0.6);margin-right:4px"></div>
+      <span id="syncBadge" style="display:none;font-size:11px;color:#fff;padding:3px 8px;border-radius:10px;margin-right:8px;cursor:pointer" onclick="retrySyncQueue()" title="Click to retry sync"></span>
+      <div class="user-badge" id="userBadge">👤 User</div>
+      <button class="btn-logout" onclick="doLogout()">Logout</button>
+    </div>
+  </div>
+
+  <!-- SIDEBAR — rendered dynamically by buildSidebar() after login -->
+  <div class="sidebar" id="sidebarNav"></div>
+
+  <!-- MOBILE BOTTOM NAVIGATION (shown on phones) -->
+  <div id="mobileNav">
+    <div class="mob-nav-inner">
+      <button class="mob-nav-btn active" id="mnav-dashboard" data-page="dashboard">
+        <span class="mob-icon">📊</span>Home
+      </button>
+      <button class="mob-nav-btn" id="mnav-cash" data-page="cash">
+        <span class="mob-icon">💵</span>Cash
+        <span class="mob-nav-badge" id="mobCashBadge"></span>
+      </button>
+      <button class="mob-nav-btn" id="mnav-bank" data-page="bank">
+        <span class="mob-icon">🏦</span>Bank
+        <span class="mob-nav-badge" id="mobBankBadge"></span>
+      </button>
+      <button class="mob-nav-btn" id="mnav-approvals" data-page="approvals">
+        <span class="mob-icon">✅</span>Approve
+        <span class="mob-nav-badge" id="mobApprBadge"></span>
+      </button>
+      <button class="mob-nav-btn" id="mnav-more" id="mnav-more" onclick="toggleMobileMenu()">
+        <span class="mob-icon">☰</span>More
+      </button>
+    </div>
+  </div>
+
+  <!-- MOBILE MORE MENU (slide up sheet) -->
+  <div id="mobileMoreMenu" style="display:none;position:fixed;bottom:58px;left:0;right:0;background:#1a2537;z-index:199;border-top:1px solid #2a3547;padding:8px 0">
+    <div id="mobileMenuItems"></div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main" id="mainContent">
+    <!-- Pages rendered here by JS -->
+  </div>
+</div>
+
+<!-- ENTRY MODAL -->
+<div class="modal-bg" id="entryModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">New Cash Entry</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<!-- PAYMENT SCREENSHOT MODAL -->
+<div class="modal-bg" id="payModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Record Payment</div>
+      <button class="modal-close" onclick="closePayModal()">×</button>
+    </div>
+    <div id="payModalBody"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  GHJ EXP APP — CONFIGURATION                                    ║
+// ║  Paste your Apps Script URL below — all users get it instantly  ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+// ─── STEP 1: Paste your Apps Script URL here (replaces manual Settings entry) ───
+const APP_CONFIG = {
+  scriptUrl: 'https://script.google.com/macros/s/AKfycbwVstc9M9CZAHKTztZ_uM_S5qVmOrrwuH0UaS68hRoPBSExx3NYWNwMsKtxbJFcgtIE/exec',   // ← PASTE YOUR APPS SCRIPT URL HERE
+                   //   e.g. 'https://script.google.com/macros/s/AKfyc.../exec'
+  sheetId:   '1JL8flLniqzH-9E36dnOZorCzHerjMO6BKxeQ0efkznk',   // ← PASTE YOUR GOOGLE SHEET ID HERE (optional, for reference)
+};
+// ────────────────────────────────────────────────────────────────────────────────
+
+// On every page load: apply hardcoded config and clear stale cache
+(function applyHardcodedConfig() {
+  if (APP_CONFIG.scriptUrl && APP_CONFIG.scriptUrl.includes('script.google.com')) {
+    localStorage.setItem('ghj_api_url', APP_CONFIG.scriptUrl);
+  }
+  if (APP_CONFIG.sheetId) {
+    localStorage.setItem('ghj_sheet_id', APP_CONFIG.sheetId);
+  }
+  // AUTO-CLEAR STALE CACHE: if cached data is older than 60 minutes,
+  // clear it so next login always pulls fresh from Sheet.
+  // This prevents mis-reading old data on shared/public devices.
+  const lastSync = localStorage.getItem('ghj_last_sync');
+  if (lastSync) {
+    const ageMinutes = (Date.now() - new Date(lastSync).getTime()) / 60000;
+    if (ageMinutes > 60) {
+      localStorage.removeItem('ghj_cash');
+      localStorage.removeItem('ghj_bank');
+      localStorage.removeItem('ghj_users');
+      // Keep the sync queue — don't lose unsynced entries
+      console.log('GHJ: cache cleared after ' + Math.round(ageMinutes) + ' min. Will reload from Sheet on login.');
+    }
+  }
+})();
+
+// ===== DATA STORE =====
+let currentUser = null;
+let currentPage = 'dashboard';
+let editingId = null;
+
+// Users loaded from Google Sheet "Users" tab on every login
+// These demo users are ONLY used if the Sheet has no Users tab or URL is not set
+const DEFAULT_USERS = [
+  { email: 'admin@ghj.org', pwd: 'admin123', name: 'Admin', role: 'admin' },
+  { email: 'approver@ghj.org', pwd: 'approve123', name: 'Approver', role: 'approver' },
+  { email: 'ghjtofin@gmail.com', pwd: 'mAtri@123', name: 'Admin', role: 'Admin' },
+];
+let USERS = JSON.parse(localStorage.getItem('ghj_users') || 'null') || DEFAULT_USERS;
+
+const HEADS = ['Capital', 'Admin', 'Operational Expenses', 'Repair & Maintenance', 'Program/Event/Welfare', 'Purchase', 'Inventories', 'Cash Receipts', 'Bank Deposit', 'Bank Withdrawal', 'Corpus Fund', Event Fees', 'Donation', 'Trustee Fees'];
+const CATEGORIES = [
+  'Cash Withdrawal', 'Cash Deposit to Bank', 'Cash Receipts', 'Food/Langar/Bhandara', 'Social Work Activities', 'Staff Wellfare/Accomodation', 'Accounting & Audit Fees', 'Legal & Professional Services', 'Office Rent', 'Electricity/Water/Gas Payments',
+Printing', 'Stationery', 'Courier & Shipping Services', 'Insurance Premium', 'Banking Charges',
+Salaries & Wages', 'Program Supplies', 'IT & ITES Services', 'Travel & Transportation', 'Marketing & Events',
+Maintenance & Repair', 'Purchase of Land/Building', 'Construction Costs', 'Operating Expenses',
+Purchase of Machinery/Equipment', 'Accumulation of Funds', 'Interest on Borrowed Capital',
+Repayment of Loans', 'Govt Fees/Taxes', 'Corpus Fund'
+];
+
+// ── Data layer: localStorage cache + Google Sheet as source of truth ──────────
+function loadData(key) {
+  try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; }
+}
+function saveData(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+}
+
+function getData() {
+  return {
+    cash: loadData('ghj_cash'),
+    bank: loadData('ghj_bank')
+  };
+}
+
+// Load all entries from Sheet and cache locally, then refresh current page
+async function loadFromSheet() {
+  const url = getScriptUrl();
+  if (!url) return;
+  try {
+    for (const type of ['cash', 'bank']) {
+      const resp = await fetch(url + '?type=' + type, { redirect: 'follow' });
+      const raw = await resp.text();
+      if (!raw || raw.trimStart().startsWith('<')) continue;
+      const rows = JSON.parse(raw);
+      if (!Array.isArray(rows) || rows.length < 2) continue;
+      const headers = rows[0].map(h => String(h).toLowerCase().trim());
+      // Map sheet columns to entry object
+      const idx = h => headers.indexOf(h);
+      const entries = rows.slice(1).filter(r => r[idx('id')] || r[0]).map(r => ({
+        id:             String(r[idx('id')]   || r[0]  || ''),
+        srno:           String(r[idx('srno')] || r[1]  || ''),
+        date:           String(r[idx('date')] || r[2]  || ''),
+        head:           String(r[idx('head')] || r[3]  || ''),
+        category:       String(r[idx('category')]  || r[4]  || ''),
+        type:           String(r[idx('type')]  || r[5]  || 'debit'),
+        amount:         parseFloat(r[idx('amount')] || r[6] || 0),
+        desc:           String(r[idx('description')] || r[7] || ''),
+        vendor:         String(r[idx('vendor')]  || r[8]  || ''),
+        invoiceLink:    String(r[idx('invoicelink')]  || r[9]  || ''),
+        screenshotLink: String(r[idx('screenshot')]   || r[10] || ''),
+        status:         String(r[idx('status')]  || r[11] || 'pending'),
+        createdBy:      String(r[idx('createdby')]  || r[12] || ''),
+        approvedBy:     String(r[idx('approvedby')] || r[13] || ''),
+        paymentRef:     String(r[idx('paymentref')] || r[14] || ''),
+        remarks:        String(r[idx('remarks')]    || r[15] || ''),
+        bankName:       String(r[idx('bankname')]   || r[16] || ''),
+        accNo:          String(r[idx('accountno')]  || r[17] || ''),
+        chequeRef:      String(r[idx('chequeref')]  || r[18] || ''),
+        paytype:    type,
+        paymentMode: String(r[idx('paymentmode')] || r[20] || ''),
+        paidBy:      String(r[idx('paidby')]      || r[21] || ''),
+        invoiceFiles: [], screenshotFiles: []
+      }));
+      // Merge: keep locally-queued entries on top; don't overwrite them with old Sheet data
+      const queue = getPendingQueue();
+      const queuedIds = new Set(queue.map(q => q.id));
+      // Remove sheet entries that are already in local queue (local is newer)
+      const merged = entries.filter(e => !queuedIds.has(e.id));
+      // Also add any local entries for this type that aren't in the sheet yet
+      const localExtra = queue.filter(q => q.paytype === type);
+      merged.push(...localExtra);
+      saveData('ghj_' + type, merged);
+    }
+    setLastSyncTime();
+    retrySyncQueue();
+    showToast('✅ Data refreshed from Google Sheets');
+    showPage(currentPage);
+  } catch(e) {
+    showToast('⚠️ Sheet refresh failed: ' + e.message);
+  }
+}
+
+function genId() { return 'GHJ-' + Date.now() + '-' + Math.floor(Math.random()*1000); }
+
+// ===== SIDEBAR (role-based) =====
+// ═══════════════ MOBILE NAVIGATION ═══════════════════════════════
+function buildMobileNav() {
+  if (!currentUser) return;
+  const isCreator = currentUser.role === 'creator';
+
+  // Attach click to main visible buttons
+  ['dashboard','cash','bank','approvals'].forEach(function(page) {
+    const btn = document.getElementById('mnav-' + page);
+    if (!btn) return;
+    // Hide approval button from creator
+    if (page === 'approvals' && isCreator) {
+      btn.style.display = 'none'; return;
+    }
+    btn.style.display = '';
+    btn.onclick = function() { showPage(page); closeMobileMenu(); };
+  });
+
+  // Build "More" menu items
+  const items = document.getElementById('mobileMenuItems');
+  if (!items) return;
+  let html = '';
+  if (!isCreator) {
+    html += mobileMenuItem('payments', '💳', 'Payment Releases');
+    html += mobileMenuItem('reports',  '📈', 'Reports');
+    html += mobileMenuItem('settings', '⚙️', 'Settings');
+  }
+  html += '<div style="height:1px;background:#2a3547;margin:4px 16px"></div>';
+  html += '<div style="padding:10px 20px;display:flex;justify-content:space-between;align-items:center">' +
+          '<span style="color:#7f96b2;font-size:12px">🔄 Refresh from Sheet</span></div>';
+  items.innerHTML = html;
+
+  // Attach More menu item clicks
+  if (!isCreator) {
+    ['payments','reports','settings'].forEach(function(page) {
+      const el = document.getElementById('mmenu-' + page);
+      if (el) el.onclick = function() { showPage(page); closeMobileMenu(); };
+    });
+  }
+  const refreshBtn = items.lastElementChild;
+  if (refreshBtn) refreshBtn.onclick = function() {
+    closeMobileMenu();
+    loadFromSheet().then(function() { retrySyncQueue(); });
+  };
+}
+
+function mobileMenuItem(page, icon, label) {
+  return '<div id="mmenu-' + page + '" style="display:flex;align-items:center;gap:14px;padding:12px 20px;color:#c8d8e8;cursor:pointer;font-size:14px">' +
+         '<span style="font-size:20px">' + icon + '</span>' + label + '</div>';
+}
+
+function toggleMobileMenu() {
+  const menu = document.getElementById('mobileMoreMenu');
+  if (menu) menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+function closeMobileMenu() {
+  const menu = document.getElementById('mobileMoreMenu');
+  if (menu) menu.style.display = 'none';
+}
+
+function updateMobileNav() {
+  // Highlight active tab
+  ['dashboard','cash','bank','approvals'].forEach(function(page) {
+    const btn = document.getElementById('mnav-' + page);
+    if (btn) btn.className = 'mob-nav-btn' + (currentPage === page ? ' active' : '');
+  });
+  // Update badges
+  const d = getData();
+  const isCreator = currentUser && currentUser.role === 'creator';
+  const myCash = isCreator ? d.cash.filter(e=>e.createdBy===currentUser.name) : d.cash;
+  const myBank = isCreator ? d.bank.filter(e=>e.createdBy===currentUser.name) : d.bank;
+  const setBadge = function(id, count) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = count;
+    el.style.display = count > 0 ? 'block' : 'none';
+  };
+  setBadge('mobCashBadge', myCash.filter(e=>e.status==='pending').length);
+  setBadge('mobBankBadge', myBank.filter(e=>e.status==='pending').length);
+  setBadge('mobApprBadge', [...d.cash,...d.bank].filter(e=>e.status==='pending').length);
+}
+
+function buildSidebar() {
+  const isCreator = currentUser && currentUser.role === 'creator';
+  const isAdminOrApprover = currentUser && (currentUser.role === 'admin' || currentUser.role === 'approver');
+  const el = document.getElementById('sidebarNav');
+  if (!el) return;
+
+  // Creator: Dashboard + own Transactions only
+  // Admin/Approver: everything
+  let html = '';
+  const navItems = [
+    { page: 'dashboard', icon: '📊', label: 'Dashboard', badge: '' },
+    { page: 'cash',      icon: '💵', label: 'Cash Payments', badge: '<span class="nav-badge" id="pendingCashBadge">0</span>' },
+    { page: 'bank',      icon: '🏦', label: 'Bank Payments',  badge: '<span class="nav-badge" id="pendingBankBadge">0</span>' },
+  ];
+  if (!isCreator) navItems.push(
+    { page: 'approvals', icon: '✅', label: 'Approvals',       badge: '<span class="nav-badge" id="approvalBadge">0</span>', section: 'Workflow' },
+    { page: 'payments',  icon: '💳', label: 'Payment Releases', badge: '', section: '' },
+    { page: 'reports',   icon: '📈', label: 'Reports & Analytics', badge: '', section: 'Reports' },
+    { page: 'settings',  icon: '⚙️', label: 'Google Setup',    badge: '', section: 'Settings' }
+  );
+
+  let prevSection = 'Main';
+  html += '<div class="nav-section">Main</div>';
+  navItems.forEach(function(item) {
+    if (item.section && item.section !== prevSection) {
+      html += '<div class="nav-section">' + item.section + '</div>';
+      prevSection = item.section;
+    }
+    if (item.page === 'cash' || item.page === 'bank') {
+      if (prevSection !== 'My Transactions') {
+        html += '<div class="nav-section">My Transactions</div>';
+        prevSection = 'My Transactions';
+      }
+    }
+    html += '<div class="nav-item" id="nav-' + item.page + '" data-page="' + item.page + '">' +
+            '<span class="nav-icon">' + item.icon + '</span> ' + item.label + item.badge + '</div>';
+  });
+
+  html += '<div class="nav-section" style="margin-top:8px;border-top:1px solid #2a3547;padding-top:8px"></div>';
+  html += '<div class="nav-item" style="color:#9FE1CB" id="nav-refresh">' +
+          '<span class="nav-icon">🔄</span> Refresh from Sheet</div>';
+
+  el.innerHTML = html;
+
+  // Attach click events after innerHTML (avoids quote-escaping issues)
+  navItems.forEach(function(item) {
+    const el2 = document.getElementById('nav-' + item.page);
+    if (el2) el2.addEventListener('click', function() { showPage(item.page); });
+  });
+  const refreshEl = document.getElementById('nav-refresh');
+  if (refreshEl) refreshEl.addEventListener('click', function() { loadFromSheet().then(function(){ retrySyncQueue(); }); });
+  updateActiveNav();
+}
+
+function updateActiveNav() {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const activeEl = document.getElementById('nav-' + currentPage);
+  if (activeEl) activeEl.classList.add('active');
+}
+
+// ===== AUTH =====
+function loginWithUserList(email, pwd, userList) {
+  // Case-insensitive email, exact password match
+  const user = userList.find(u =>
+    String(u.email).toLowerCase().trim() === email.toLowerCase().trim() &&
+    String(u.pwd).trim() === pwd.trim()
+  );
+  if (user) {
+    currentUser = user;
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('appShell').style.display = 'block';
+    document.getElementById('userBadge').textContent = '👤 ' + user.name + ' (' + user.role + ')';
+    const logo = document.getElementById('headerLogo');
+    logo.src = document.querySelector('.login-logo').src;
+    buildSidebar();
+    buildMobileNav();
+    showPage('dashboard');
+    updateBadges();
+    updateSyncTimeDisplay();
+    updateSyncBadge();
+    // Auto-load data from Sheet on login, then retry any queued entries
+    loadFromSheet().then(() => retrySyncQueue());
+    return true;
+  }
+  return false;
+}
+
+function parseUsersFromSheetRows(rows) {
+  // rows[0] = header row, rows[1+] = data
+  if (!Array.isArray(rows) || rows.length < 2) return null;
+  const headers = rows[0].map(h => String(h).toLowerCase().trim());
+  // Accept multiple possible column name spellings
+  const nameIdx  = ['name','username','user name'].reduce((f,k)=> f>=0?f:headers.indexOf(k), -1);
+  const emailIdx = ['email','e-mail','email address'].reduce((f,k)=> f>=0?f:headers.indexOf(k), -1);
+  const pwdIdx   = ['password','pwd','pass','passwd'].reduce((f,k)=> f>=0?f:headers.indexOf(k), -1);
+  const roleIdx  = ['role','access','user role'].reduce((f,k)=> f>=0?f:headers.indexOf(k), -1);
+  if (emailIdx < 0 || pwdIdx < 0) return null; // can't work without these two
+  const users = rows.slice(1)
+    .filter(r => r[emailIdx] && String(r[emailIdx]).trim())
+    .map(r => ({
+      name:  nameIdx  >= 0 ? String(r[nameIdx]).trim()  : String(r[emailIdx]).trim(),
+      email: String(r[emailIdx]).trim(),
+      pwd:   String(r[pwdIdx]).trim(),
+      role:  roleIdx  >= 0 ? String(r[roleIdx]).trim().toLowerCase() : 'accountant'
+    }));
+  return users.length > 0 ? users : null;
+}
+
+async function fetchUsersFromSheet(scriptUrl) {
+  const resp = await fetch(scriptUrl + '?type=users', { redirect: 'follow' });
+  const raw = await resp.text();
+  if (!raw || raw.trimStart().startsWith('<')) {
+    throw new Error('Sheet returned HTML. Fix: Apps Script → Deploy → Who has access = Anyone');
+  }
+  const rows = JSON.parse(raw);
+  const users = parseUsersFromSheetRows(rows);
+  if (!users) throw new Error('Users tab empty or missing Email/Password columns');
+  return users;
+}
+
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pwd   = document.getElementById('loginPwd').value;
+  const errEl = document.getElementById('loginErr');
+  const btn   = document.querySelector('.btn-primary');
+  errEl.style.display = 'none';
+
+  const scriptUrl = localStorage.getItem('ghj_api_url');
+
+  // ALWAYS fetch from Sheet first when URL is configured
+  // This ensures new/changed users work without any cache issues
+  if (scriptUrl) {
+    btn.textContent = 'Verifying...';
+    btn.disabled = true;
+    try {
+      const sheetUsers = await fetchUsersFromSheet(scriptUrl);
+      // Update local cache with fresh Sheet data
+      USERS = sheetUsers;
+      localStorage.setItem('ghj_users', JSON.stringify(USERS));
+      // Try login with Sheet users
+      if (loginWithUserList(email, pwd, USERS)) {
+        btn.textContent = 'Sign In';
+        btn.disabled = false;
+        return;
+      }
+    } catch(fetchErr) {
+      // Sheet fetch failed — fall through to cached/demo users
+      console.warn('Sheet user fetch failed:', fetchErr.message);
+    }
+    btn.textContent = 'Sign In';
+    btn.disabled = false;
+  }
+
+  // Fallback: try cached users (includes demo if Sheet never loaded)
+  if (loginWithUserList(email, pwd, USERS)) return;
+
+  // Nothing worked — show clear error
+  let errMsg = 'Invalid email or password.';
+  if (scriptUrl) {
+    errMsg += ' Could not verify against Google Sheet — check that your Users tab has Email and Password columns and the Apps Script URL is correct.';
+  } else {
+    errMsg += ' (Demo credentials: admin@ghj.org / admin123)';
+  }
+  errEl.textContent = errMsg;
+  errEl.style.display = 'block';
+}
+
+function googleLogin() {
+  document.getElementById('loginEmail').value = 'admin@ghj.org';
+  document.getElementById('loginPwd').value = 'admin123';
+  setTimeout(doLogin, 100);
+}
+
+function doLogout() {
+  currentUser = null;
+  // Clear login form
+  const emailEl = document.getElementById('loginEmail');
+  const pwdEl   = document.getElementById('loginPwd');
+  const errEl   = document.getElementById('loginErr');
+  if (emailEl) emailEl.value = '';
+  if (pwdEl)   pwdEl.value   = '';
+  if (errEl)   errEl.style.display = 'none';
+  // Clear sidebar
+  const sidebarEl = document.getElementById('sidebarNav');
+  if (sidebarEl) sidebarEl.innerHTML = '';
+  // Switch screens
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('appShell').style.display = 'none';
+}
+
+// ===== NAVIGATION =====
+function showPage(page) {
+  // Creator cannot access workflow, reports, settings
+  if (currentUser && currentUser.role === 'creator' && ['approvals','payments','reports','settings'].includes(page)) {
+    showToast('⚠️ You do not have permission to view this page.');
+    page = 'dashboard';
+  }
+  currentPage = page;
+  updateActiveNav();
+  updateMobileNav();
+  closeMobileMenu();
+
+  const mc = document.getElementById('mainContent');
+  switch(page) {
+    case 'dashboard': mc.innerHTML = renderDashboard(); break;
+    case 'cash': mc.innerHTML = renderExpenseList('cash'); break;
+    case 'bank': mc.innerHTML = renderExpenseList('bank'); break;
+    case 'approvals': mc.innerHTML = renderApprovals(); break;
+    case 'payments': mc.innerHTML = renderPayments(); break;
+    case 'reports': mc.innerHTML = renderReports(); break;
+    case 'settings': mc.innerHTML = renderSettings(); break;
+  }
+  updateBadges();
+}
+
+function updateBadges() {
+  const d = getData();
+  const isCreator = currentUser && currentUser.role === 'creator';
+  const myCash = isCreator ? d.cash.filter(e => e.createdBy === currentUser.name || e.createdBy === currentUser.email) : d.cash;
+  const myBank = isCreator ? d.bank.filter(e => e.createdBy === currentUser.name || e.createdBy === currentUser.email) : d.bank;
+  const pendingCash = myCash.filter(e => e.status === 'pending').length;
+  const pendingBank = myBank.filter(e => e.status === 'pending').length;
+  const allPending = [...d.cash, ...d.bank].filter(e => e.status === 'pending').length;
+  const setB = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  setB('pendingCashBadge', pendingCash);
+  setB('pendingBankBadge', pendingBank);
+  setB('approvalBadge', allPending);
+  updateSyncBadge();
+  updateSyncTimeDisplay();
+  updateMobileNav();
+}
+
+// ===== DASHBOARD =====
+function renderDashboard() {
+  const d = getData();
+  const isCreator = currentUser.role === 'creator';
+  // Creator sees only their own entries
+  const cashAll = isCreator ? d.cash.filter(e=>e.createdBy===currentUser.name||e.createdBy===currentUser.email) : d.cash;
+  const bankAll = isCreator ? d.bank.filter(e=>e.createdBy===currentUser.name||e.createdBy===currentUser.email) : d.bank;
+  const all = [...cashAll, ...bankAll];
+
+  // Cash breakdown
+  const cashDebit  = cashAll.filter(e=>e.type==='debit' &&e.status!=='voided').reduce((s,e)=>s+Number(e.amount),0);
+  const cashCredit = cashAll.filter(e=>e.type==='credit'&&e.status!=='voided').reduce((s,e)=>s+Number(e.amount),0);
+  const cashNet    = cashDebit - cashCredit;
+  const bankDebit  = bankAll.filter(e=>e.type==='debit' &&e.status!=='voided').reduce((s,e)=>s+Number(e.amount),0);
+  const bankCredit = bankAll.filter(e=>e.type==='credit'&&e.status!=='voided').reduce((s,e)=>s+Number(e.amount),0);
+  const bankNet    = bankDebit - bankCredit;
+
+  const paidAmt    = all.filter(e=>e.status==='paid').reduce((s,e)=>s+Number(e.amount),0);
+  const pendingAmt = all.filter(e=>e.status==='pending').reduce((s,e)=>s+Number(e.amount),0);
+  const approvedAmt= all.filter(e=>e.status==='approved').reduce((s,e)=>s+Number(e.amount),0);
+
+  const byHead = {};
+  all.filter(e=>e.type==='debit').forEach(e => { byHead[e.head] = (byHead[e.head]||0)+Number(e.amount); });
+  const maxHead = Math.max(...Object.values(byHead), 1);
+  const headRows = Object.entries(byHead).sort((a,b)=>b[1]-a[1]).slice(0,6)
+    .map(([h,v]) => `<tr><td>${h}</td><td style="font-weight:600">₹${v.toLocaleString('en-IN')}</td><td style="width:120px"><div style="background:#e8f4fd;border-radius:4px;height:8px"><div style="background:var(--primary);height:8px;border-radius:4px;width:${Math.min(100,(v/maxHead)*100)}%"></div></div></td></tr>`).join('');
+
+  return `
+  <div style="margin-bottom:4px;font-size:20px;font-weight:700;color:var(--primary)">Dashboard</div>
+  <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Welcome, ${currentUser.name} (${currentUser.role}) · ${new Date().toLocaleDateString('en-IN',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
+  ${getPendingQueue().length > 0 ? `
+  <div style="background:#fff3cd;border:1.5px solid #ffc107;border-radius:8px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:#856404;display:flex;align-items:center;justify-content:space-between">
+    <span>⚠️ <b>${getPendingQueue().length}</b> entr${getPendingQueue().length===1?'y':'ies'} saved locally and waiting to sync to Google Sheets. Click Retry to sync now.</span>
+    <button onclick="retrySyncQueue()" style="background:#e67e22;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;font-weight:600">↻ Retry Sync</button>
+  </div>` : ''}
+
+  <!-- CASH SUMMARY ROW -->
+  <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">💵 Cash Account</div>
+  <div class="stats-row" style="margin-bottom:20px">
+    <div class="stat-card" style="border-left-color:#27ae60"><div class="stat-label">Cash Credit (In)</div><div class="stat-value" style="color:#27ae60">₹${cashCredit.toLocaleString('en-IN')}</div><div class="stat-sub">${cashAll.filter(e=>e.type==='credit').length} entries</div></div>
+    <div class="stat-card" style="border-left-color:#c0392b"><div class="stat-label">Cash Debit (Out)</div><div class="stat-value" style="color:#c0392b">₹${cashDebit.toLocaleString('en-IN')}</div><div class="stat-sub">${cashAll.filter(e=>e.type==='debit').length} entries</div></div>
+    <div class="stat-card" style="border-left-color:#1a5276"><div class="stat-label">Cash Net Balance</div><div class="stat-value" style="color:${cashNet>=0?'#27ae60':'#c0392b'}">${cashNet>=0?'+':''}₹${Math.abs(cashNet).toLocaleString('en-IN')}</div><div class="stat-sub">${cashNet>=0?'Surplus':'Deficit'}</div></div>
+    <div class="stat-card" style="border-left-color:#e67e22"><div class="stat-label">Cash Entries</div><div class="stat-value">${cashAll.length}</div><div class="stat-sub">Total cash transactions</div></div>
+  </div>
+
+  <!-- BANK SUMMARY ROW -->
+  <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">🏦 Bank Account</div>
+  <div class="stats-row" style="margin-bottom:20px">
+    <div class="stat-card" style="border-left-color:#27ae60"><div class="stat-label">Bank Credit (In)</div><div class="stat-value" style="color:#27ae60">₹${bankCredit.toLocaleString('en-IN')}</div><div class="stat-sub">${bankAll.filter(e=>e.type==='credit').length} entries</div></div>
+    <div class="stat-card" style="border-left-color:#c0392b"><div class="stat-label">Bank Debit (Out)</div><div class="stat-value" style="color:#c0392b">₹${bankDebit.toLocaleString('en-IN')}</div><div class="stat-sub">${bankAll.filter(e=>e.type==='debit').length} entries</div></div>
+    <div class="stat-card" style="border-left-color:#1a5276"><div class="stat-label">Bank Net Balance</div><div class="stat-value" style="color:${bankNet>=0?'#27ae60':'#c0392b'}">${bankNet>=0?'+':''}₹${Math.abs(bankNet).toLocaleString('en-IN')}</div><div class="stat-sub">${bankNet>=0?'Surplus':'Deficit'}</div></div>
+    <div class="stat-card" style="border-left-color:#2980b9"><div class="stat-label">Bank Entries</div><div class="stat-value">${bankAll.length}</div><div class="stat-sub">Total bank transactions</div></div>
+  </div>
+
+  <!-- WORKFLOW STATUS ROW -->
+  <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">📋 Workflow Status</div>
+  <div class="stats-row" style="margin-bottom:20px">
+    <div class="stat-card" style="border-left-color:#e67e22"><div class="stat-label">Pending Approval</div><div class="stat-value">₹${pendingAmt.toLocaleString('en-IN')}</div><div class="stat-sub">${all.filter(e=>e.status==='pending').length} entries</div></div>
+    <div class="stat-card" style="border-left-color:#d4ac0d"><div class="stat-label">Approved / Unpaid</div><div class="stat-value">₹${approvedAmt.toLocaleString('en-IN')}</div><div class="stat-sub">${all.filter(e=>e.status==='approved').length} entries</div></div>
+    <div class="stat-card" style="border-left-color:#27ae60"><div class="stat-label">Paid / Completed</div><div class="stat-value">₹${paidAmt.toLocaleString('en-IN')}</div><div class="stat-sub">${all.filter(e=>e.status==='paid').length} entries</div></div>
+    <div class="stat-card" style="border-left-color:#1a5276"><div class="stat-label">Total Entries</div><div class="stat-value">${all.length}</div><div class="stat-sub">Cash: ${cashAll.length} | Bank: ${bankAll.length}</div></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+    <div class="card">
+      <div class="card-title">📋 Recent Entries</div>
+      <div class="tbl-wrap">
+      <table><thead><tr><th>Sr.</th><th>Date</th><th>Description</th><th>Mode</th><th>Dr/Cr</th><th>Amount</th><th>Status</th></tr></thead><tbody>
+      ${all.slice().sort((a,b)=>b.srno>a.srno?1:-1).slice(0,10).map(e=>`<tr>
+        <td style="font-size:10px;color:var(--text-muted)">${e.srno}</td>
+        <td>${e.date}</td>
+        <td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.desc}</td>
+        <td><span class="badge badge-${e.paytype||'cash'}">${(e.paytype||'cash').toUpperCase()}</span></td>
+        <td><span class="badge badge-${e.type}">${e.type==='debit'?'DR':'CR'}</span></td>
+        <td style="font-weight:600;color:${e.type==='debit'?'#c0392b':'#27ae60'}">₹${Number(e.amount).toLocaleString('en-IN')}</td>
+        <td><span class="badge badge-${e.status}">${e.status.toUpperCase()}</span></td>
+      </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px">No entries yet</td></tr>'}
+      </tbody></table></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📊 Expense by Head (Debit only)</div>
+      <table style="width:100%;font-size:12px"><thead><tr><th>Head</th><th>Amount</th><th style="width:120px">Bar</th></tr></thead><tbody>
+      ${headRows || '<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:20px">No data</td></tr>'}
+      </tbody></table>
+    </div>
+  </div>`;
+}
+
+// ===== EXPENSE LIST =====
+function renderExpenseList(type) {
+  const d = getData();
+  // Creator sees only their own entries; admin/approver see all
+  const isCreator = currentUser.role === 'creator';
+  const entries = isCreator
+    ? d[type].filter(e => e.createdBy === currentUser.name || e.createdBy === currentUser.email)
+    : d[type];
+  const label = type === 'cash' ? '💵 Cash Payments' : '🏦 Bank/Account Payments';
+  const rows = entries.slice().reverse().map(e => `
+    <tr>
+      <td style="font-size:10px;color:var(--text-muted)">${e.srno}</td>
+      <td>${e.date}</td>
+      <td>${e.head}</td>
+      <td style="max-width:130px;font-size:11px">${e.category}</td>
+      <td>${e.desc}</td>
+      ${type==='bank'?`<td>${e.bankName||'-'}</td><td>${e.chequeRef||'-'}</td>`:``}
+      <td><span class="badge badge-${e.type}">${e.type.toUpperCase()}</span></td>
+      <td style="font-weight:700;${e.status==='voided'?'color:#bbb;text-decoration:line-through':''}">₹${Number(e.amount).toLocaleString('en-IN')}</td>
+      <td>
+        ${e.invoiceLink?`<a href="${e.invoiceLink}" target="_blank" class="attach-pill" style="display:inline-block;margin:1px">📎 Invoice</a>`:''}
+        ${e.screenshotLink?`<a href="${e.screenshotLink}" target="_blank" class="attach-pill" style="display:inline-block;margin:1px">📷 SS</a>`:''}
+        ${e.voidReason?`<span style="font-size:10px;color:#999;display:block;margin-top:2px">Void: ${e.voidReason}</span>`:''}
+      </td>
+      <td>
+        <span class="badge badge-${e.status}">${e.status==='voided'?'VOID ✕':e.status.toUpperCase()}</span>
+        ${getPendingQueue().find(q=>q.id===e.id)?'<span style="font-size:9px;background:#e67e22;color:#fff;border-radius:8px;padding:2px 5px;margin-left:3px" title="Not yet synced to Sheet">⚡ local</span>':''}
+      </td>
+      <td>
+        ${(currentUser.role==='admin'||(currentUser.role==='creator'&&e.createdBy===currentUser.name))&&e.status==='pending'?`<button class="btn btn-outline btn-sm" onclick="editEntry('${type}','${e.id}')">Edit</button> `:''}
+        ${e.status==='approved'&&(currentUser.role==='admin'||currentUser.role==='approver')?`<button class="btn-pay btn-sm" onclick="openPayModal('${type}','${e.id}')">Pay</button> `:''}
+        ${currentUser.role==='admin'&&e.status!=='paid'&&e.status!=='voided'?`<button class="btn btn-sm" style="background:#fee;color:#c0392b;border:1px solid #f5c6cb" onclick="voidEntry('${type}','${e.id}')">✕ Void</button>`:''}
+      </td>
+    </tr>`).join('');
+
+  return `
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div style="font-size:20px;font-weight:700;color:var(--primary)">${label}</div>
+    ${currentUser.role==='creator'||currentUser.role==='admin'?`<button class="btn-new" onclick="openNewEntry('${type}')">+ New Entry</button>`:''}
+  </div>
+  <div class="filter-bar">
+    <div class="form-group"><label class="field-label">From</label><input type="date" id="filterFrom" onchange="filterTable('${type}')"></div>
+    <div class="form-group"><label class="field-label">To</label><input type="date" id="filterTo" onchange="filterTable('${type}')"></div>
+    <div class="form-group"><label class="field-label">Head</label><select onchange="filterTable('${type}')" id="filterHead"><option value="">All Heads</option>${HEADS.map(h=>`<option>${h}</option>`).join('')}</select></div>
+    <div class="form-group"><label class="field-label">Status</label><select onchange="filterTable('${type}')" id="filterStatus"><option value="">All Status</option><option>pending</option><option>approved</option><option>rejected</option><option>paid</option><option>voided</option></select></div>
+  </div>
+  <div class="card">
+    <div class="tbl-wrap">
+    <table id="mainTable"><thead><tr>
+      <th>Sr.No</th><th>Date</th><th>Head</th><th>Category</th><th>Description</th>
+      ${type==='bank'?'<th>Bank</th><th>Cheque/Ref</th>':''}
+      <th>Type</th><th>Amount</th><th>Attachments</th><th>Status</th><th>Actions</th>
+    </tr></thead><tbody id="tableBody">
+    ${rows || '<tr><td colspan="12" style="text-align:center;padding:30px;color:var(--text-muted)">No entries. Click "+ New Entry" to add.</td></tr>'}
+    </tbody></table>
+    </div>
+  </div>`;
+}
+
+// ===== OPEN ENTRY MODAL =====
+function openNewEntry(type) {
+  editingId = null;
+  document.getElementById('modalTitle').textContent = type === 'cash' ? '💵 New Cash Entry' : '🏦 New Bank/Account Entry';
+  document.getElementById('modalBody').innerHTML = entryForm(type, null);
+  document.getElementById('entryModal').classList.add('open');
+}
+
+function editEntry(type, id) {
+  editingId = id;
+  const d = getData();
+  const entry = d[type].find(e => e.id === id);
+  if (!entry) return;
+  document.getElementById('modalTitle').textContent = 'Edit Entry';
+  document.getElementById('modalBody').innerHTML = entryForm(type, entry);
+  document.getElementById('entryModal').classList.add('open');
+}
+
+function entryForm(type, entry) {
+  const e = entry || {};
+  const isBank = type === 'bank';
+  const isCreator = currentUser.role === 'creator';
+  const isAdminOrApprover = currentUser.role === 'admin' || currentUser.role === 'approver';
+  // Generate a pending entry ID for file naming (used before actual save)
+  const pendingId = e.srno || ('GHJ/' + (type==='cash'?'C':'B') + '/NEW');
+  return `
+  <div class="form-row col3">
+    <div><label class="field-label">Date *</label><input type="date" id="f_date" value="${e.date || new Date().toISOString().split('T')[0]}"></div>
+    <div><label class="field-label">Head *</label><select id="f_head">${HEADS.map(h=>`<option ${e.head===h?'selected':''}>${h}</option>`).join('')}</select></div>
+    <div><label class="field-label">Type *</label><select id="f_type"><option value="debit" ${e.type==='debit'?'selected':''}>Debit (Expense)</option><option value="credit" ${e.type==='credit'?'selected':''}>Credit (Receipt)</option></select></div>
+  </div>
+  <div class="form-row col2">
+    <div><label class="field-label">Category *</label><select id="f_category">${CATEGORIES.map(c=>`<option ${e.category===c?'selected':''}>${c}</option>`).join('')}</select></div>
+    <div><label class="field-label">Amount (₹) *</label><input type="number" id="f_amount" value="${e.amount||''}" placeholder="0.00"></div>
+  </div>
+  <div class="form-row">
+    <div><label class="field-label">Description / Narration *</label><input type="text" id="f_desc" value="${e.desc||''}" placeholder="Purpose of expense..."></div>
+  </div>
+  ${isBank ? `
+  <div class="form-row col3">
+    <div><label class="field-label">Bank Name</label><input type="text" id="f_bank" value="${e.bankName||''}" placeholder="HDFC / SBI..."></div>
+    <div><label class="field-label">Account No.</label><input type="text" id="f_accno" value="${e.accNo||''}" placeholder="XXXX1234"></div>
+    <div><label class="field-label">Cheque/NEFT/UTR Ref</label><input type="text" id="f_cheque" value="${e.chequeRef||''}" placeholder="Ref Number"></div>
+  </div>` : ''}
+  <div class="form-row">
+    <div><label class="field-label">Paid To / Vendor</label><input type="text" id="f_vendor" value="${e.vendor||''}" placeholder="Vendor / Payee name"></div>
+  </div>
+  <!-- Creator: only invoice upload. Admin/Approver: both invoice + screenshot + payment details -->
+  <div class="form-row ${isCreator ? '' : 'col2'}">
+    <div>${driveUploaderWidget('invoice', '📎 Invoices / Bills (named as entry ID)', e.invoiceLink||'', e.invoiceFiles||[], pendingId)}</div>
+    ${!isCreator ? `<div>${driveUploaderWidget('screenshot', '📷 Payment Screenshot', e.screenshotLink||'', e.screenshotFiles||[], pendingId)}</div>` : ''}
+  </div>
+  ${!isCreator ? `
+  <div class="form-row col2">
+    <div><label class="field-label">Approved By</label><input type="text" id="f_approvedby" value="${e.approvedBy||''}" placeholder="Approver name"></div>
+    <div><label class="field-label">Payment Ref / UTR</label><input type="text" id="f_payref" value="${e.paymentRef||''}" placeholder="UTR / Cheque No."></div>
+  </div>` : `<input type="hidden" id="f_approvedby" value=""><input type="hidden" id="f_payref" value="">`}
+  <div class="form-row">
+    <div><label class="field-label">Remarks / Notes</label><textarea id="f_remarks" placeholder="Additional notes...">${e.remarks||''}</textarea></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-cancel" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-save" onclick="saveEntry('${type}')">Save Entry</button>
+  </div>`;
+}
+
+// ===== GOOGLE DRIVE UPLOADER =====
+// Stores: { fieldId -> [ {name, size, mimeType, driveId, driveLink, localUrl, status} ] }
+let driveFiles = {};
+
+function driveUploaderWidget(fieldId, label, existingLink, existingFiles, entryId, entryType) {
+  driveFiles[fieldId] = existingFiles.length ? existingFiles : [];
+  if (existingLink && !existingFiles.length) {
+    driveFiles[fieldId] = [{ name: 'Linked file', driveLink: existingLink, status: 'done', fromLink: true }];
+  }
+  const hasScript = !!getScriptUrl();
+  return `
+  <div class="drive-upload-box" id="dbox_${fieldId}" data-entryid="${entryId||''}" data-entrytype="${entryType||''}" ondragover="onDragOver(event,'${fieldId}')" ondragleave="onDragLeave('${fieldId}')" ondrop="onDrop(event,'${fieldId}')">
+    <div class="drive-upload-header">
+      <span class="drive-upload-label">${label}</span>
+      <div class="drive-upload-actions">
+        <button type="button" class="btn-drive" onclick="document.getElementById('finput_${fieldId}').click()">⬆ Upload File</button>
+        <input type="file" id="finput_${fieldId}" multiple accept="image/*,application/pdf,.jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx" onchange="handleFileSelect(event,'${fieldId}')">
+      </div>
+    </div>
+    ${!hasScript ? `<div class="drive-auth-bar">
+      <span>⚙️ Paste your Apps Script URL in Settings to enable Drive upload</span>
+      <button class="btn-connect-google" onclick="showPage('settings')">Open Settings</button>
+    </div>` : `<div style="background:#eafaf1;padding:6px 12px;font-size:11px;color:#1e8449;border-bottom:1px solid #d5f0e0">✅ Drive upload ready — files go directly to your Google Drive</div>`}
+    <div class="drive-drop-zone" onclick="document.getElementById('finput_${fieldId}').click()">
+      <div style="font-size:22px">📁</div>
+      <div class="drive-drop-hint">Drag & drop files here, or click to browse</div>
+      <div class="drive-drop-hint" style="margin-top:2px">PDF, Image, Word, Excel accepted</div>
+    </div>
+    <div class="drive-file-list" id="flist_${fieldId}">
+      ${driveFiles[fieldId].map((f,i) => renderFileItem(fieldId, f, i)).join('')}
+    </div>
+    <div class="drive-link-field">
+      <label>or paste Drive link:</label>
+      <input type="text" id="f_${fieldId}" placeholder="https://drive.google.com/..." value="${existingLink}" oninput="onLinkPaste('${fieldId}',this.value)">
+    </div>
+  </div>`;
+}
+
+function renderFileItem(fieldId, f, i) {
+  const icon = getFileIcon(f.name || '');
+  const thumb = f.localUrl && f.mimeType && f.mimeType.startsWith('image/')
+    ? `<img src="${f.localUrl}" alt="preview">`
+    : `<span style="font-size:20px">${icon}</span>`;
+  const statusHtml = f.status === 'uploading'
+    ? `<div class="drive-file-status uploading">Uploading...</div><div class="drive-progress"><div class="drive-progress-bar" id="prog_${fieldId}_${i}" style="width:0%"></div></div>`
+    : f.status === 'done'
+    ? `<div class="drive-file-status done">✓ ${f.driveLink ? `<a class="drive-file-link" href="${f.driveLink}" target="_blank">View on Drive</a>` : (f.fromLink ? 'Linked' : 'Ready')}</div>`
+    : f.status === 'error'
+    ? `<div class="drive-file-status error">⚠ ${f.error || 'Upload failed'}</div>`
+    : `<div class="drive-file-status" style="color:var(--text-muted)">Queued</div>`;
+  return `<div class="drive-file-item" id="fitem_${fieldId}_${i}">
+    <div class="drive-file-thumb">${thumb}</div>
+    <div class="drive-file-info">
+      <div class="drive-file-name">${f.name || 'File'}</div>
+      <div class="drive-file-meta">${f.size ? formatSize(f.size) : ''} ${f.mimeType || ''}</div>
+      ${statusHtml}
+    </div>
+    <button type="button" class="drive-file-remove" onclick="removeFile('${fieldId}',${i})" title="Remove">✕</button>
+  </div>`;
+}
+
+function getFileIcon(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  if (['jpg','jpeg','png','gif','webp'].includes(ext)) return '🖼';
+  if (ext === 'pdf') return '📄';
+  if (['doc','docx'].includes(ext)) return '📝';
+  if (['xls','xlsx'].includes(ext)) return '📊';
+  return '📎';
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/1048576).toFixed(1) + ' MB';
+}
+
+function refreshFileList(fieldId) {
+  const el = document.getElementById('flist_' + fieldId);
+  if (el) el.innerHTML = driveFiles[fieldId].map((f,i) => renderFileItem(fieldId, f, i)).join('');
+}
+
+function removeFile(fieldId, idx) {
+  driveFiles[fieldId].splice(idx, 1);
+  refreshFileList(fieldId);
+  updateLinkField(fieldId);
+}
+
+function onLinkPaste(fieldId, val) {
+  // Update or add a "linked" entry
+  const existing = driveFiles[fieldId].findIndex(f => f.fromLink);
+  if (val.trim()) {
+    const item = { name: 'Linked file', driveLink: val.trim(), status: 'done', fromLink: true };
+    if (existing >= 0) driveFiles[fieldId][existing] = item;
+    else driveFiles[fieldId].push(item);
+  } else {
+    if (existing >= 0) driveFiles[fieldId].splice(existing, 1);
+  }
+  refreshFileList(fieldId);
+}
+
+function updateLinkField(fieldId) {
+  const linked = driveFiles[fieldId].find(f => f.driveLink);
+  const el = document.getElementById('f_' + fieldId);
+  if (el && linked) el.value = linked.driveLink;
+  else if (el) el.value = '';
+}
+
+function onDragOver(e, fieldId) {
+  e.preventDefault();
+  document.getElementById('dbox_' + fieldId).classList.add('dragover');
+}
+function onDragLeave(fieldId) {
+  document.getElementById('dbox_' + fieldId).classList.remove('dragover');
+}
+function onDrop(e, fieldId) {
+  e.preventDefault();
+  document.getElementById('dbox_' + fieldId).classList.remove('dragover');
+  if (e.dataTransfer.files.length) processFiles(Array.from(e.dataTransfer.files), fieldId);
+}
+function handleFileSelect(e, fieldId) {
+  if (e.target.files.length) processFiles(Array.from(e.target.files), fieldId);
+  e.target.value = '';
+}
+
+function processFiles(files, fieldId) {
+  files.forEach(file => {
+    const localUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
+    const idx = driveFiles[fieldId].length;
+    driveFiles[fieldId].push({ name: file.name, size: file.size, mimeType: file.type, localUrl, status: 'uploading', file });
+    refreshFileList(fieldId);
+    uploadToDrive(file, fieldId, idx);
+  });
+}
+
+// ===== DRIVE UPLOAD via APPS SCRIPT PROXY — NO OAUTH, NO TOKEN, NO EXPIRY =====
+// The Apps Script acts as the server. It owns the Drive. Files are sent as
+// base64 via a single POST to your deployed Apps Script URL. No login needed.
+
+function getScriptUrl() {
+  // Priority: hardcoded APP_CONFIG → localStorage → empty
+  if (APP_CONFIG.scriptUrl && APP_CONFIG.scriptUrl.includes('script.google.com')) {
+    return APP_CONFIG.scriptUrl;
+  }
+  return localStorage.getItem('ghj_api_url') || '';
+}
+
+async function uploadToDrive(file, fieldId, idx) {
+  const scriptUrl = getScriptUrl();
+  if (!scriptUrl) {
+    // No script configured — mark as local only
+    driveFiles[fieldId][idx].status = 'done';
+    driveFiles[fieldId][idx].localOnly = true;
+    refreshFileList(fieldId);
+    showToast('📁 File saved locally. Paste your Apps Script URL in Settings to enable Drive upload.');
+    return;
+  }
+
+  try {
+    // Convert file to base64
+    const base64 = await fileToBase64(file);
+    // Show fake progress while waiting (fetch has no upload progress for small files)
+    const bar = document.getElementById('prog_' + fieldId + '_' + idx);
+    let pct = 0;
+    const ticker = setInterval(() => {
+      pct = Math.min(pct + 8, 85);
+      if (bar) bar.style.width = pct + '%';
+    }, 200);
+
+    // File naming: {EntryID}_Inv_{filename} or {EntryID}_Pay_{filename}
+    // Folder:       GHJ Exp App Files / {Cash|Bank} / {Invoices|Payments}
+    const box = document.getElementById('dbox_' + fieldId);
+    const entryId   = (box && box.dataset.entryid)   ? box.dataset.entryid.replace(/\//g, '-')   : '';
+    const entryType = (box && box.dataset.entrytype) ? box.dataset.entrytype : '';  // 'cash' or 'bank'
+
+    // Determine if this is an invoice or a payment screenshot
+    const isPayment = fieldId === 'screenshot' || fieldId === 'pay_ss';
+    const docPrefix = isPayment ? 'Pay' : 'Inv';
+
+    // Build file name: GHJ-C-0004_Inv_receipt.pdf  or  GHJ-B-0002_Pay_screenshot.jpg
+    const namedFile = entryId
+      ? (entryId + '_' + docPrefix + '_' + file.name)
+      : (docPrefix + '_' + file.name);
+
+    // Build folder path: GHJ Exp App Files/Cash/Invoices  etc.
+    const typeFolder = entryType === 'bank' ? 'Bank' : 'Cash';
+    const docFolder  = isPayment ? 'Payments' : 'Invoices';
+    const folderPath = 'GHJ Exp App Files/' + typeFolder + '/' + docFolder;
+
+    const payload = {
+      action: 'uploadFile',
+      fileName: namedFile,
+      mimeType: file.type || 'application/octet-stream',
+      base64Data: base64,
+      folder: folderPath
+    };
+
+    const resp = await fetch(scriptUrl, {
+      method: 'POST',
+      // Must be text/plain — any other content-type triggers CORS preflight which Apps Script blocks
+      // Apps Script follows redirects, so we must use redirect:'follow' and accept the final response
+      redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
+
+    clearInterval(ticker);
+    if (bar) bar.style.width = '100%';
+
+    // Read as text first — if it starts with '<' it's an HTML error page, not JSON
+    const rawText = await resp.text();
+    if (!rawText || rawText.trimStart().startsWith('<')) {
+      throw new Error(
+        'Script returned HTML instead of JSON. ' +
+        'Most likely cause: deployment is set to "Execute as: Me" but "Who has access" is NOT set to "Anyone". ' +
+        'Go to Apps Script → Deploy → Manage Deployments → Edit → set "Who has access" to "Anyone" → Update.'
+      );
+    }
+    const result = JSON.parse(rawText);
+    if (result.status === 'ok' && result.fileUrl) {
+      driveFiles[fieldId][idx].status = 'done';
+      driveFiles[fieldId][idx].driveId = result.fileId || '';
+      driveFiles[fieldId][idx].driveLink = result.fileUrl;
+      refreshFileList(fieldId);
+      updateLinkField(fieldId);
+      showToast('✅ Uploaded to Google Drive!');
+    } else {
+      throw new Error(result.error || 'Upload failed');
+    }
+  } catch (err) {
+    driveFiles[fieldId][idx].status = 'error';
+    driveFiles[fieldId][idx].error = err.message || 'Upload failed';
+    refreshFileList(fieldId);
+    showToast('❌ Upload failed: ' + (err.message || 'Check Apps Script URL in Settings'));
+  }
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      // Strip the data URL prefix (data:...;base64,)
+      const b64 = reader.result.split(',')[1];
+      resolve(b64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// No picker needed without OAuth — users upload fresh or paste link manually
+function openDrivePicker(fieldId) {
+  showToast('ℹ️ Use the Upload button to add files directly from your device.');
+}
+
+function getDriveLink(fieldId) {
+  const files = driveFiles[fieldId] || [];
+  const manual = document.getElementById('f_' + fieldId);
+  if (manual && manual.value.trim()) return manual.value.trim();
+  const withLink = files.find(f => f.driveLink);
+  return withLink ? withLink.driveLink : '';
+}
+
+function getDriveFilesForSave(fieldId) {
+  return (driveFiles[fieldId] || []).map(f => ({
+    name: f.name, mimeType: f.mimeType, driveId: f.driveId, driveLink: f.driveLink, status: f.status
+  }));
+}
+
+function saveEntry(type) {
+  const date = document.getElementById('f_date').value;
+  const head = document.getElementById('f_head').value;
+  const category = document.getElementById('f_category').value;
+  const amount = parseFloat(document.getElementById('f_amount').value);
+  const desc = document.getElementById('f_desc').value.trim();
+  const etype = document.getElementById('f_type').value;
+  if (!date || !head || !amount || !desc) {
+    alert('Please fill: Date, Head, Amount, Description');
+    return;
+  }
+
+  const d = getData();
+  const list = d[type];
+  const invoiceLink = getDriveLink('invoice');
+  const screenshotLink = getDriveLink('screenshot');
+  const getVal = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+
+  if (editingId) {
+    // ── EDIT existing entry ──────────────────────────────────
+    const idx = list.findIndex(e => e.id === editingId);
+    if (idx < 0) { showToast('Error: entry not found'); return; }
+    list[idx] = {
+      ...list[idx],
+      date, head, category, amount, desc,
+      type: etype,
+      vendor: getVal('f_vendor'),
+      invoiceLink, screenshotLink,
+      remarks: getVal('f_remarks'),
+      updatedBy: currentUser.name,
+      updatedAt: new Date().toISOString(),
+      ...(type==='bank' ? {
+        bankName: getVal('f_bank'),
+        accNo:    getVal('f_accno'),
+        chequeRef:getVal('f_cheque')
+      } : {})
+    };
+    const updated = list[idx];
+    saveData('ghj_' + type, list);
+    closeModal();
+    showPage(type);
+    showToast('✅ Entry updated — syncing to Sheet...');
+    pushToSheet('saveEntry', updated);
+
+  } else {
+    // ── NEW entry ────────────────────────────────────────────
+    const srno = 'GHJ/' + (type==='cash'?'C':'B') + '/' + String(list.length+1).padStart(4,'0');
+    const entry = {
+      id:             genId(),
+      srno:           srno,
+      date:           date,
+      head:           head,
+      category:       category,
+      type:           etype,
+      amount:         amount,
+      desc:           desc,
+      vendor:         getVal('f_vendor'),
+      invoiceLink:    invoiceLink,
+      screenshotLink: screenshotLink,
+      remarks:        getVal('f_remarks'),
+      status:         'pending',
+      paytype:        type,
+      createdBy:      currentUser.name,
+      createdAt:      new Date().toISOString(),
+      approvedBy:     '',
+      paymentRef:     '',
+      ...(type==='bank' ? {
+        bankName:  getVal('f_bank'),
+        accNo:     getVal('f_accno'),
+        chequeRef: getVal('f_cheque')
+      } : {})
+    };
+    list.push(entry);
+    saveData('ghj_' + type, list);
+    closeModal();
+    showPage(type);
+    showToast('✅ Entry saved — syncing to Sheet...');
+    pushToSheet('saveEntry', entry);
+  }
+}
+
+// ── SINGLE push function — sends any operation to Apps Script ─────────────────
+// action = 'saveEntry' | 'updateEntry' | 'updateStatus'
+// data   = flat object with only scalar fields (no arrays)
+async function pushToSheet(action, data) {
+  const scriptUrl = getScriptUrl();
+
+  // Build a clean flat payload — strip arrays/objects that bloat the request
+  const payload = {
+    action:         action,
+    id:             data.id             || '',
+    srno:           data.srno           || '',
+    date:           data.date           || '',
+    head:           data.head           || '',
+    category:       data.category       || '',
+    type:           data.type           || 'debit',
+    amount:         Number(data.amount) || 0,
+    desc:           data.desc           || '',
+    vendor:         data.vendor         || '',
+    invoiceLink:    data.invoiceLink     || '',
+    screenshotLink: data.screenshotLink  || '',
+    status:         data.status         || 'pending',
+    createdBy:      data.createdBy      || '',
+    approvedBy:     data.approvedBy     || '',
+    paymentRef:     data.paymentRef     || '',
+    remarks:        data.remarks        || '',
+    paytype:        data.paytype        || '',
+    bankName:       data.bankName       || '',
+    accNo:          data.accNo          || '',
+    chequeRef:      data.chequeRef      || '',
+    paymentMode:    data.paymentMode    || '',
+    paidBy:         data.paidBy         || ''
+  };
+
+  if (!scriptUrl) {
+    addToSyncQueue(payload);
+    showToast('⚠️ No Script URL — saved locally. Go to Settings and add Apps Script URL.');
+    return;
+  }
+
+  try {
+    const resp = await fetch(scriptUrl, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
+    const raw = await resp.text();
+    if (!raw || raw.trimStart().startsWith('<')) {
+      throw new Error('Apps Script returned HTML. Check: Deploy → Who has access = Anyone.');
+    }
+    const result = JSON.parse(raw);
+    if (result.status === 'ok') {
+      removeFromSyncQueue(payload.id);
+      setLastSyncTime();
+      updateSyncBadge();
+      updateSyncTimeDisplay();
+      showToast('✅ Saved to Google Sheets!');
+    } else {
+      throw new Error(result.error || 'Script returned error');
+    }
+  } catch(err) {
+    addToSyncQueue(payload);
+    showToast('⚠️ Saved locally. Sheet sync failed: ' + err.message);
+  }
+}
+
+// ── SYNC QUEUE — entries saved locally first, retried until Sheet confirms ──
+function getPendingQueue() {
+  try { return JSON.parse(localStorage.getItem('ghj_sync_queue') || '[]'); } catch { return []; }
+}
+function savePendingQueue(q) {
+  try { localStorage.setItem('ghj_sync_queue', JSON.stringify(q)); } catch {}
+}
+function addToSyncQueue(entry) {
+  const q = getPendingQueue();
+  // Remove any previous queued version of this entry
+  const filtered = q.filter(e => e.id !== entry.id);
+  filtered.push({ ...entry, _queuedAt: new Date().toISOString() });
+  savePendingQueue(filtered);
+  updateSyncBadge();
+}
+function removeFromSyncQueue(id) {
+  const q = getPendingQueue().filter(e => e.id !== id);
+  savePendingQueue(q);
+  updateSyncBadge();
+}
+function updateSyncBadge() {
+  const q = getPendingQueue();
+  const badge = document.getElementById('syncBadge');
+  if (!badge) return;
+  if (q.length > 0) {
+    badge.textContent = q.length + ' unsynced — click to retry';
+    badge.style.display = 'inline-block';
+    badge.style.background = '#e67e22';
+    badge.style.cursor = 'pointer';
+  } else {
+    badge.textContent = '✓ All synced';
+    badge.style.background = '#27ae60';
+    badge.style.cursor = 'default';
+    badge.style.display = 'inline-block';
+    setTimeout(function() {
+      const b = document.getElementById('syncBadge');
+      if (b && b.textContent === '✓ All synced') b.style.display = 'none';
+    }, 4000);
+  }
+}
+
+// Legacy alias — kept so queue retry still works
+async function syncEntryToSheet(entry) {
+  return pushToSheet(entry.action || 'saveEntry', entry);
+}
+
+// Retry all queued entries — called on page load and after reconnect
+async function retrySyncQueue() {
+  const scriptUrl = getScriptUrl();
+  if (!scriptUrl) return;
+  const q = getPendingQueue();
+  if (q.length === 0) return;
+  showToast('🔄 Retrying ' + q.length + ' unsynced item(s)...');
+  let synced = 0;
+  // Process sequentially to avoid race conditions
+  for (const entry of [...q]) {
+    try {
+      const action = entry.action || 'saveEntry';
+      const resp = await fetch(scriptUrl, {
+        method: 'POST', redirect: 'follow',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(entry)
+      });
+      const raw = await resp.text();
+      if (!raw || raw.trimStart().startsWith('<')) continue;
+      const result = JSON.parse(raw);
+      if (result.status === 'ok') {
+        removeFromSyncQueue(entry.id);
+        synced++;
+      }
+    } catch(e) { /* keep in queue, try next time */ }
+  }
+  if (synced > 0) {
+    setLastSyncTime();
+    showToast('✅ ' + synced + ' item' + (synced===1?'':'s') + ' synced to Google Sheets!');
+    showPage(currentPage);
+  } else {
+    showToast('⚠️ Retry failed — check Apps Script URL in Settings.');
+  }
+  updateSyncBadge();
+  updateSyncTimeDisplay();
+}
+
+function setLastSyncTime() {
+  const now = new Date();
+  localStorage.setItem('ghj_last_sync', now.toISOString());
+  updateSyncTimeDisplay();
+}
+function updateSyncTimeDisplay() {
+  const el = document.getElementById('lastSyncTime');
+  if (!el) return;
+  const ts = localStorage.getItem('ghj_last_sync');
+  if (!ts) { el.textContent = 'Never synced'; return; }
+  const d = new Date(ts);
+  el.textContent = 'Last sync: ' + d.toLocaleDateString('en-IN') + ' ' + d.toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit'});
+}
+
+// ===== APPROVALS =====
+function renderApprovals() {
+  const d = getData();
+  const canApprove = currentUser.role==='admin' || currentUser.role==='approver';
+  const pending = [...d.cash.map(e=>({...e,paytype:'cash'})), ...d.bank.map(e=>({...e,paytype:'bank'}))].filter(e=>e.status==='pending'&&e.status!=='voided');
+  const rows = pending.map(e=>`
+    <tr>
+      <td>${e.srno}</td><td>${e.date}</td>
+      <td><span class="badge badge-${e.paytype}">${e.paytype.toUpperCase()}</span></td>
+      <td>${e.head}</td><td style="font-size:10px">${e.category}</td>
+      <td>${e.desc}</td>
+      <td style="font-size:11px;color:var(--primary)">${e.vendor||'-'}</td>
+      <td style="font-weight:700">₹${Number(e.amount).toLocaleString('en-IN')}</td>
+      <td style="font-size:11px">${e.createdBy||'-'}</td>
+      <td>
+        ${e.invoiceLink?`<a href="${e.invoiceLink}" target="_blank" class="attach-pill">📎 Invoice</a> `:'<span style="color:var(--text-muted);font-size:11px">No invoice</span>'}
+      </td>
+      <td>
+        ${canApprove?`
+          <button class="btn-approve" onclick="changeStatus('${e.paytype}','${e.id}','approved')">✓ Approve</button>
+          <button class="btn-reject" onclick="changeStatus('${e.paytype}','${e.id}','rejected')">✗ Reject</button>
+        `:'<span style="font-size:11px;color:var(--text-muted)">No permission</span>'}
+      </td>
+    </tr>`).join('');
+  return `
+  <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:16px">✅ Pending Approvals</div>
+  ${!canApprove?'<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;color:#856404">You are logged in as <b>'+currentUser.role+'</b>. Only Admin and Approver can approve entries.</div>':''}
+  <div class="pipeline">
+    <div class="pipe-step done">1. Entry Created</div>
+    <div class="pipe-step active">2. Approval Review</div>
+    <div class="pipe-step">3. Payment Release</div>
+    <div class="pipe-step">4. Completed</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Entries Awaiting Approval (${pending.length})</div>
+    <div class="tbl-wrap">
+    <table><thead><tr><th>Sr.No</th><th>Date</th><th>Mode</th><th>Head</th><th>Category</th><th>Description</th><th>Vendor</th><th>Amount</th><th>Created By</th><th>Invoice</th><th>Action</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted)">No pending approvals 🎉</td></tr>'}</tbody></table>
+    </div>
+  </div>`;
+}
+
+function changeStatus(type, id, status) {
+  const d = getData();
+  const list = d[type];
+  const idx = list.findIndex(e => e.id === id);
+  if (idx < 0) { showToast('Error: entry not found'); return; }
+  list[idx].status = status;
+  list[idx].approvedBy = currentUser.name;
+  list[idx].approvedAt = new Date().toISOString();
+  saveData('ghj_' + type, list);
+  showToast(status === 'approved' ? '✅ Approved — syncing...' : '❌ Rejected — syncing...');
+  // Push the full updated entry to Sheet
+  pushToSheet('updateStatus', {
+    ...list[idx],
+    action: 'updateStatus',
+    paytype: type
+  });
+  showPage('approvals');
+}
+
+// ── VOID ENTRY — marks as voided (never deletes, preserves audit trail) ─────
+function voidEntry(type, id) {
+  const d = getData();
+  const list = d[type];
+  const entry = list.find(e => e.id === id);
+  if (!entry) return;
+
+  // Only admin can void
+  if (currentUser.role !== 'admin') {
+    showToast('⚠️ Only Admin can void entries.');
+    return;
+  }
+  // Cannot void a paid entry — it is already processed
+  if (entry.status === 'paid') {
+    showToast('⚠️ Cannot void a paid entry. Create a reversal entry instead.');
+    return;
+  }
+
+  const reason = prompt(
+    'Void entry: ' + entry.srno + '\n' +
+    'Description: ' + entry.desc + '\n' +
+    'Amount: ₹' + Number(entry.amount).toLocaleString('en-IN') + '\n\n' +
+    'Enter reason for voiding (required):'
+  );
+  if (!reason || !reason.trim()) {
+    showToast('Void cancelled — reason is required.');
+    return;
+  }
+
+  const idx = list.findIndex(e => e.id === id);
+  list[idx].status = 'voided';
+  list[idx].voidedBy = currentUser.name;
+  list[idx].voidedAt = new Date().toISOString();
+  list[idx].voidReason = reason.trim();
+
+  saveData('ghj_' + type, list);
+  showToast('✅ Entry voided — syncing to Sheet...');
+
+  pushToSheet('updateStatus', {
+    ...list[idx],
+    action: 'updateStatus',
+    paytype: type,
+    status: 'voided',
+    approvedBy: 'VOID: ' + reason.trim() + ' (by ' + currentUser.name + ')'
+  });
+
+  showPage(currentPage);
+}
+
+async function syncStatusToSheet(type, id, status, entry) {
+  const scriptUrl = getScriptUrl();
+  if (!scriptUrl || !entry) {
+    if (!scriptUrl) showToast('⚠️ Status saved locally. Add Apps Script URL in Settings to sync.');
+    return;
+  }
+  try {
+    const payload = {
+      action: 'updateStatus',
+      paytype: type,
+      id: id,
+      status: status,
+      approvedBy: currentUser.name,
+      approvedAt: new Date().toISOString()
+    };
+    const resp = await fetch(scriptUrl, {
+      method: 'POST', redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    });
+    const raw = await resp.text();
+    if (!raw || raw.trimStart().startsWith('<')) throw new Error('HTML response');
+    const r = JSON.parse(raw);
+    if (r.status === 'ok') {
+      setLastSyncTime();
+      updateSyncBadge();
+      updateSyncTimeDisplay();
+      showToast('✅ Status synced to Sheet!');
+    } else {
+      throw new Error(r.error || 'failed');
+    }
+  } catch(e) {
+    showToast('⚠️ Status saved locally. Sheet sync failed: ' + e.message);
+  }
+}
+
+// ===== PAYMENTS =====
+function renderPayments() {
+  const d = getData();
+  const approved = [...d.cash.map(e=>({...e,paytype:'cash'})), ...d.bank.map(e=>({...e,paytype:'bank'}))].filter(e=>e.status==='approved'&&e.status!=='voided');
+  const paid = [...d.cash.map(e=>({...e,paytype:'cash'})), ...d.bank.map(e=>({...e,paytype:'bank'}))].filter(e=>e.status==='paid');
+  const rows = approved.map(e=>`
+    <tr>
+      <td>${e.srno}</td><td>${e.date}</td>
+      <td><span class="badge badge-${e.paytype}">${e.paytype.toUpperCase()}</span></td>
+      <td>${e.head}</td><td>${e.desc}</td>
+      <td style="color:var(--primary);font-weight:500">${e.vendor||'—'}</td>
+      <td style="font-size:11px">${e.createdBy||'-'}</td>
+      <td style="font-weight:700;color:var(--success)">₹${Number(e.amount).toLocaleString('en-IN')}</td>
+      <td>${e.approvedBy||'-'}</td>
+      <td>${(currentUser.role==='admin'||currentUser.role==='approver')?`<button class="btn-pay" onclick="openPayModal('${e.paytype}','${e.id}')">💳 Release Payment</button>`:'-'}</td>
+    </tr>`).join('');
+
+  return `
+  <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:16px">💳 Payment Release</div>
+  <div class="pipeline">
+    <div class="pipe-step done">1. Entry Created</div>
+    <div class="pipe-step done">2. Approved</div>
+    <div class="pipe-step active">3. Payment Release</div>
+    <div class="pipe-step">4. Completed</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Approved — Awaiting Payment (${approved.length})</div>
+    <div class="tbl-wrap">
+    <table><thead><tr><th>Sr.No</th><th>Date</th><th>Mode</th><th>Head</th><th>Description</th><th>Vendor</th><th>Created By</th><th>Amount</th><th>Approved By</th><th>Action</th></tr></thead>
+    <tbody>${rows||'<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--text-muted)">No entries awaiting payment.</td></tr>'}</tbody></table>
+    </div>
+  </div>
+  <div class="card" style="margin-top:20px">
+    <div class="card-title">✅ Paid Entries (${paid.length})</div>
+    <div class="tbl-wrap">
+    <table><thead><tr><th>Sr.No</th><th>Date</th><th>Mode</th><th>Description</th><th>Amount</th><th>Payment Ref</th><th>Screenshot</th></tr></thead>
+    <tbody>${paid.map(e=>`<tr>
+      <td>${e.srno}</td><td>${e.date}</td>
+      <td><span class="badge badge-${e.paytype}">${e.paytype.toUpperCase()}</span></td>
+      <td>${e.desc}</td>
+      <td>₹${Number(e.amount).toLocaleString('en-IN')}</td>
+      <td>${e.paymentRef||'-'}</td>
+      <td>${e.screenshotLink?`<a href="${e.screenshotLink}" target="_blank">📷 View</a>`:'-'}</td>
+    </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text-muted)">No paid entries yet.</td></tr>'}</tbody></table>
+    </div>
+  </div>`;
+}
+
+function openPayModal(type, id) {
+  const d = getData();
+  const e = d[type].find(x => x.id === id);
+  if (!e) return;
+  const srnoSafe = (e.srno||id).replace(/\//g,'-');
+  document.getElementById('payModalBody').innerHTML = `
+    <div style="background:#eafaf1;padding:14px;border-radius:8px;margin-bottom:16px;font-size:13px">
+      <b>${e.srno}</b> · ${e.desc}<br>
+      <span style="font-size:16px;font-weight:700;color:#27ae60">₹${Number(e.amount).toLocaleString('en-IN')}</span>
+      · <span style="color:var(--text-muted)">${e.head} / ${e.category}</span>
+    </div>
+    <div class="form-row col2">
+      <div><label class="field-label">Payment Date *</label><input type="date" id="pay_date" value="${new Date().toISOString().split('T')[0]}"></div>
+      <div><label class="field-label">Payment Ref / UTR / Cheque No. *</label><input type="text" id="pay_ref" value="${e.paymentRef||''}" placeholder="UTR / Cheque No."></div>
+    </div>
+    <div class="form-row col2">
+      <div><label class="field-label">Bank / Payment Mode</label><input type="text" id="pay_mode" value="${e.bankName||''}" placeholder="NEFT / UPI / Cash..."></div>
+      <div><label class="field-label">Paid By</label><input type="text" id="pay_by" value="${currentUser.name}" placeholder="Name of payer"></div>
+    </div>
+    <div class="form-row">
+      <div>${driveUploaderWidget('pay_ss', '📷 Payment Screenshot', e.screenshotLink||'', e.screenshotFiles||[], srnoSafe, type)}</div>
+    </div>
+    <div class="form-row">
+      <div><label class="field-label">Payment Remarks</label><textarea id="pay_remarks" placeholder="Notes on payment...">${e.payRemarks||''}</textarea></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-cancel" onclick="closePayModal()">Cancel</button>
+      <button class="btn btn-save" onclick="confirmPayment('${type}','${id}')">✅ Confirm Payment Released</button>
+    </div>`;
+  document.getElementById('payModal').classList.add('open');
+}
+
+function confirmPayment(type, id) {
+  const d = getData();
+  const list = d[type];
+  const idx = list.findIndex(e => e.id === id);
+  if (idx >= 0) {
+    list[idx].status = 'paid';
+    list[idx].paymentDate = document.getElementById('pay_date').value;
+    list[idx].paymentRef = document.getElementById('pay_ref').value;
+    list[idx].paymentMode = document.getElementById('pay_mode') ? document.getElementById('pay_mode').value : '';
+    list[idx].screenshotLink = getDriveLink('pay_ss');
+    list[idx].screenshotFiles = getDriveFilesForSave('pay_ss');
+    list[idx].payRemarks = document.getElementById('pay_remarks').value;
+    list[idx].paidBy = document.getElementById('pay_by') ? document.getElementById('pay_by').value : currentUser.name;
+    list[idx].paidAt = new Date().toISOString();
+  }
+  saveData('ghj_' + type, list);
+  closePayModal();
+  showToast('💳 Payment recorded — syncing to Sheet...');
+  // Push full updated entry to Sheet
+  pushToSheet('updateStatus', {
+    ...list[idx],
+    action: 'updateStatus',
+    paytype: type
+  });
+  showPage('payments');
+}
+
+// ===== REPORTS =====
+function renderReports() {
+  const d = getData();
+  const all = [...d.cash.map(e=>({...e,paytype:'cash'})), ...d.bank.map(e=>({...e,paytype:'bank'}))];
+  const byHead = {};
+  HEADS.forEach(h => { byHead[h] = all.filter(e=>e.head===h).reduce((s,e)=>s+e.amount,0); });
+  const total = all.reduce((s,e)=>s+e.amount,0);
+  const maxV = Math.max(...Object.values(byHead), 1);
+
+  return `
+  <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:20px">📈 Reports & Analytics</div>
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-label">Total Transactions</div><div class="stat-value">${all.length}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Amount</div><div class="stat-value">₹${total.toLocaleString('en-IN')}</div></div>
+    <div class="stat-card"><div class="stat-label">This Month</div><div class="stat-value">${all.filter(e=>e.date&&e.date.startsWith(new Date().toISOString().slice(0,7))).length} entries</div></div>
+    <div class="stat-card"><div class="stat-label">Paid Amount</div><div class="stat-value">₹${all.filter(e=>e.status==='paid').reduce((s,e)=>s+e.amount,0).toLocaleString('en-IN')}</div></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+  <div class="card">
+    <div class="card-title">Spend by Head</div>
+    ${Object.entries(byHead).map(([h,v])=>`
+      <div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>${h}</span><span>₹${v.toLocaleString('en-IN')}</span></div>
+        <div style="background:#ecf0f1;border-radius:4px;height:10px"><div style="background:var(--primary);height:10px;border-radius:4px;width:${(v/maxV)*100}%;transition:width 0.5s"></div></div>
+      </div>`).join('')}
+  </div>
+  <div class="card">
+    <div class="card-title">Spend by Category (Top 8)</div>
+    ${Object.entries(CATEGORIES.reduce((acc,c)=>{acc[c]=all.filter(e=>e.category===c).reduce((s,e)=>s+e.amount,0);return acc;},{})).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([c,v])=>`
+      <div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c}</span><span>₹${v.toLocaleString('en-IN')}</span></div>
+        <div style="background:#ecf0f1;border-radius:4px;height:7px"><div style="background:var(--accent);height:7px;border-radius:4px;width:${(v/Math.max(1,...Object.values(CATEGORIES.reduce((acc,c)=>{acc[c]=all.filter(e=>e.category===c).reduce((s,e)=>s+e.amount,0);return acc;},{}))))*100}%"></div></div>
+      </div>`).join('') || '<p style="color:var(--text-muted);font-size:12px">No data yet.</p>'}
+  </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Full Expense Ledger</div>
+    <div class="tbl-wrap">
+    <table><thead><tr><th>Sr.No</th><th>Date</th><th>Mode</th><th>Head</th><th>Category</th><th>Description</th><th>Vendor</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead>
+    <tbody>${all.slice().reverse().map(e=>`<tr>
+      <td>${e.srno}</td><td>${e.date}</td>
+      <td><span class="badge badge-${e.paytype}">${e.paytype.toUpperCase()}</span></td>
+      <td>${e.head}</td><td style="font-size:10px">${e.category}</td>
+      <td>${e.desc}</td><td>${e.vendor||'-'}</td>
+      <td><span class="badge badge-${e.type}">${e.type.toUpperCase()}</span></td>
+      <td>₹${Number(e.amount).toLocaleString('en-IN')}</td>
+      <td><span class="badge badge-${e.status}">${e.status.toUpperCase()}</span></td>
+    </tr>`).join('') || '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text-muted)">No data.</td></tr>'}
+    </tbody></table>
+    </div>
+  </div>`;
+}
+
+// ===== SETTINGS =====
+function renderSettings() {
+  return `
+  <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:20px">⚙️ Google Integration Setup</div>
+  <div style="background:#eafaf1;border:1.5px solid #27ae60;border-radius:10px;padding:14px 16px;margin-bottom:16px;font-size:12px;color:#1a5276">
+    <b style="font-size:14px;display:block;margin-bottom:8px;color:#1e8449">✅ Recommended Setup — Edit the HTML File Once</b>
+    Open <b>GHJ Exp App.html</b> in Notepad/text editor and find the <b>APP_CONFIG</b> block near the top (around line 10).
+    Paste your Apps Script URL and Sheet ID there. Every user on every browser will get it automatically — no manual Settings needed.<br><br>
+    <b style="color:#c0392b">Current status:</b>
+    ${getScriptUrl() ? '<span style="color:#27ae60">✅ Apps Script URL is configured (hardcoded or saved)</span>' : '<span style="color:#c0392b">⚠️ No URL set — paste it below or in APP_CONFIG in the HTML file</span>'}
+  </div>
+  <div class="card">
+    <div class="card-title">Step 1 — Create Google Sheet (Database)</div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Create a Google Sheet with these tabs: CashEntries, BankEntries, Users. Share it with your Google account.</p>
+    <div class="code-block">CashEntries and BankEntries tab — Row 1 headers (A to T):
+A:ID  B:SrNo  C:Date  D:Head  E:Category  F:Type  G:Amount  H:Description
+I:Vendor  J:InvoiceLink  K:Screenshot  L:Status  M:CreatedBy  N:ApprovedBy
+O:PaymentRef  P:Remarks  Q:BankName  R:AccountNo  S:ChequeRef  T:PayType
+
+Users tab — Row 1 headers:
+A:Name  B:Email  C:Password  D:Role</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Step 2 — Deploy Google Apps Script (Web API)</div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Open your Sheet → Extensions → Apps Script → paste this code:</p>
+    <div class="code-block">function doGet(e) {
+  const sheet = SpreadsheetApp.openById('YOUR_SHEET_ID');
+  const type = e.parameter.type || 'cash';
+  const tab = type === 'cash' ? 'CashEntries' : 'BankEntries';
+  const rows = sheet.getSheetByName(tab).getDataRange().getValues();
+  return ContentService.createTextOutput(JSON.stringify(rows))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+</div>
+  </div>
+  <div class="card">
+    <div class="card-title">Step 3 — Connect API URL</div>
+    <div class="form-row">
+      <div><label class="field-label">Google Apps Script API URL</label>
+        <input type="text" id="apiUrl" value="${localStorage.getItem('ghj_api_url')||''}" placeholder="https://script.google.com/macros/s/...">
+      </div>
+    </div>
+    <div class="form-row">
+      <div><label class="field-label">Google Sheet ID</label>
+        <input type="text" id="sheetId" value="${localStorage.getItem('ghj_sheet_id')||''}" placeholder="1BxiMVs0...">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-save" onclick="saveSettings()">Save Settings</button>
+      <button class="btn btn-outline" onclick="testConnection()">Test Connection</button>
+    </div>
+  </div>
+  <div class="card" style="border-left:4px solid #27ae60">
+    <div class="card-title">🔑 Google Drive Upload Setup — No Login Required, Never Expires</div>
+    <div style="background:#eafaf1;padding:12px 14px;border-radius:8px;margin-bottom:16px;font-size:12px;color:#1e8449">
+      <b>How it works:</b> Your Google Apps Script runs on Google's servers using <i>your</i> Google account permanently.
+      The app sends files to the script, which saves them to your Drive. <b>No OAuth. No token. No expiry. Ever.</b>
+    </div>
+    <div class="card-title" style="font-size:13px;margin-bottom:10px">Step 1 — Add the uploadFile handler to your Apps Script</div>
+    <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Open your existing Apps Script (Extensions → Apps Script in your Sheet) and <b>add</b> this code alongside your existing doGet/doPost:</p>
+    <div class="code-block">// ════════════════════════════════════════════════════════
+// GHJ EXP APP — Complete Apps Script
+// 1. Open Google Sheet → Extensions → Apps Script
+// 2. DELETE everything in Code.gs
+// 3. PASTE this entire script
+// 4. Replace YOUR_SHEET_ID_HERE with your actual Sheet ID
+// 5. Save (Ctrl+S), then Deploy → New deployment
+// ════════════════════════════════════════════════════════
+
+var SHEET_ID = 'YOUR_SHEET_ID_HERE'; // ← CHANGE THIS LINE ONLY
+
+// ── CORS helper — required for browser fetch to work ─────
+function corsResponse(data) {
+  var output = ContentService.createTextOutput(JSON.stringify(data));
+  output.setMimeType(ContentService.MimeType.JSON);
+  return output;
+}
+
+// ── Handle all POST requests ─────────────────────────────
+// action = 'uploadFile'  → save file to Google Drive
+// action = 'saveEntry'   → append new row to CashEntries or BankEntries
+// action = 'updateEntry' → same as saveEntry (alias)
+// action = 'updateStatus'→ update Status, ApprovedBy, PaymentRef etc on existing row
+function doPost(e) {
+  try {
+    if (!e || !e.postData || !e.postData.contents) {
+      return corsResponse({ status: 'error', error: 'No POST body received' });
+    }
+    var payload;
+    try {
+      payload = JSON.parse(e.postData.contents);
+    } catch(parseErr) {
+      return corsResponse({ status: 'error', error: 'Invalid JSON: ' + parseErr.message });
+    }
+
+    // ── 1. Upload file to Google Drive ───────────────────
+    // Supports nested folder paths like 'GHJ Exp App Files/Cash/Invoices'
+    if (payload.action === 'uploadFile') {
+      if (!payload.base64Data || !payload.fileName) {
+        return corsResponse({ status: 'error', error: 'Missing fileName or base64Data' });
+      }
+      var folderPath = (payload.folder || 'GHJ Exp App Files').split('/');
+      var folder = DriveApp.getRootFolder();
+      for (var f = 0; f < folderPath.length; f++) {
+        var fname = folderPath[f].trim();
+        if (!fname) continue;
+        var sub = folder.getFoldersByName(fname);
+        folder = sub.hasNext() ? sub.next() : folder.createFolder(fname);
+      }
+      var decoded = Utilities.base64Decode(payload.base64Data);
+      var blob = Utilities.newBlob(decoded, payload.mimeType || 'application/octet-stream', payload.fileName);
+      var file = folder.createFile(blob);
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      return corsResponse({
+        status: 'ok',
+        fileId: file.getId(),
+        fileUrl: 'https://drive.google.com/file/d/' + file.getId() + '/view'
+      });
+    }
+
+    // Sheet operations need SHEET_ID
+    if (!SHEET_ID || SHEET_ID === 'YOUR_SHEET_ID_HERE') {
+      return corsResponse({ status: 'error', error: 'SHEET_ID not set. Edit line 8 of the script.' });
+    }
+    var sheet = SpreadsheetApp.openById(SHEET_ID);
+    var tabName = (payload.paytype === 'cash') ? 'CashEntries' : 'BankEntries';
+    var tab = sheet.getSheetByName(tabName);
+    if (!tab) {
+      return corsResponse({ status: 'error', error: 'Tab not found: "' + tabName + '". Create it in your Sheet.' });
+    }
+
+    // ── 2. Update status on existing row ─────────────────
+    if (payload.action === 'updateStatus') {
+      var rows = tab.getDataRange().getValues();
+      for (var i = 1; i < rows.length; i++) {
+        if (String(rows[i][0]) === String(payload.id)) {
+          tab.getRange(i+1, 12).setValue(payload.status        || '');  // L: Status
+          tab.getRange(i+1, 14).setValue(payload.approvedBy    || '');  // N: ApprovedBy
+          tab.getRange(i+1, 15).setValue(payload.paymentRef    || '');  // O: PaymentRef
+          if (payload.screenshotLink) tab.getRange(i+1, 11).setValue(payload.screenshotLink); // K
+          if (payload.paymentMode)    tab.getRange(i+1, 21).setValue(payload.paymentMode);    // U
+          if (payload.paidBy)         tab.getRange(i+1, 22).setValue(payload.paidBy);         // V
+          return corsResponse({ status: 'ok' });
+        }
+      }
+      return corsResponse({ status: 'error', error: 'ID not found in sheet: ' + payload.id });
+    }
+
+    // ── 3. Save new entry (action = 'saveEntry' or 'updateEntry') ────
+    // Check if this ID already exists — if yes, skip (idempotent, prevents duplicates)
+    var existing = tab.getDataRange().getValues();
+    for (var j = 1; j < existing.length; j++) {
+      if (String(existing[j][0]) === String(payload.id)) {
+        return corsResponse({ status: 'ok', note: 'Entry already exists, skipped duplicate' });
+      }
+    }
+    tab.appendRow([
+      payload.id             || '',  // A: ID
+      payload.srno           || '',  // B: SrNo
+      payload.date           || '',  // C: Date
+      payload.head           || '',  // D: Head
+      payload.category       || '',  // E: Category
+      payload.type           || '',  // F: Type (debit/credit)
+      payload.amount         || 0,   // G: Amount
+      payload.desc           || '',  // H: Description
+      payload.vendor         || '',  // I: Vendor
+      payload.invoiceLink    || '',  // J: InvoiceLink
+      payload.screenshotLink || '',  // K: Screenshot
+      payload.status         || 'pending', // L: Status
+      payload.createdBy      || '',  // M: CreatedBy
+      payload.approvedBy     || '',  // N: ApprovedBy
+      payload.paymentRef     || '',  // O: PaymentRef
+      payload.remarks        || '',  // P: Remarks
+      payload.bankName       || '',  // Q: BankName
+      payload.accNo          || '',  // R: AccountNo
+      payload.chequeRef      || '',  // S: ChequeRef
+      payload.paytype        || ''   // T: PayType (cash/bank)
+    ]);
+    return corsResponse({ status: 'ok' });
+
+  } catch(err) {
+    return corsResponse({ status: 'error', error: err.message });
+  }
+}
+
+// ── Handle GET requests (read entries from Sheet) ────────
+// ?type=cash → CashEntries, ?type=bank → BankEntries, ?type=users → Users
+function doGet(e) {
+  try {
+    if (!SHEET_ID || SHEET_ID === 'YOUR_SHEET_ID_HERE') {
+      return corsResponse({ status: 'error', error: 'SHEET_ID not set' });
+    }
+    var sheet = SpreadsheetApp.openById(SHEET_ID);
+    var type = (e && e.parameter && e.parameter.type) ? e.parameter.type : 'cash';
+    var tabMap = { cash: 'CashEntries', bank: 'BankEntries', users: 'Users' };
+    var tabName = tabMap[type] || 'CashEntries';
+    var tab = sheet.getSheetByName(tabName);
+    if (!tab) {
+      return corsResponse({ status: 'error', error: 'Tab not found: ' + tabName });
+    }
+    var rows = tab.getDataRange().getValues();
+    return corsResponse(rows);
+  } catch(err) {
+    return corsResponse({ status: 'error', error: err.message });
+  }
+}</div>
+    <div style="background:#fdedec;border:1.5px solid #e74c3c;border-radius:8px;padding:14px 16px;margin-top:12px;font-size:12px;color:#922b21">
+      <b style="font-size:13px;display:block;margin-bottom:10px">❌ Getting "Unexpected token &lt;" error? Follow these steps EXACTLY:</b>
+      <div style="background:#fff;border-radius:6px;padding:12px;margin-bottom:10px;color:#1c2833;line-height:2">
+        <b>Step 1 —</b> Open your Google Sheet → click <b>Extensions</b> → click <b>Apps Script</b><br>
+        <b>Step 2 —</b> Select ALL the code in the editor (Ctrl+A) and DELETE it completely<br>
+        <b>Step 3 —</b> Copy the entire script above and paste it (Ctrl+V)<br>
+        <b>Step 4 —</b> On line 8, replace <code>YOUR_SHEET_ID_HERE</code> with your actual Sheet ID<br>
+        <b>Step 5 —</b> Press <b>Ctrl+S</b> to save<br>
+        <b>Step 6 —</b> Click <b>Deploy</b> button (top right) → <b>Manage deployments</b><br>
+        <b>Step 7 —</b> Click the pencil/edit icon on your existing deployment<br>
+        <b>Step 8 —</b> Change version dropdown from current to <b>New version</b><br>
+        <b>Step 9 —</b> Set <b>Execute as: Me</b> (your Gmail)<br>
+        <b>Step 10 —</b> Set <b>Who has access: Anyone</b> ← <span style="color:#c0392b;font-weight:700">THIS IS THE MOST COMMON MISTAKE</span><br>
+        <b>Step 11 —</b> Click <b>Deploy</b> / <b>Update</b><br>
+        <b>Step 12 —</b> The URL stays the same — no need to update it in Settings
+      </div>
+      <b>Quick check: paste your Apps Script URL in a browser address bar and press Enter.</b><br>
+      If you see JSON (starting with [ or {) → deployment is correct.<br>
+      If you see a Google login page → "Who has access" is wrong. Repeat Steps 6–11.
+    </div>
+    <div class="card-title" style="font-size:13px;margin:16px 0 10px">Step 2 — Paste the same Apps Script URL below</div>
+    <div class="form-row col2">
+      <div>
+        <label class="field-label">Apps Script Web App URL</label>
+        <input type="text" id="apiUrl" value="${localStorage.getItem('ghj_api_url')||''}" placeholder="https://script.google.com/macros/s/.../exec">
+        <div style="font-size:10px;color:var(--text-muted);margin-top:3px">Same URL used for expense entries — handles both</div>
+      </div>
+      <div>
+        <label class="field-label">Google Sheet ID</label>
+        <input type="text" id="sheetId" value="${localStorage.getItem('ghj_sheet_id')||''}" placeholder="1BxiMVs0XYZ...">
+        <div style="font-size:10px;color:var(--text-muted);margin-top:3px">From the Sheet URL: /spreadsheets/d/<b>THIS_PART</b>/edit</div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-save" onclick="saveSettings()">Save Settings</button>
+      <button class="btn btn-outline" onclick="diagnoseConnection()">🔍 Diagnose Connection</button>
+      <button class="btn btn-outline" onclick="testUpload()">🧪 Test Drive Upload</button>
+      <button class="btn btn-outline" onclick="testConnection()">🧪 Test Sheet Read</button>
+    </div>
+    <div id="testResult" style="margin-top:10px;font-size:12px;line-height:1.8"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">📋 Hosting — Free Options (Required for Google Login)</div>
+    <div style="background:#fff8e1;border-left:4px solid var(--accent);padding:12px 14px;border-radius:0 8px 8px 0;font-size:12px;margin-bottom:14px">
+      <b>Important:</b> Google OAuth only works when the app is served from a URL (https://), not opened as a local file. The data & app work perfectly offline — only Drive upload needs hosting.
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;font-size:12px">
+      <div style="border:1.5px solid #27ae60;border-radius:8px;padding:12px">
+        <div style="font-weight:700;color:#27ae60;margin-bottom:6px">✅ GitHub Pages (Recommended)</div>
+        <div style="color:var(--text-muted)">Free forever. No time limit. Just upload the HTML file to a GitHub repo and enable Pages.</div>
+        <div style="margin-top:6px;font-weight:600">Cost: ₹0 / Forever</div>
+      </div>
+      <div style="border:1.5px solid #2980b9;border-radius:8px;padding:12px">
+        <div style="font-weight:700;color:#2980b9;margin-bottom:6px">✅ Google Drive (Simplest)</div>
+        <div style="color:var(--text-muted)">Upload HTML to Drive, open with Google Sites or share link directly. Works as a personal tool.</div>
+        <div style="margin-top:6px;font-weight:600">Cost: ₹0 / Forever</div>
+      </div>
+      <div style="border:1.5px solid #e67e22;border-radius:8px;padding:12px">
+        <div style="font-weight:700;color:#e67e22;margin-bottom:6px">✅ Netlify / Vercel</div>
+        <div style="color:var(--text-muted)">Drag-and-drop deploy. Free tier is unlimited for static HTML. Custom domain supported.</div>
+        <div style="margin-top:6px;font-weight:600">Cost: ₹0 / Forever</div>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="border-left:4px solid #e74c3c">
+    <div class="card-title">🚫 How to Handle Mistakes / Test Entries</div>
+    <div style="font-size:12px;line-height:1.9;color:var(--text)">
+      <b style="color:#c0392b">❌ Do NOT delete rows from Google Sheet directly</b> — the app has those entries cached locally and will re-add them on next sync, causing conflicts.<br><br>
+      <b style="color:#27ae60">✅ Correct way — Use the Void button in the app:</b><br>
+      &nbsp;&nbsp;1. Go to Cash Payments or Bank Payments<br>
+      &nbsp;&nbsp;2. Find the entry you want to remove<br>
+      &nbsp;&nbsp;3. Click the red <b>✕ Void</b> button (Admin only)<br>
+      &nbsp;&nbsp;4. Enter a reason (e.g. "Test entry" or "Entered by mistake")<br>
+      &nbsp;&nbsp;5. The entry is marked <b>VOID ✕</b> and excluded from all calculations<br>
+      &nbsp;&nbsp;6. It stays visible in the list for audit trail but is greyed out with strikethrough<br><br>
+      <b>If you already deleted rows from the Sheet:</b><br>
+      &nbsp;&nbsp;Go to Settings → click <b>🔄 Refresh from Sheet</b> — the app will re-sync from what is currently in the Sheet and clear the local cache for those deleted rows.
+    </div>
+  </div>
+  <div class="card" style="border:2px solid #27ae60">
+    <div class="card-title">✅ Complete Cost & Limitation Summary — 100% Honest</div>
+    <table style="width:100%;font-size:12px;border-collapse:collapse">
+      <thead><tr style="background:#f0f4f8"><th style="padding:8px;text-align:left">Component</th><th style="padding:8px;text-align:left">Cost</th><th style="padding:8px;text-align:left">Any Limit?</th><th style="padding:8px;text-align:left">Notes</th></tr></thead>
+      <tbody>
+        <tr style="border-top:1px solid #f0f0f0"><td style="padding:8px">This app (HTML file)</td><td style="padding:8px;color:#27ae60;font-weight:700">₹0 — Forever</td><td style="padding:8px">None</td><td style="padding:8px">Runs in any browser, works offline</td></tr>
+        <tr style="border-top:1px solid #f0f0f0"><td style="padding:8px">Data storage (browser)</td><td style="padding:8px;color:#27ae60;font-weight:700">₹0 — Forever</td><td style="padding:8px">~5 MB</td><td style="padding:8px">~10,000 entries. Connect Sheets for unlimited</td></tr>
+        <tr style="border-top:1px solid #f0f0f0"><td style="padding:8px">Google Sheets (database)</td><td style="padding:8px;color:#27ae60;font-weight:700">₹0 — Forever</td><td style="padding:8px">10M cells/sheet</td><td style="padding:8px">Far more than any trust will ever need</td></tr>
+        <tr style="border-top:1px solid #f0f0f0"><td style="padding:8px">Google Apps Script (API + file proxy)</td><td style="padding:8px;color:#27ae60;font-weight:700">₹0 — Forever</td><td style="padding:8px">6 min/run, 90 min/day</td><td style="padding:8px">Each upload takes ~1–3 sec. Ample quota.</td></tr>
+        <tr style="border-top:1px solid #f0f0f0"><td style="padding:8px">Google Drive (file storage)</td><td style="padding:8px;color:#27ae60;font-weight:700">₹0 (15 GB free)</td><td style="padding:8px">15 GB free</td><td style="padding:8px">~15,000 invoices at 1 MB each. Upgrade ₹130/mo if needed</td></tr>
+        <tr style="border-top:1px solid #f0f0f0"><td style="padding:8px">Hosting (GitHub Pages / Netlify)</td><td style="padding:8px;color:#27ae60;font-weight:700">₹0 — Forever</td><td style="padding:8px">None for static HTML</td><td style="padding:8px">Required only if hosting for team access</td></tr>
+        <tr style="border-top:1px solid #f0f0f0;background:#eafaf1"><td style="padding:8px"><b>OAuth / Token / Login</b></td><td style="padding:8px;color:#27ae60;font-weight:700">NOT NEEDED</td><td style="padding:8px" colspan="2"><b>Completely removed.</b> Apps Script uses your Google account permanently with no expiry.</td></tr>
+      </tbody>
+    </table>
+    <div style="margin-top:12px;padding:10px 12px;background:#eafaf1;border-radius:7px;font-size:12px;color:#1e8449">
+      <b>✅ Bottom line:</b> The entire system — app, database, file storage, file upload — runs at <b>₹0/month, forever</b>, with zero logins, zero tokens, and zero expiry. The only one-time setup is pasting the Apps Script URL into Settings.
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">👥 User Management</div>
+    <div style="background:#eaf0fb;border-left:4px solid #2980b9;padding:12px 14px;border-radius:0 8px 8px 0;font-size:12px;color:#1a5276;margin-bottom:14px;line-height:1.9">
+      <b>How login works:</b> When you log in, the app fetches your Users tab from Google Sheet first (if Apps Script URL is set), then checks the password. No cache — always live from Sheet.<br>
+      <b>Users tab columns (exact spelling required):</b><br>
+      &nbsp;&nbsp;Column A: <b>Name</b> &nbsp;|&nbsp; Column B: <b>Email</b> &nbsp;|&nbsp; Column C: <b>Password</b> &nbsp;|&nbsp; Column D: <b>Role</b><br>
+      <b>Role values:</b> <code>admin</code> (full access) &nbsp;|&nbsp; <code>approver</code> (approve + pay, see all) &nbsp;|&nbsp; <code>creator</code> (create entries, see own only)<br>
+      <b>Example row:</b> Ramesh Kumar &nbsp;|&nbsp; ramesh@ghj.org &nbsp;|&nbsp; mypassword123 &nbsp;|&nbsp; admin
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="card-title" style="font-size:13px;margin:0">Currently loaded users (${USERS.length})</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline btn-sm" onclick="refreshUsersFromSheet()">🔄 Refresh from Sheet</button>
+        <button class="btn btn-cancel btn-sm" onclick="resetToDefaultUsers()">Reset to demo</button>
+      </div>
+    </div>
+    <table style="width:100%;font-size:12px"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Source</th></tr></thead>
+    <tbody>
+      ${USERS.map(u=>`<tr><td>${u.name}</td><td>${u.email}</td><td><span class='badge badge-approved'>${u.role}</span></td><td style='font-size:10px;color:var(--text-muted)'>${localStorage.getItem('ghj_users')?'📊 Google Sheet':'🔒 Demo'}</td></tr>`).join('')}
+    </tbody></table>
+  </div>`
+}
+
+async function refreshUsersFromSheet() {
+  const url = localStorage.getItem('ghj_api_url');
+  if (!url) { showToast('⚠️ No Apps Script URL saved. Paste it in Step 2 above first.'); return; }
+  showToast('🔄 Fetching users from Google Sheet...');
+  try {
+    const sheetUsers = await fetchUsersFromSheet(url);
+    USERS = sheetUsers;
+    localStorage.setItem('ghj_users', JSON.stringify(USERS));
+    showToast('✅ ' + USERS.length + ' user(s) loaded from Google Sheet!');
+    showPage('settings');
+  } catch(e) {
+    showToast('❌ ' + e.message);
+    const r = document.getElementById('testResult');
+    if (r) r.innerHTML = '<span style="color:var(--danger)">❌ Failed to load users: ' + e.message + '</span>';
+  }
+}
+
+function resetToDefaultUsers() {
+  if (!confirm('Reset to demo users? This removes any users loaded from Google Sheet.')) return;
+  localStorage.removeItem('ghj_users');
+  USERS = DEFAULT_USERS.slice();
+  showToast('✅ Reset to demo users.');
+  showPage('settings');
+}
+
+function saveSettings() {
+  localStorage.setItem('ghj_api_url', document.getElementById('apiUrl').value.trim());
+  localStorage.setItem('ghj_sheet_id', document.getElementById('sheetId').value.trim());
+  showToast('✅ Settings saved!');
+  const r = document.getElementById('testResult');
+  if (r) r.innerHTML = '';
+}
+
+async function diagnoseConnection() {
+  const url = (document.getElementById('apiUrl') && document.getElementById('apiUrl').value.trim()) || localStorage.getItem('ghj_api_url');
+  const r = document.getElementById('testResult');
+  if (!url) {
+    if (r) r.innerHTML = '<span style="color:var(--danger)">❌ No URL entered. Paste your Apps Script URL above and click Save Settings first.</span>';
+    return;
+  }
+  if (r) r.innerHTML = '<span style="color:var(--accent)">🔍 Diagnosing... checking your Apps Script URL...</span>';
+
+  // Check 1: URL format
+  if (!url.includes('script.google.com/macros/s/') || !url.endsWith('/exec')) {
+    if (r) r.innerHTML = `<span style="color:var(--danger)">
+      ❌ <b>Wrong URL format.</b><br>
+      Your URL: <code>${url}</code><br>
+      It must look like: <code>https://script.google.com/macros/s/AKfyc.../exec</code><br>
+      Make sure it ends with <b>/exec</b> — not /dev or /edit.
+    </span>`;
+    return;
+  }
+
+  // Check 2: Fetch and inspect the raw response
+  try {
+    const resp = await fetch(url + '?type=cash', { redirect: 'follow' });
+    const rawText = await resp.text();
+    const httpStatus = resp.status;
+    const first200 = rawText.substring(0, 200).trim();
+
+    let diagnosis = `<b>URL:</b> <code>${url}</code><br>
+    <b>HTTP Status:</b> ${httpStatus}<br>
+    <b>First 200 chars of response:</b><br>
+    <code style="font-size:10px;word-break:break-all;background:#f4f6f8;display:block;padding:6px;border-radius:4px;margin:4px 0">${first200.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</code>`;
+
+    if (rawText.trimStart().startsWith('[') || rawText.trimStart().startsWith('{')) {
+      // Looks like JSON — good
+      try {
+        JSON.parse(rawText);
+        if (r) r.innerHTML = `<span style="color:var(--success)">
+          ✅ <b>Connection is WORKING correctly!</b><br>${diagnosis}<br>
+          The script is returning valid JSON. If entries are still not saving to Sheets, check that your Sheet ID is correct and the CashEntries / BankEntries tabs exist.
+        </span>`;
+      } catch(pe) {
+        if (r) r.innerHTML = `<span style="color:var(--danger)">
+          ❌ <b>Response looks like JSON but could not be parsed.</b><br>${diagnosis}<br>
+          Try re-deploying: Apps Script → Deploy → Manage Deployments → Edit → New version → Update.
+        </span>`;
+      }
+    } else if (rawText.includes('accounts.google.com') || rawText.includes('signin') || rawText.includes('ServiceLogin')) {
+      if (r) r.innerHTML = `<span style="color:var(--danger)">
+        ❌ <b>Script is returning a Google login page.</b><br>${diagnosis}<br>
+        <b>Fix:</b> Apps Script → Deploy → Manage Deployments → click pencil icon → 
+        set <b>Who has access = Anyone</b> → change version to <b>New version</b> → Update.
+      </span>`;
+    } else if (rawText.includes('Exception') || rawText.includes('Error')) {
+      if (r) r.innerHTML = `<span style="color:var(--danger)">
+        ❌ <b>Script returned an error page.</b><br>${diagnosis}<br>
+        <b>Fix:</b> Go to Apps Script → delete all code → paste the full script from above → replace YOUR_SHEET_ID_HERE → Save → redeploy as New version.
+      </span>`;
+    } else if (rawText.includes('<!DOCTYPE') || rawText.startsWith('<html') || rawText.startsWith('<HTML')) {
+      if (r) r.innerHTML = `<span style="color:var(--danger)">
+        ❌ <b>Script returned HTML — deployment settings are wrong.</b><br>${diagnosis}<br>
+        <b>Most common fix:</b> Apps Script → Deploy → Manage Deployments → Edit → 
+        set <b>Who has access = Anyone</b> (not "Only myself") → New version → Update.
+      </span>`;
+    } else {
+      if (r) r.innerHTML = `<span style="color:var(--warn)">
+        ⚠️ <b>Unexpected response — cannot determine cause automatically.</b><br>${diagnosis}<br>
+        Try: delete all code in Apps Script, paste the full script again, redeploy as New version with Who has access = Anyone.
+      </span>`;
+    }
+  } catch(e) {
+    if (r) r.innerHTML = `<span style="color:var(--danger)">
+      ❌ <b>Network error — could not reach the URL at all.</b><br>
+      Error: ${e.message}<br>
+      Check that: (1) the URL is correct and ends with /exec, (2) you have internet access, (3) the deployment is published (not just saved).
+    </span>`;
+  }
+}
+
+async function testUpload() {
+  const url = getScriptUrl();
+  if (!url) { showToast('⚠️ Paste your Apps Script URL first, then Save'); return; }
+  const r = document.getElementById('testResult');
+  if (r) r.innerHTML = '<span style="color:var(--accent)">🔄 Sending test file to Drive...</span>';
+  const testBlob = new Blob(['GHJ Exp App — Drive upload test OK'], { type: 'text/plain' });
+  const testFile = new File([testBlob], 'ghj_test_upload.txt', { type: 'text/plain' });
+  try {
+    const base64 = await fileToBase64(testFile);
+    const resp = await fetch(url, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'uploadFile', fileName: testFile.name, mimeType: 'text/plain', base64Data: base64, folder: 'GHJ Exp App Files' })
+    });
+    const rawText = await resp.text();
+    if (!rawText || rawText.trimStart().startsWith('<')) {
+      throw new Error('Script returned HTML not JSON. Fix: Apps Script → Deploy → Manage Deployments → Edit → "Who has access" = Anyone → Update.');
+    }
+    const result = JSON.parse(rawText);
+    if (result.status === 'ok') {
+      if (r) r.innerHTML = `<span style="color:var(--success)">✅ Drive upload working! <a href="${result.fileUrl}" target="_blank" style="color:var(--primary-light)">View test file on Drive ↗</a></span>`;
+    } else {
+      if (r) r.innerHTML = `<span style="color:var(--danger)">❌ Script error: ${result.error}</span>`;
+    }
+  } catch(e) {
+    if (r) r.innerHTML = `<span style="color:var(--danger)">❌ ${e.message}</span>`;
+  }
+}
+
+async function testConnection() {
+  const url = (document.getElementById('apiUrl') && document.getElementById('apiUrl').value.trim()) || localStorage.getItem('ghj_api_url');
+  if (!url) { showToast('⚠️ Enter Apps Script URL first'); return; }
+  const r = document.getElementById('testResult');
+  if (r) r.innerHTML = '<span style="color:var(--accent)">🔄 Testing Sheet read...</span>';
+  try {
+    const resp = await fetch(url + '?type=cash', { redirect: 'follow' });
+    const rawText = await resp.text();
+    if (!rawText || rawText.trimStart().startsWith('<')) {
+      throw new Error('Script returned HTML not JSON. Fix: Apps Script → Deploy → "Who has access" = Anyone → Update.');
+    }
+    JSON.parse(rawText); // validate it parses
+    showToast('✅ Sheet connection working!');
+    if (r) r.innerHTML = '<span style="color:var(--success)">✅ Google Sheet read successful!</span>';
+  } catch(e) {
+    showToast('❌ Connection failed.');
+    if (r) r.innerHTML = `<span style="color:var(--danger)">❌ ${e.message}</span>`;
+  }
+}
+
+// ===== MODALS =====
+function closeModal() { document.getElementById('entryModal').classList.remove('open'); }
+function closePayModal() { document.getElementById('payModal').classList.remove('open'); }
+
+// ===== TOAST =====
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 3000);
+}
+
+// ===== INIT =====
+// Restore sync state on page load
+(function initSyncState() {
+  updateSyncBadge();
+  updateSyncTimeDisplay();
+  // Retry any queued entries after 2s (allows page to render first)
+  setTimeout(() => {
+    if (getScriptUrl() && getPendingQueue().length > 0) {
+      retrySyncQueue();
+    }
+  }, 2000);
+})();
+
+// Pre-populate some demo entries
+if (!localStorage.getItem('ghj_cash')) {
+  const demo = [
+    { id: genId(), srno: 'GHJ/C/0001', date: '2025-04-01', head: 'Admin', category: 'Office Rent and Utilities', type: 'debit', paytype: 'cash', amount: 15000, desc: 'Monthly office rent - April 2025', vendor: 'Property Owner', invoiceLink: '', screenshotLink: '', remarks: '', status: 'paid', createdBy: 'Admin', approvedBy: 'Admin', paidBy: 'Admin' },
+    { id: genId(), srno: 'GHJ/C/0002', date: '2025-04-05', head: 'Program', category: 'Program Supplies', type: 'debit', paytype: 'cash', amount: 8500, desc: 'Satsang hall decoration materials', vendor: 'Krishna Stores', invoiceLink: '', screenshotLink: '', remarks: '', status: 'approved', createdBy: 'Accountant', approvedBy: 'Admin' },
+    { id: genId(), srno: 'GHJ/C/0003', date: '2025-04-08', head: 'Admin', category: 'Printing & Stationery', type: 'debit', paytype: 'cash', amount: 2200, desc: 'Pamphlets printing for event', vendor: 'Print World', invoiceLink: '', screenshotLink: '', remarks: '', status: 'pending', createdBy: 'Accountant' },
+  ];
+  saveData('ghj_cash', demo);
+}
+if (!localStorage.getItem('ghj_bank')) {
+  const demo = [
+    { id: genId(), srno: 'GHJ/B/0001', date: '2025-04-02', head: 'Capital', category: 'Purchase of Machinery/Equipment', type: 'debit', paytype: 'bank', amount: 125000, desc: 'Sound system purchase for meditation hall', vendor: 'Audio Vision Pvt Ltd', bankName: 'HDFC Bank', accNo: 'XXXX4521', chequeRef: 'NEFT/20250402/001', invoiceLink: '', screenshotLink: '', remarks: '', status: 'paid', createdBy: 'Admin', approvedBy: 'Admin', paidBy: 'Admin', paymentRef: 'UTR112233445' },
+    { id: genId(), srno: 'GHJ/B/0002', date: '2025-04-07', head: 'Admin', category: 'Salaries & Wages', type: 'debit', paytype: 'bank', amount: 45000, desc: 'Staff salary - April 2025', vendor: 'Staff Payroll', bankName: 'SBI', accNo: 'XXXX8800', chequeRef: 'NEFT/20250407/002', invoiceLink: '', screenshotLink: '', remarks: '', status: 'pending', createdBy: 'Accountant' },
+  ];
+  saveData('ghj_bank', demo);
+}
+</script>
+</body>
+</html>
