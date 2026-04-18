@@ -480,9 +480,9 @@
 
 // ─── STEP 1: Paste your Apps Script URL here (replaces manual Settings entry) ───
 const APP_CONFIG = {
-  scriptUrl: 'https://script.google.com/macros/s/AKfycbwHp4QqjxUsIXeBToz2Cekt8FY2sZKWqrsZcZU-JUrWmQJWgx_sC9ZLD5yfjIHBmxCg/exec',   // ← PASTE YOUR APPS SCRIPT URL HERE
+  scriptUrl: 'https://script.google.com/macros/s/AKfycbzKYvFOojNyxJ37huNFoh6Rzs1I805mz-P1tDrfozJhpMuB6j3TnAJOTfsJQ6i92SvD/exec',   // ← PASTE YOUR APPS SCRIPT URL HERE
                    //   e.g. 'https://script.google.com/macros/s/AKfyc.../exec'
-  sheetId: '1JL8flLniqzH-9E36dnOZorCzHerjMO6BKxeQ0efkznk',   // ← PASTE YOUR GOOGLE SHEET ID HERE (optional, for reference)
+  sheetId:   '1JL8flLniqzH-9E36dnOZorCzHerjMO6BKxeQ0efkznk',   // ← PASTE YOUR GOOGLE SHEET ID HERE (optional, for reference)
 };
 // ────────────────────────────────────────────────────────────────────────────────
 
@@ -524,11 +524,11 @@ const DEFAULT_USERS = [
 ];
 let USERS = JSON.parse(localStorage.getItem('ghj_users') || 'null') || DEFAULT_USERS;
 
-const HEADS = ['Capital', 'Admin', 'Operational Expenses', 'Repair & Maintenance', 'Program/Event/Welfare', 'Purchase', 'Inventories', 'Cash Receipts', 'Cash Deposit', 'Bank Deposit', 'Bank Withdrawal', 'Corpus Fund'];
+const HEADS = ['Groceries/Food Items', 'Admin', 'Operational Expenses', 'Repair & Maintenance', 'Program/Event/Welfare', 'Purchase', 'Inventories', 'Cash Receipts', 'Bank Deposit', 'Bank Withdrawal', 'Corpus Fund', Event Fees', 'Donation', 'Trustee Fees', 'Capital'];
 const CATEGORIES = [
-  'Cash Withdrawal', 'Cash Deposit', 'Cash Receipts', 'Food/Langar/Bhandara', 'Social Work Activities', 'Staff Wellfare', 
-  'Accounting & Audit Fees', 'Legal & Professional Services', 'Office Rent', 'Electricity/Water/Gas Payments',
-  'Printing', 'Stationery', 'Courier & Shipping Services', 'Insurance Premium', 'Banking Charges',
+  'Cash Withdrawal', 'Cash Deposit to Bank', 'Cash Receipts', 'Langar/Bhandara', 'Social Work Activities', 'Staff Wellfare/Accomodation',
+  'Accounting & Audit Fees', 'Legal & Professional Services', 'Office Rent', 'Electricity/Water/Gas Payments', 'House Hold/Keeping Items',
+  'Groceries/Food', 'Printing/Stationery', 'Courier & Shipping Services', 'Insurance Premium', 'Banking Charges',
   'Salaries & Wages', 'Program Supplies', 'IT & ITES Services', 'Travel & Transportation', 'Marketing & Events',
   'Maintenance & Repair', 'Purchase of Land/Building', 'Construction Costs', 'Operating Expenses',
   'Purchase of Machinery/Equipment', 'Accumulation of Funds', 'Interest on Borrowed Capital',
@@ -1028,6 +1028,7 @@ function renderExpenseList(type) {
       <td>${e.head}</td>
       <td style="max-width:130px;font-size:11px">${e.category}</td>
       <td>${e.desc}</td>
+      <td style="color:var(--primary-light);font-size:12px;font-weight:500">${e.vendor||'—'}</td>
       ${type==='bank'?`<td>${e.bankName||'-'}</td><td>${e.chequeRef||'-'}</td>`:``}
       <td><span class="badge badge-${e.type}">${e.type.toUpperCase()}</span></td>
       <td style="font-weight:700;${e.status==='voided'?'color:#bbb;text-decoration:line-through':''}">₹${Number(e.amount).toLocaleString('en-IN')}</td>
@@ -1061,7 +1062,7 @@ function renderExpenseList(type) {
   <div class="card">
     <div class="tbl-wrap">
     <table id="mainTable"><thead><tr>
-      <th>Sr.No</th><th>Date</th><th>Head</th><th>Category</th><th>Description</th>
+      <th>Sr.No</th><th>Date</th><th>Head</th><th>Category</th><th>Description</th><th>Vendor</th>
       ${type==='bank'?'<th>Bank</th><th>Cheque/Ref</th>':''}
       <th>Type</th><th>Amount</th><th>Attachments</th><th>Status</th><th>Actions</th>
     </tr></thead><tbody id="tableBody">
@@ -1116,7 +1117,7 @@ function entryForm(type, entry) {
     <div><label class="field-label">Cheque/NEFT/UTR Ref</label><input type="text" id="f_cheque" value="${e.chequeRef||''}" placeholder="Ref Number"></div>
   </div>` : ''}
   <div class="form-row">
-    <div><label class="field-label">Paid To / Vendor</label><input type="text" id="f_vendor" value="${e.vendor||''}" placeholder="Vendor / Payee name"></div>
+    <div><label class="field-label">Paid To / Vendor *</label><input type="text" id="f_vendor" value="${e.vendor||''}" placeholder="Vendor / Payee name (required)"></div>
   </div>
   <!-- Creator: only invoice upload. Admin/Approver: both invoice + screenshot + payment details -->
   <div class="form-row ${isCreator ? '' : 'col2'}">
@@ -1412,8 +1413,9 @@ function saveEntry(type) {
   const amount = parseFloat(document.getElementById('f_amount').value);
   const desc = document.getElementById('f_desc').value.trim();
   const etype = document.getElementById('f_type').value;
-  if (!date || !head || !amount || !desc) {
-    alert('Please fill: Date, Head, Amount, Description');
+  const vendor = document.getElementById('f_vendor') ? document.getElementById('f_vendor').value.trim() : '';
+  if (!date || !head || !amount || !desc || !vendor) {
+    alert('Please fill all required fields: Date, Head, Amount, Description, Vendor/Paid To');
     return;
   }
 
@@ -1431,8 +1433,9 @@ function saveEntry(type) {
       ...list[idx],
       date, head, category, amount, desc,
       type: etype,
-      vendor: getVal('f_vendor'),
-      invoiceLink, screenshotLink,
+      vendor: vendor,
+      invoiceLink: invoiceLink || list[idx].invoiceLink || '',
+      screenshotLink: screenshotLink || list[idx].screenshotLink || '',
       remarks: getVal('f_remarks'),
       updatedBy: currentUser.name,
       updatedAt: new Date().toISOString(),
@@ -1447,7 +1450,7 @@ function saveEntry(type) {
     closeModal();
     showPage(type);
     showToast('✅ Entry updated — syncing to Sheet...');
-    pushToSheet('saveEntry', updated);
+    pushToSheet('updateEntry', updated);
 
   } else {
     // ── NEW entry ────────────────────────────────────────────
@@ -1911,31 +1914,81 @@ function renderReports() {
   const total = all.reduce((s,e)=>s+e.amount,0);
   const maxV = Math.max(...Object.values(byHead), 1);
 
+  // Pre-compute category amounts once (not inside template literals)
+  const catAmt = {};
+  CATEGORIES.forEach(c => { catAmt[c] = all.filter(e=>e.category===c&&e.status!=='voided').reduce((s,e)=>s+Number(e.amount),0); });
+  const catEntries = Object.entries(catAmt).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  const maxCat = catEntries.length > 0 ? catEntries[0][1] : 1;
+  const totalDebit = all.filter(e=>e.type==='debit'&&e.status!=='voided').reduce((s,e)=>s+Number(e.amount),0);
+  const totalCredit = all.filter(e=>e.type==='credit'&&e.status!=='voided').reduce((s,e)=>s+Number(e.amount),0);
+
   return `
   <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:20px">📈 Reports & Analytics</div>
   <div class="stats-row">
-    <div class="stat-card"><div class="stat-label">Total Transactions</div><div class="stat-value">${all.length}</div></div>
-    <div class="stat-card"><div class="stat-label">Total Amount</div><div class="stat-value">₹${total.toLocaleString('en-IN')}</div></div>
-    <div class="stat-card"><div class="stat-label">This Month</div><div class="stat-value">${all.filter(e=>e.date&&e.date.startsWith(new Date().toISOString().slice(0,7))).length} entries</div></div>
-    <div class="stat-card"><div class="stat-label">Paid Amount</div><div class="stat-value">₹${all.filter(e=>e.status==='paid').reduce((s,e)=>s+e.amount,0).toLocaleString('en-IN')}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Entries</div><div class="stat-value">${all.filter(e=>e.status!=='voided').length}</div><div class="stat-sub">Voided: ${all.filter(e=>e.status==='voided').length}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Debit (Out)</div><div class="stat-value" style="color:var(--danger)">₹${totalDebit.toLocaleString('en-IN')}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Credit (In)</div><div class="stat-value" style="color:var(--success)">₹${totalCredit.toLocaleString('en-IN')}</div></div>
+    <div class="stat-card"><div class="stat-label">Paid Amount</div><div class="stat-value">₹${all.filter(e=>e.status==='paid').reduce((s,e)=>s+Number(e.amount),0).toLocaleString('en-IN')}</div></div>
   </div>
+
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
   <div class="card">
-    <div class="card-title">Spend by Head</div>
-    ${Object.entries(byHead).map(([h,v])=>`
-      <div style="margin-bottom:12px">
-        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>${h}</span><span>₹${v.toLocaleString('en-IN')}</span></div>
-        <div style="background:#ecf0f1;border-radius:4px;height:10px"><div style="background:var(--primary);height:10px;border-radius:4px;width:${(v/maxV)*100}%;transition:width 0.5s"></div></div>
-      </div>`).join('')}
+    <div class="card-title">📊 Spend by Head — Amount &amp; %</div>
+    <table style="width:100%;font-size:12px;border-collapse:collapse">
+      <thead><tr style="border-bottom:1.5px solid var(--border)">
+        <th style="text-align:left;padding:5px 4px">Head</th>
+        <th style="text-align:right;padding:5px 4px">Amount</th>
+        <th style="text-align:right;padding:5px 4px;color:var(--primary)">%</th>
+        <th style="padding:5px 4px;width:80px">Bar</th>
+      </tr></thead>
+      <tbody>
+      ${Object.entries(byHead).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).map(([h,v])=>`
+        <tr style="border-bottom:.5px solid #f0f0f0">
+          <td style="padding:6px 4px;font-weight:500">${h}</td>
+          <td style="padding:6px 4px;text-align:right">₹${v.toLocaleString('en-IN')}</td>
+          <td style="padding:6px 4px;text-align:right;color:var(--primary);font-weight:700">${total>0?(v/total*100).toFixed(1):0}%</td>
+          <td style="padding:6px 4px">
+            <div style="background:#ecf0f1;border-radius:4px;height:8px">
+              <div style="background:var(--primary);height:8px;border-radius:4px;width:${total>0?(v/total*100):0}%;transition:width 0.5s"></div>
+            </div>
+          </td>
+        </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--text-muted)">No data</td></tr>'}
+      </tbody>
+      ${total>0?`<tfoot><tr style="border-top:1.5px solid var(--border);font-weight:700">
+        <td style="padding:6px 4px">Total</td>
+        <td style="padding:6px 4px;text-align:right">₹${total.toLocaleString('en-IN')}</td>
+        <td style="padding:6px 4px;text-align:right">100%</td>
+        <td></td>
+      </tr></tfoot>`:''}
+    </table>
   </div>
+
   <div class="card">
-    <div class="card-title">Spend by Category (Top 8)</div>
-    ${Object.entries(CATEGORIES.reduce((acc,c)=>{acc[c]=all.filter(e=>e.category===c).reduce((s,e)=>s+e.amount,0);return acc;},{})).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([c,v])=>`
-      <div style="margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c}</span><span>₹${v.toLocaleString('en-IN')}</span></div>
-        <div style="background:#ecf0f1;border-radius:4px;height:7px"><div style="background:var(--accent);height:7px;border-radius:4px;width:${(v/Math.max(1,...Object.values(CATEGORIES.reduce((acc,c)=>{acc[c]=all.filter(e=>e.category===c).reduce((s,e)=>s+e.amount,0);return acc;},{}))))*100}%"></div></div>
-      </div>`).join('') || '<p style="color:var(--text-muted);font-size:12px">No data yet.</p>'}
+    <div class="card-title">📋 Spend by Category — Amount &amp; %</div>
+    <table style="width:100%;font-size:11px;border-collapse:collapse">
+      <thead><tr style="border-bottom:1.5px solid var(--border)">
+        <th style="text-align:left;padding:5px 4px">Category</th>
+        <th style="text-align:right;padding:5px 4px">Amount</th>
+        <th style="text-align:right;padding:5px 4px;color:var(--accent)">%</th>
+        <th style="padding:5px 4px;width:60px">Bar</th>
+      </tr></thead>
+      <tbody>
+      ${catEntries.map(([c,v])=>`
+        <tr style="border-bottom:.5px solid #f0f0f0">
+          <td style="padding:5px 4px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c}">${c}</td>
+          <td style="padding:5px 4px;text-align:right">₹${v.toLocaleString('en-IN')}</td>
+          <td style="padding:5px 4px;text-align:right;color:var(--accent);font-weight:700">${total>0?(v/total*100).toFixed(1):0}%</td>
+          <td style="padding:5px 4px">
+            <div style="background:#ecf0f1;border-radius:3px;height:6px">
+              <div style="background:var(--accent);height:6px;border-radius:3px;width:${maxCat>0?(v/maxCat*100):0}%;transition:width 0.5s"></div>
+            </div>
+          </td>
+        </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--text-muted)">No data yet</td></tr>'}
+      </tbody>
+    </table>
   </div>
+
   </div>
   <div class="card">
     <div class="card-title">Full Expense Ledger</div>
@@ -2104,8 +2157,42 @@ function doPost(e) {
       return corsResponse({ status: 'error', error: 'ID not found in sheet: ' + payload.id });
     }
 
-    // ── 3. Save new entry (action = 'saveEntry' or 'updateEntry') ────
-    // Check if this ID already exists — if yes, skip (idempotent, prevents duplicates)
+    // ── 3. Update entire existing row (action = 'updateEntry') ────────
+    if (payload.action === 'updateEntry') {
+      var allRows = tab.getDataRange().getValues();
+      for (var u = 1; u < allRows.length; u++) {
+        if (String(allRows[u][0]) === String(payload.id)) {
+          // Overwrite ALL editable columns — keep original ID and SrNo
+          tab.getRange(u+1, 1, 1, 20).setValues([[
+            payload.id             || '',  // A: ID
+            payload.srno           || '',  // B: SrNo
+            payload.date           || '',  // C: Date
+            payload.head           || '',  // D: Head
+            payload.category       || '',  // E: Category
+            payload.type           || '',  // F: Type (debit/credit)
+            payload.amount         || 0,   // G: Amount
+            payload.desc           || '',  // H: Description
+            payload.vendor         || '',  // I: Vendor
+            payload.invoiceLink    || '',  // J: InvoiceLink
+            payload.screenshotLink || '',  // K: Screenshot
+            payload.status         || '',  // L: Status
+            payload.createdBy      || '',  // M: CreatedBy
+            payload.approvedBy     || '',  // N: ApprovedBy
+            payload.paymentRef     || '',  // O: PaymentRef
+            payload.remarks        || '',  // P: Remarks
+            payload.bankName       || '',  // Q: BankName
+            payload.accNo          || '',  // R: AccountNo
+            payload.chequeRef      || '',  // S: ChequeRef
+            payload.paytype        || ''   // T: PayType
+          ]]);
+          return corsResponse({ status: 'ok' });
+        }
+      }
+      // Row not found — append as new (first time syncing this entry)
+    }
+
+    // ── 4. Save new entry (action = 'saveEntry') ────────────────────
+    // Check if this ID already exists — if yes, skip (idempotent, prevents duplicates from retry queue)
     var existing = tab.getDataRange().getValues();
     for (var j = 1; j < existing.length; j++) {
       if (String(existing[j][0]) === String(payload.id)) {
