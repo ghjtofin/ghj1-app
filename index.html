@@ -1296,9 +1296,14 @@ async function uploadToDrive(file, fieldId, idx) {
   }
 
   try {
-    // Convert file to base64
+    // Compress image (or pass PDF straight through) → base64
+    const originalKB = Math.round(file.size / 1024);
     const base64 = await fileToBase64(file);
-    // Show fake progress while waiting (fetch has no upload progress for small files)
+    const compressedKB = b64SizeKB(base64);
+    const savedKB = originalKB - compressedKB;
+    const isImage = file.type.startsWith('image/');
+
+    // Show progress bar
     const bar = document.getElementById('prog_' + fieldId + '_' + idx);
     let pct = 0;
     const ticker = setInterval(() => {
@@ -1307,29 +1312,32 @@ async function uploadToDrive(file, fieldId, idx) {
     }, 200);
 
     // File naming: {EntryID}_Inv_{filename} or {EntryID}_Pay_{filename}
-    // Folder:       GHJ Exp App Files / {Cash|Bank} / {Invoices|Payments}
     const box = document.getElementById('dbox_' + fieldId);
-    const entryId   = (box && box.dataset.entryid)   ? box.dataset.entryid.replace(/\//g, '-')   : '';
-    const entryType = (box && box.dataset.entrytype) ? box.dataset.entrytype : '';  // 'cash' or 'bank'
+    const entryId   = (box && box.dataset.entryid)   ? box.dataset.entryid.replace(/\//g, '-') : '';
+    const entryType = (box && box.dataset.entrytype) ? box.dataset.entrytype : '';
 
-    // Determine if this is an invoice or a payment screenshot
     const isPayment = fieldId === 'screenshot' || fieldId === 'pay_ss';
     const docPrefix = isPayment ? 'Pay' : 'Inv';
 
-    // Build file name: GHJ-C-0004_Inv_receipt.pdf  or  GHJ-B-0002_Pay_screenshot.jpg
+    // If image was compressed, save as .jpg regardless of original extension
+    const baseName = isImage
+      ? file.name.replace(/\.[^.]+$/, '.jpg')
+      : file.name;
     const namedFile = entryId
-      ? (entryId + '_' + docPrefix + '_' + file.name)
-      : (docPrefix + '_' + file.name);
+      ? (entryId + '_' + docPrefix + '_' + baseName)
+      : (docPrefix + '_' + baseName);
 
-    // Build folder path: GHJ Exp App Files/Cash/Invoices  etc.
     const typeFolder = entryType === 'bank' ? 'Bank' : 'Cash';
     const docFolder  = isPayment ? 'Payments' : 'Invoices';
     const folderPath = 'GHJ Exp App Files/' + typeFolder + '/' + docFolder;
 
+    // Use correct mime type for compressed image output
+    const mimeType = isImage ? COMPRESS_CONFIG.mimeOut : (file.type || 'application/octet-stream');
+
     const payload = {
       action: 'uploadFile',
       fileName: namedFile,
-      mimeType: file.type || 'application/octet-stream',
+      mimeType: mimeType,
       base64Data: base64,
       folder: folderPath
     };
@@ -1362,7 +1370,10 @@ async function uploadToDrive(file, fieldId, idx) {
       driveFiles[fieldId][idx].driveLink = result.fileUrl;
       refreshFileList(fieldId);
       updateLinkField(fieldId);
-      showToast('✅ Uploaded to Google Drive!');
+      const sizeMsg = isImage && savedKB > 5
+        ? '✅ Uploaded! ' + compressedKB + 'KB (saved ' + savedKB + 'KB by compression)'
+        : '✅ Uploaded to Google Drive! (' + compressedKB + 'KB)';
+      showToast(sizeMsg);
     } else {
       throw new Error(result.error || 'Upload failed');
     }
@@ -1374,18 +1385,65 @@ async function uploadToDrive(file, fieldId, idx) {
   }
 }
 
-function fileToBase64(file) {
+// ── IMAGE COMPRESSION before upload ─────────────────────────────────────────
+// Images (JPG/PNG/WEBP) are resized to max 1200px and compressed to ~60% quality.
+// PDFs and other files are sent as-is (cannot compress in browser).
+// Typical savings: phone camera photo 4MB → ~150KB  (96% smaller)
+//                  screenshot 800KB → ~60KB           (92% smaller)
+
+const COMPRESS_CONFIG = {
+  maxWidth:  1200,   // max pixel width after resize
+  maxHeight: 1600,   // max pixel height after resize
+  quality:   0.65,   // JPEG quality 0–1 (0.65 = good balance of size vs clarity)
+  mimeOut:   'image/jpeg'  // always output as JPEG for smallest size
+};
+
+async function fileToBase64(file) {
+  // Only compress images — pass PDFs and other files straight through
+  const isImage = file.type.startsWith('image/');
+  if (!isImage) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Compress image using canvas
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      // Strip the data URL prefix (data:...;base64,)
-      const b64 = reader.result.split(',')[1];
-      resolve(b64);
+    const img = new Image();
+    const objUrl = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(objUrl);
+      // Calculate new dimensions keeping aspect ratio
+      let { width, height } = img;
+      const maxW = COMPRESS_CONFIG.maxWidth;
+      const maxH = COMPRESS_CONFIG.maxHeight;
+      if (width > maxW || height > maxH) {
+        const ratio = Math.min(maxW / width, maxH / height);
+        width  = Math.round(width  * ratio);
+        height = Math.round(height * ratio);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width  = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      // White background (handles transparent PNGs correctly when converting to JPEG)
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL(COMPRESS_CONFIG.mimeOut, COMPRESS_CONFIG.quality);
+      resolve(dataUrl.split(',')[1]);
     };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+    img.onerror = () => { URL.revokeObjectURL(objUrl); reject(new Error('Image load failed')); };
+    img.src = objUrl;
   });
 }
+
+// Helper: estimate base64 size in KB
+function b64SizeKB(b64) { return Math.round(b64.length * 0.75 / 1024); }
 
 // No picker needed without OAuth — users upload fresh or paste link manually
 function openDrivePicker(fieldId) {
@@ -2061,6 +2119,39 @@ A:Name  B:Email  C:Password  D:Role</div>
       <button class="btn btn-outline" onclick="testConnection()">Test Connection</button>
     </div>
   </div>
+  <div class="card" style="border-left:4px solid #2980b9">
+    <div class="card-title">🗜️ Image Compression Settings</div>
+    <div style="background:#eaf0fb;border-radius:8px;padding:12px;margin-bottom:14px;font-size:12px;color:#1a5276;line-height:1.8">
+      Images (JPG/PNG) are automatically compressed before uploading to Google Drive.<br>
+      PDFs are uploaded as-is — they cannot be compressed in the browser.<br>
+      <b>Typical savings:</b> Phone photo 4MB → ~150KB &nbsp;|&nbsp; Screenshot 800KB → ~60KB
+    </div>
+    <div class="form-row col3">
+      <div>
+        <label class="field-label">Max Width (px)</label>
+        <input type="number" id="compMaxW" value="${localStorage.getItem('ghj_compress_maxw')||1200}" min="400" max="2400" step="100">
+        <div style="font-size:10px;color:var(--text-muted);margin-top:3px">1200 = good for invoices</div>
+      </div>
+      <div>
+        <label class="field-label">Quality (1–100)</label>
+        <input type="number" id="compQuality" value="${Math.round((parseFloat(localStorage.getItem('ghj_compress_q'))||0.65)*100)}" min="20" max="95" step="5">
+        <div style="font-size:10px;color:var(--text-muted);margin-top:3px">65 = recommended balance</div>
+      </div>
+      <div>
+        <label class="field-label">Preview</label>
+        <div style="padding:8px;background:#f8f9fa;border-radius:6px;font-size:11px;line-height:1.8;color:var(--text-muted)">
+          Low (40) = tiny, blurry<br>
+          Medium (65) = ✅ recommended<br>
+          High (85) = sharp, larger
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-save" onclick="saveCompressSettings()">Save Compression Settings</button>
+      <button class="btn btn-outline" onclick="resetCompressSettings()">Reset to Default</button>
+    </div>
+    <div id="compressResult" style="margin-top:8px;font-size:12px"></div>
+  </div>
   <div class="card" style="border-left:4px solid #27ae60">
     <div class="card-title">🔑 Google Drive Upload Setup — No Login Required, Never Expires</div>
     <div style="background:#eafaf1;padding:12px 14px;border-radius:8px;margin-bottom:16px;font-size:12px;color:#1e8449">
@@ -2394,6 +2485,32 @@ function resetToDefaultUsers() {
   showPage('settings');
 }
 
+function saveCompressSettings() {
+  const w = parseInt(document.getElementById('compMaxW').value) || 1200;
+  const q = parseInt(document.getElementById('compQuality').value) || 65;
+  const clampedW = Math.min(2400, Math.max(400, w));
+  const clampedQ = Math.min(95, Math.max(20, q));
+  localStorage.setItem('ghj_compress_maxw', clampedW);
+  localStorage.setItem('ghj_compress_q', (clampedQ / 100).toFixed(2));
+  // Apply immediately to COMPRESS_CONFIG
+  COMPRESS_CONFIG.maxWidth  = clampedW;
+  COMPRESS_CONFIG.maxHeight = Math.round(clampedW * 1.4);
+  COMPRESS_CONFIG.quality   = clampedQ / 100;
+  const r = document.getElementById('compressResult');
+  if (r) r.innerHTML = '<span style="color:var(--success)">✅ Compression settings saved! Max width: ' + clampedW + 'px, Quality: ' + clampedQ + '%</span>';
+  showToast('✅ Compression settings saved!');
+}
+
+function resetCompressSettings() {
+  localStorage.removeItem('ghj_compress_maxw');
+  localStorage.removeItem('ghj_compress_q');
+  COMPRESS_CONFIG.maxWidth  = 1200;
+  COMPRESS_CONFIG.maxHeight = 1600;
+  COMPRESS_CONFIG.quality   = 0.65;
+  showToast('✅ Reset to default (1200px, 65% quality)');
+  showPage('settings');
+}
+
 function saveSettings() {
   localStorage.setItem('ghj_api_url', document.getElementById('apiUrl').value.trim());
   localStorage.setItem('ghj_sheet_id', document.getElementById('sheetId').value.trim());
@@ -2545,6 +2662,11 @@ function showToast(msg) {
 // ===== INIT =====
 // Restore sync state on page load
 (function initSyncState() {
+  // Apply saved compression settings if any
+  const savedW = parseInt(localStorage.getItem('ghj_compress_maxw'));
+  const savedQ = parseFloat(localStorage.getItem('ghj_compress_q'));
+  if (savedW) { COMPRESS_CONFIG.maxWidth = savedW; COMPRESS_CONFIG.maxHeight = Math.round(savedW * 1.4); }
+  if (savedQ) { COMPRESS_CONFIG.quality = savedQ; }
   updateSyncBadge();
   updateSyncTimeDisplay();
   // Retry any queued entries after 2s (allows page to render first)
