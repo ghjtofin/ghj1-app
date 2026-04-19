@@ -991,7 +991,7 @@ function renderDashboard() {
     <div class="card">
       <div class="card-title">📋 Recent Entries</div>
       <div class="tbl-wrap">
-      <table><thead><tr><th>Sr.</th><th>Date</th><th>Description</th><th>Mode</th><th>Dr/Cr</th><th>Amount</th><th>Status</th></tr></thead><tbody>
+      <table><thead><tr><th>Vendor</th><th>Date</th><th>Description</th><th>Mode</th><th>Dr/Cr</th><th>Amount</th><th>Status</th></tr></thead><tbody>
       ${all.slice().sort((a,b)=>b.srno>a.srno?1:-1).slice(0,10).map(e=>`<tr>
         <td style="font-size:10px;color:var(--text-muted)">${e.srno}</td>
         <td>${e.date}</td>
