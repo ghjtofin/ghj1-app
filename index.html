@@ -524,15 +524,22 @@ const DEFAULT_USERS = [
 ];
 let USERS = JSON.parse(localStorage.getItem('ghj_users') || 'null') || DEFAULT_USERS;
 
-const HEADS = ['Groceries/Food Items', 'Admin', 'Operational Expenses', 'Repair & Maintenance', 'Program/Event/Welfare', 'Purchase', 'Inventories', 'Cash Receipts', 'Cash Deposit', 'Bank Deposit', 'Bank Withdrawal', 'Corpus Fund', 'Capital'];
+const HEADS = [
+  'Groceries/Food Items', 'Admin', 'Operational Expenses', 'Repair & Maintenance',
+  'Program/Event/Welfare', 'Purchase', 'Inventories', 'Cash Receipts',
+  'Cash Deposit', 'Bank Deposit', 'Bank Withdrawal', 'Corpus Fund', 'Capital'
+];
 const CATEGORIES = [
-  'Cash Withdrawal', 'Cash Deposit to Bank', 'Cash Receipts', 'Langar/Bhandara', 'Social Work Activities', 'Staff Wellfare/Accomodation',   
-  'Accounting & Audit Fees', 'Legal & Professional Services', 'Office Rent', 'Electricity/Water/Gas Payments',
-  'Groceries/Food', 'Printing/Stationery', 'Courier & Shipping Services', 'Insurance Premium', 'Banking Charges',
+  'Cash Withdrawal', 'Cash Deposit to Bank', 'Cash Receipts', 'Langar/Bhandara',
+  'Social Work Activities', 'Staff/Volunteers Welfare', 'Staff/Volunteers Accommodation',
+  'Accounting & Audit Fees', 'Legal & Professional Services', 'Office Rent',
+  'Electricity/Water/Gas/Fuel Payments', 'Groceries/Food', 'Printing/Stationery',
+  'Courier & Shipping Services', 'Insurance Premium', 'Banking Charges',
   'Salaries & Wages', 'Program Supplies', 'Travel & Transportation', 'Marketing & Events',
-  'Maintenance & Repair', 'Purchase of Land/Building', 'Construction Costs', 'Operating Expenses',
-  'Purchase of Machinery/Equipment', 'Accumulation of Funds', 'Interest on Borrowed Capital',
-  'Repayment of Loans', 'Govt Fees/Taxes', 'Corpus Fund'
+  'Maintenance & Repair', 'Purchase of Land/Building', 'Construction Costs',
+  'Operating Expenses', 'Purchase of Machinery/Equipment', 'Accumulation of Funds',
+  'Interest on Borrowed Capital', 'Repayment of Loans', 'Govt Fees/Taxes',
+  'Corpus Fund', 'House Hold/Keeping Items', 'Miscellaneous'
 ];
 
 // ── Data layer: localStorage cache + Google Sheet as source of truth ──────────
@@ -1058,6 +1065,7 @@ function renderExpenseList(type) {
     <div class="form-group"><label class="field-label">To</label><input type="date" id="filterTo" onchange="filterTable('${type}')"></div>
     <div class="form-group"><label class="field-label">Head</label><select onchange="filterTable('${type}')" id="filterHead"><option value="">All Heads</option>${HEADS.map(h=>`<option>${h}</option>`).join('')}</select></div>
     <div class="form-group"><label class="field-label">Status</label><select onchange="filterTable('${type}')" id="filterStatus"><option value="">All Status</option><option>pending</option><option>approved</option><option>rejected</option><option>paid</option><option>voided</option></select></div>
+    <div class="form-group" style="min-width:180px"><label class="field-label">Search</label><input type="text" id="filterSearch" placeholder="Desc / Vendor / Amount..." oninput="filterTable('${type}')"></div>
   </div>
   <div class="card">
     <div class="tbl-wrap">
@@ -1462,6 +1470,68 @@ function getDriveFilesForSave(fieldId) {
   return (driveFiles[fieldId] || []).map(f => ({
     name: f.name, mimeType: f.mimeType, driveId: f.driveId, driveLink: f.driveLink, status: f.status
   }));
+}
+
+// ===== FILTER / SEARCH =====
+function filterTable(type) {
+  const from   = (document.getElementById('filterFrom')   || {}).value || '';
+  const to     = (document.getElementById('filterTo')     || {}).value || '';
+  const head   = (document.getElementById('filterHead')   || {}).value || '';
+  const status = (document.getElementById('filterStatus') || {}).value || '';
+  const search = ((document.getElementById('filterSearch') || {}).value || '').toLowerCase().trim();
+
+  const d = getData();
+  const isCreator = currentUser.role === 'creator';
+  let entries = isCreator
+    ? d[type].filter(e => e.createdBy === currentUser.name || e.createdBy === currentUser.email)
+    : d[type];
+
+  entries = entries.filter(e => {
+    if (from   && e.date < from)                return false;
+    if (to     && e.date > to)                  return false;
+    if (head   && e.head !== head)              return false;
+    if (status && e.status !== status)          return false;
+    if (search) {
+      const hay = [e.desc, e.vendor, e.srno, e.head, e.category,
+                   e.createdBy, String(e.amount)].join(' ').toLowerCase();
+      if (!hay.includes(search))               return false;
+    }
+    return true;
+  });
+
+  const body = document.getElementById('tableBody');
+  if (!body) return;
+  const queue = getPendingQueue();
+  if (entries.length === 0) {
+    body.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:24px;color:var(--text-muted)">No entries match your filter.</td></tr>';
+    return;
+  }
+  body.innerHTML = entries.slice().reverse().map(e => `
+    <tr style="${e.status==='voided'?'opacity:0.5;text-decoration:line-through':''}">
+      <td style="font-size:10px;color:var(--text-muted)">${e.srno}</td>
+      <td>${e.date}</td>
+      <td>${e.head}</td>
+      <td style="font-size:11px">${e.category}</td>
+      <td>${e.desc}</td>
+      <td style="color:var(--primary-light);font-size:12px;font-weight:500">${e.vendor||'—'}</td>
+      ${type==='bank'?`<td>${e.bankName||'-'}</td><td>${e.chequeRef||'-'}</td>`:''}
+      <td><span class="badge badge-${e.type}">${e.type.toUpperCase()}</span></td>
+      <td style="font-weight:700;${e.status==='voided'?'color:#bbb;text-decoration:line-through':''}">₹${Number(e.amount).toLocaleString('en-IN')}</td>
+      <td>
+        ${e.invoiceLink?`<a href="${e.invoiceLink}" target="_blank" class="attach-pill" style="display:inline-block;margin:1px">📎 Invoice</a>`:''}
+        ${e.screenshotLink?`<a href="${e.screenshotLink}" target="_blank" class="attach-pill" style="display:inline-block;margin:1px">📷 SS</a>`:''}
+        ${e.voidReason?`<span style="font-size:10px;color:#999;display:block;margin-top:2px">Void: ${e.voidReason}</span>`:''}
+      </td>
+      <td>
+        <span class="badge badge-${e.status}">${e.status==='voided'?'VOID ✕':e.status.toUpperCase()}</span>
+        ${queue.find(q=>q.id===e.id)?'<span style="font-size:9px;background:#e67e22;color:#fff;border-radius:8px;padding:2px 5px;margin-left:3px">⚡ local</span>':''}
+      </td>
+      <td>
+        ${(currentUser.role==='admin'||(currentUser.role==='creator'&&e.createdBy===currentUser.name))&&e.status==='pending'?`<button class="btn btn-outline btn-sm" onclick="editEntry('${type}','${e.id}')">Edit</button> `:''}
+        ${e.status==='approved'&&(currentUser.role==='admin'||currentUser.role==='approver')?`<button class="btn-pay btn-sm" onclick="openPayModal('${type}','${e.id}')">Pay</button> `:''}
+        ${currentUser.role==='admin'&&e.status!=='paid'&&e.status!=='voided'?`<button class="btn btn-sm" style="background:#fee;color:#c0392b;border:1px solid #f5c6cb" onclick="voidEntry('${type}','${e.id}')">✕ Void</button>`:''}
+      </td>
+    </tr>`).join('');
 }
 
 function saveEntry(type) {
@@ -1964,58 +2034,129 @@ function confirmPayment(type, id) {
 }
 
 // ===== REPORTS =====
+function getReportPeriodFilter(period) {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  if (period === 'this_month') {
+    const from = new Date(y, m, 1).toISOString().slice(0,10);
+    const to   = new Date(y, m+1, 0).toISOString().slice(0,10);
+    return e => e.date >= from && e.date <= to;
+  }
+  if (period === 'prev_month') {
+    const from = new Date(y, m-1, 1).toISOString().slice(0,10);
+    const to   = new Date(y, m, 0).toISOString().slice(0,10);
+    return e => e.date >= from && e.date <= to;
+  }
+  if (period === 'this_year') {
+    const from = y + '-01-01', to = y + '-12-31';
+    return e => e.date >= from && e.date <= to;
+  }
+  if (period === 'prev_year') {
+    const from = (y-1) + '-01-01', to = (y-1) + '-12-31';
+    return e => e.date >= from && e.date <= to;
+  }
+  if (period === 'last_3m') {
+    const from = new Date(y, m-2, 1).toISOString().slice(0,10);
+    return e => e.date >= from;
+  }
+  if (period === 'last_6m') {
+    const from = new Date(y, m-5, 1).toISOString().slice(0,10);
+    return e => e.date >= from;
+  }
+  return () => true; // 'all'
+}
+
+let reportPeriod = 'this_month'; // default
+
+function changeReportPeriod(val) {
+  reportPeriod = val;
+  showPage('reports');
+}
+
 function renderReports() {
   const d = getData();
-  const all = [...d.cash.map(e=>({...e,paytype:'cash'})), ...d.bank.map(e=>({...e,paytype:'bank'}))];
-  const byHead = {};
-  HEADS.forEach(h => { byHead[h] = all.filter(e=>e.head===h).reduce((s,e)=>s+e.amount,0); });
-  const total = all.reduce((s,e)=>s+e.amount,0);
-  const maxV = Math.max(...Object.values(byHead), 1);
+  const periodFn = getReportPeriodFilter(reportPeriod);
+  const allRaw = [...d.cash.map(e=>({...e,paytype:'cash'})), ...d.bank.map(e=>({...e,paytype:'bank'}))];
+  // Apply period filter + exclude voided from calculations
+  const all = allRaw.filter(e => e.status !== 'voided' && periodFn(e));
+  const allForLedger = allRaw.filter(periodFn); // ledger shows voided too
 
-  // Pre-compute category amounts once (not inside template literals)
+  // DEBIT-ONLY for Head/Category charts (expenses only — makes sense for spend analysis)
+  const debits = all.filter(e => e.type === 'debit');
+  const totalDebitAmt = debits.reduce((s,e) => s + Number(e.amount), 0);
+  const totalCreditAmt = all.filter(e=>e.type==='credit').reduce((s,e)=>s+Number(e.amount),0);
+
+  // Head breakdown — debit only
+  const byHead = {};
+  HEADS.forEach(h => { byHead[h] = debits.filter(e=>e.head===h).reduce((s,e)=>s+Number(e.amount),0); });
+  const headEntries = Object.entries(byHead).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  const maxHead = headEntries.length > 0 ? headEntries[0][1] : 1;
+
+  // Category breakdown — debit only
   const catAmt = {};
-  CATEGORIES.forEach(c => { catAmt[c] = all.filter(e=>e.category===c&&e.status!=='voided').reduce((s,e)=>s+Number(e.amount),0); });
+  CATEGORIES.forEach(c => { catAmt[c] = debits.filter(e=>e.category===c).reduce((s,e)=>s+Number(e.amount),0); });
   const catEntries = Object.entries(catAmt).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
   const maxCat = catEntries.length > 0 ? catEntries[0][1] : 1;
-  const totalDebit = all.filter(e=>e.type==='debit'&&e.status!=='voided').reduce((s,e)=>s+Number(e.amount),0);
-  const totalCredit = all.filter(e=>e.type==='credit'&&e.status!=='voided').reduce((s,e)=>s+Number(e.amount),0);
+
+  const periodLabel = {
+    all:'All Time', this_month:'This Month', prev_month:'Previous Month',
+    this_year:'This Year', prev_year:'Previous Year',
+    last_3m:'Last 3 Months', last_6m:'Last 6 Months'
+  }[reportPeriod] || 'All Time';
 
   return `
-  <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:20px">📈 Reports & Analytics</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+    <div style="font-size:20px;font-weight:700;color:var(--primary)">📈 Reports & Analytics</div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <label style="font-size:12px;color:var(--text-muted)">Period:</label>
+      <select onchange="changeReportPeriod(this.value)" style="font-size:13px;padding:6px 10px;border:1.5px solid var(--border);border-radius:7px">
+        <option value="this_month" ${reportPeriod==='this_month'?'selected':''}>This Month</option>
+        <option value="prev_month" ${reportPeriod==='prev_month'?'selected':''}>Previous Month</option>
+        <option value="last_3m"    ${reportPeriod==='last_3m'?'selected':''}>Last 3 Months</option>
+        <option value="last_6m"    ${reportPeriod==='last_6m'?'selected':''}>Last 6 Months</option>
+        <option value="this_year"  ${reportPeriod==='this_year'?'selected':''}>This Year</option>
+        <option value="prev_year"  ${reportPeriod==='prev_year'?'selected':''}>Previous Year</option>
+        <option value="all"        ${reportPeriod==='all'?'selected':''}>All Time</option>
+      </select>
+      <span style="font-size:12px;color:var(--text-muted);font-weight:600">${periodLabel}</span>
+    </div>
+  </div>
+
   <div class="stats-row">
-    <div class="stat-card"><div class="stat-label">Total Entries</div><div class="stat-value">${all.filter(e=>e.status!=='voided').length}</div><div class="stat-sub">Voided: ${all.filter(e=>e.status==='voided').length}</div></div>
-    <div class="stat-card"><div class="stat-label">Total Debit (Out)</div><div class="stat-value" style="color:var(--danger)">₹${totalDebit.toLocaleString('en-IN')}</div></div>
-    <div class="stat-card"><div class="stat-label">Total Credit (In)</div><div class="stat-value" style="color:var(--success)">₹${totalCredit.toLocaleString('en-IN')}</div></div>
-    <div class="stat-card"><div class="stat-label">Paid Amount</div><div class="stat-value">₹${all.filter(e=>e.status==='paid').reduce((s,e)=>s+Number(e.amount),0).toLocaleString('en-IN')}</div></div>
+    <div class="stat-card"><div class="stat-label">Entries (${periodLabel})</div><div class="stat-value">${all.length}</div><div class="stat-sub">Debit: ${debits.length} | Credit: ${all.filter(e=>e.type==='credit').length}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Debit / Spend</div><div class="stat-value" style="color:var(--danger)">₹${totalDebitAmt.toLocaleString('en-IN')}</div></div>
+    <div class="stat-card"><div class="stat-label">Total Credit / Received</div><div class="stat-value" style="color:var(--success)">₹${totalCreditAmt.toLocaleString('en-IN')}</div></div>
+    <div class="stat-card"><div class="stat-label">Net (Credit − Debit)</div><div class="stat-value" style="color:${totalCreditAmt-totalDebitAmt>=0?'var(--success)':'var(--danger)'}">${totalCreditAmt-totalDebitAmt>=0?'+':''}₹${Math.abs(totalCreditAmt-totalDebitAmt).toLocaleString('en-IN')}</div></div>
   </div>
 
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
 
   <div class="card">
-    <div class="card-title">📊 Spend by Head — Amount &amp; %</div>
+    <div class="card-title">📊 Debit Spend by Head — Amount &amp; %</div>
+    <div style="font-size:10px;color:var(--text-muted);margin-bottom:8px">Debit (expense) entries only · % of total debit spend</div>
     <table style="width:100%;font-size:12px;border-collapse:collapse">
       <thead><tr style="border-bottom:1.5px solid var(--border)">
         <th style="text-align:left;padding:5px 4px">Head</th>
         <th style="text-align:right;padding:5px 4px">Amount</th>
         <th style="text-align:right;padding:5px 4px;color:var(--primary)">%</th>
-        <th style="padding:5px 4px;width:80px">Bar</th>
+        <th style="padding:5px 4px;width:70px">Bar</th>
       </tr></thead>
       <tbody>
-      ${Object.entries(byHead).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).map(([h,v])=>`
+      ${headEntries.map(([h,v])=>`
         <tr style="border-bottom:.5px solid #f0f0f0">
           <td style="padding:6px 4px;font-weight:500">${h}</td>
           <td style="padding:6px 4px;text-align:right">₹${v.toLocaleString('en-IN')}</td>
-          <td style="padding:6px 4px;text-align:right;color:var(--primary);font-weight:700">${total>0?(v/total*100).toFixed(1):0}%</td>
+          <td style="padding:6px 4px;text-align:right;color:var(--primary);font-weight:700">${totalDebitAmt>0?(v/totalDebitAmt*100).toFixed(1):0}%</td>
           <td style="padding:6px 4px">
             <div style="background:#ecf0f1;border-radius:4px;height:8px">
-              <div style="background:var(--primary);height:8px;border-radius:4px;width:${total>0?(v/total*100):0}%;transition:width 0.5s"></div>
+              <div style="background:var(--primary);height:8px;border-radius:4px;width:${maxHead>0?(v/maxHead*100):0}%;transition:width 0.5s"></div>
             </div>
           </td>
-        </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--text-muted)">No data</td></tr>'}
+        </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--text-muted)">No debit entries for this period</td></tr>'}
       </tbody>
-      ${total>0?`<tfoot><tr style="border-top:1.5px solid var(--border);font-weight:700">
-        <td style="padding:6px 4px">Total</td>
-        <td style="padding:6px 4px;text-align:right">₹${total.toLocaleString('en-IN')}</td>
+      ${totalDebitAmt>0?`<tfoot><tr style="border-top:1.5px solid var(--border);font-weight:700;background:#f8f9fa">
+        <td style="padding:6px 4px">Total Debit</td>
+        <td style="padding:6px 4px;text-align:right;color:var(--danger)">₹${totalDebitAmt.toLocaleString('en-IN')}</td>
         <td style="padding:6px 4px;text-align:right">100%</td>
         <td></td>
       </tr></tfoot>`:''}
@@ -2023,44 +2164,58 @@ function renderReports() {
   </div>
 
   <div class="card">
-    <div class="card-title">📋 Spend by Category — Amount &amp; %</div>
+    <div class="card-title">📋 Debit Spend by Category — Amount &amp; %</div>
+    <div style="font-size:10px;color:var(--text-muted);margin-bottom:8px">Debit (expense) entries only · % of total debit spend</div>
     <table style="width:100%;font-size:11px;border-collapse:collapse">
       <thead><tr style="border-bottom:1.5px solid var(--border)">
         <th style="text-align:left;padding:5px 4px">Category</th>
         <th style="text-align:right;padding:5px 4px">Amount</th>
         <th style="text-align:right;padding:5px 4px;color:var(--accent)">%</th>
-        <th style="padding:5px 4px;width:60px">Bar</th>
+        <th style="padding:5px 4px;width:55px">Bar</th>
       </tr></thead>
       <tbody>
       ${catEntries.map(([c,v])=>`
         <tr style="border-bottom:.5px solid #f0f0f0">
           <td style="padding:5px 4px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c}">${c}</td>
           <td style="padding:5px 4px;text-align:right">₹${v.toLocaleString('en-IN')}</td>
-          <td style="padding:5px 4px;text-align:right;color:var(--accent);font-weight:700">${total>0?(v/total*100).toFixed(1):0}%</td>
+          <td style="padding:5px 4px;text-align:right;color:var(--accent);font-weight:700">${totalDebitAmt>0?(v/totalDebitAmt*100).toFixed(1):0}%</td>
           <td style="padding:5px 4px">
             <div style="background:#ecf0f1;border-radius:3px;height:6px">
               <div style="background:var(--accent);height:6px;border-radius:3px;width:${maxCat>0?(v/maxCat*100):0}%;transition:width 0.5s"></div>
             </div>
           </td>
-        </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--text-muted)">No data yet</td></tr>'}
+        </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--text-muted)">No debit entries for this period</td></tr>'}
       </tbody>
+      ${totalDebitAmt>0?`<tfoot><tr style="border-top:1.5px solid var(--border);font-weight:700;background:#f8f9fa">
+        <td style="padding:5px 4px">Total Debit</td>
+        <td style="padding:5px 4px;text-align:right;color:var(--danger)">₹${totalDebitAmt.toLocaleString('en-IN')}</td>
+        <td style="padding:5px 4px;text-align:right">100%</td>
+        <td></td>
+      </tr></tfoot>`:''}
     </table>
   </div>
 
   </div>
   <div class="card">
-    <div class="card-title">Full Expense Ledger</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div class="card-title" style="margin:0">📄 Expense Ledger — ${periodLabel}</div>
+      <div style="font-size:12px;color:var(--text-muted)">${allForLedger.length} entries · newest first</div>
+    </div>
     <div class="tbl-wrap">
-    <table><thead><tr><th>Sr.No</th><th>Date</th><th>Mode</th><th>Head</th><th>Category</th><th>Description</th><th>Vendor</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead>
-    <tbody>${all.slice().reverse().map(e=>`<tr>
-      <td>${e.srno}</td><td>${e.date}</td>
+    <table><thead><tr>
+      <th>Sr.No</th><th>Date</th><th>Mode</th><th>Head</th><th>Category</th>
+      <th>Description</th><th>Vendor</th><th>Dr/Cr</th><th>Amount</th><th>Status</th>
+    </tr></thead>
+    <tbody>${allForLedger.slice().sort((a,b)=>b.date>a.date?1:-1).map(e=>`<tr style='${e.status==="voided"?"opacity:0.45;text-decoration:line-through":""}'>
+      <td style="font-size:10px">${e.srno}</td><td>${e.date}</td>
       <td><span class="badge badge-${e.paytype}">${e.paytype.toUpperCase()}</span></td>
       <td>${e.head}</td><td style="font-size:10px">${e.category}</td>
-      <td>${e.desc}</td><td>${e.vendor||'-'}</td>
-      <td><span class="badge badge-${e.type}">${e.type.toUpperCase()}</span></td>
-      <td>₹${Number(e.amount).toLocaleString('en-IN')}</td>
-      <td><span class="badge badge-${e.status}">${e.status.toUpperCase()}</span></td>
-    </tr>`).join('') || '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text-muted)">No data.</td></tr>'}
+      <td>${e.desc}</td>
+      <td style="color:var(--primary-light);font-size:11px">${e.vendor||'-'}</td>
+      <td style="font-weight:700;color:${e.type==='debit'?'#c0392b':'#27ae60'}">${e.type==='debit'?'DR':'CR'}</td>
+      <td style="font-weight:600;color:${e.type==='debit'?'var(--danger)':'var(--success)'}">₹${Number(e.amount).toLocaleString('en-IN')}</td>
+      <td><span class="badge badge-${e.status}">${e.status==='voided'?'VOID':e.status.toUpperCase()}</span></td>
+    </tr>`).join('') || '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text-muted)">No entries for this period.</td></tr>'}
     </tbody></table>
     </div>
   </div>`;
