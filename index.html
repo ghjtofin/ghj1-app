@@ -482,7 +482,7 @@
 const APP_CONFIG = {
   scriptUrl: 'https://script.google.com/macros/s/AKfycbwNRzWNDVEMkBJo0JQ3YAim9ANKTmZOXY8dVmdTF_pUO_8mJ5IAeRlHMOqodGmjHIOK/exec',   // ← PASTE YOUR APPS SCRIPT URL HERE
                    //   e.g. 'https://script.google.com/macros/s/AKfyc.../exec'
-  sheetId:   '1JL8flLniqzH-9E36dnOZorCzHerjMO6BKxeQ0efkznk',   // ← PASTE YOUR GOOGLE SHEET ID HERE (optional, for reference)
+  sheetId:   '',   // ← PASTE YOUR GOOGLE SHEET ID HERE (optional, for reference)
 };
 // ────────────────────────────────────────────────────────────────────────────────
 
@@ -1524,15 +1524,27 @@ function downloadEntries(type) {
 function downloadReportData() {
   const d = getData();
   const periodFn = getReportPeriodFilter(reportPeriod);
-  const all = [...d.cash.map(e=>({...e,paytype:'cash'})), ...d.bank.map(e=>({...e,paytype:'bank'}))]
-    .filter(e => e.status !== 'voided' && periodFn(e));
+  const allRaw = [...d.cash.map(e=>({...e,paytype:'cash'})), ...d.bank.map(e=>({...e,paytype:'bank'}))];
+  const modeFiltered = reportMode === 'all' ? allRaw : allRaw.filter(e=>e.paytype===reportMode);
+  const all = modeFiltered.filter(e => e.status !== 'voided' && periodFn(e));
   const flat = all.map(e => ({
-    SrNo: e.srno, Date: e.date, Mode: e.paytype, Head: e.head, Category: e.category,
-    DrCr: e.type === 'debit' ? 'DR' : 'CR', Amount: e.amount,
-    Description: e.desc, Vendor: e.vendor||'', Status: e.status,
-    CreatedBy: e.createdBy||'', ApprovedBy: e.approvedBy||'', PaymentRef: e.paymentRef||''
+    SrNo:        e.srno,
+    Date:        e.date,
+    Mode:        e.paytype === 'cash' ? 'Cash' : 'Bank',
+    Head:        e.head,
+    Category:    e.category,
+    DrCr:        e.type === 'debit' ? 'DR' : 'CR',
+    Amount:      e.amount,
+    Description: e.desc,
+    Vendor:      e.vendor    || '',
+    CreatedBy:   e.createdBy || '',
+    IssuedBy:    e.issuedBy  || '',   // for petty cash entries
+    Status:      e.status,
+    ApprovedBy:  e.approvedBy  || '',
+    PaymentRef:  e.paymentRef  || '',
+    Remarks:     e.remarks     || ''
   }));
-  downloadCSV(flat, 'GHJ_report_' + reportPeriod);
+  downloadCSV(flat, 'GHJ_report_' + reportMode + '_' + reportPeriod);
 }
 
 // ===== FILTER / SEARCH =====
@@ -2353,72 +2365,118 @@ function renderReports() {
 
   </div>
 
-  <!-- ══ MIS: VENDOR + USER ══ -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+  <!-- ══ MIS: USER-WISE SUMMARY ══ -->
+  ${(()=>{
+    // Build per-user breakdown: all users who appear in any entry
+    const allUsers = [...new Set(all.map(e=>e.createdBy||'Unknown'))].sort();
+    const allCash  = allRaw.filter(e=>e.status!=='voided'&&periodFn(e)&&e.paytype==='cash');
+    const allBank  = allRaw.filter(e=>e.status!=='voided'&&periodFn(e)&&e.paytype==='bank');
 
-    <!-- Top Vendors by Spend -->
+    // MIS rows: one row per user
+    const misRows = allUsers.map(u=>{
+      const cashDr = allCash.filter(e=>e.type==='debit'  &&e.createdBy===u).reduce((s,e)=>s+Number(e.amount),0);
+      const cashCr = allCash.filter(e=>e.type==='credit' &&e.createdBy===u).reduce((s,e)=>s+Number(e.amount),0);
+      const bankDr = allBank.filter(e=>e.type==='debit'  &&e.createdBy===u).reduce((s,e)=>s+Number(e.amount),0);
+      const bankCr = allBank.filter(e=>e.type==='credit' &&e.createdBy===u).reduce((s,e)=>s+Number(e.amount),0);
+      const netCash = cashCr - cashDr;
+      const netBank = bankCr - bankDr;
+      // Top head for this user (debit)
+      const userDebits = all.filter(e=>e.createdBy===u&&e.type==='debit');
+      const headMap = {};
+      userDebits.forEach(e=>{headMap[e.head]=(headMap[e.head]||0)+Number(e.amount);});
+      const topHead = Object.entries(headMap).sort((a,b)=>b[1]-a[1])[0];
+      return {u, cashDr, cashCr, bankDr, bankCr, netCash, netBank, topHead: topHead?topHead[0]:'-',
+              entries: all.filter(e=>e.createdBy===u).length};
+    });
+
+    // Totals row
+    const totCashDr = misRows.reduce((s,r)=>s+r.cashDr,0);
+    const totCashCr = misRows.reduce((s,r)=>s+r.cashCr,0);
+    const totBankDr = misRows.reduce((s,r)=>s+r.bankDr,0);
+    const totBankCr = misRows.reduce((s,r)=>s+r.bankCr,0);
+
+    return `
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+        <div class="card-title" style="margin:0">👤 MIS — User-wise Cash &amp; Bank Summary · ${periodLabel}</div>
+        <button class="btn btn-outline btn-sm" onclick="downloadMIS()" style="font-size:12px">⬇ Download MIS CSV</button>
+      </div>
+      <div style="font-size:10px;color:var(--text-muted);margin-bottom:8px">
+        Shows Cash Dr/Cr and Bank Dr/Cr per user for the selected period. Net = Credit − Debit.
+      </div>
+      <div class="tbl-wrap">
+      <table style="font-size:12px;border-collapse:collapse;width:100%">
+        <thead>
+          <tr style="background:#f0f4f8">
+            <th style="text-align:left;padding:7px 6px;border-bottom:1.5px solid var(--border)" rowspan="2">User / Creator</th>
+            <th style="text-align:right;padding:7px 6px;border-bottom:1.5px solid var(--border)" rowspan="2">Entries</th>
+            <th colspan="3" style="text-align:center;padding:7px 6px;background:#fde8e8;border-bottom:.5px solid var(--border)">💵 Cash Account</th>
+            <th colspan="3" style="text-align:center;padding:7px 6px;background:#e8f4fd;border-bottom:.5px solid var(--border)">🏦 Bank Account</th>
+            <th style="text-align:left;padding:7px 6px;border-bottom:1.5px solid var(--border)" rowspan="2">Top Head</th>
+          </tr>
+          <tr style="background:#f8f0f0">
+            <th style="text-align:right;padding:5px 6px;color:var(--danger)">Debit (DR)</th>
+            <th style="text-align:right;padding:5px 6px;color:var(--success)">Credit (CR)</th>
+            <th style="text-align:right;padding:5px 6px;color:var(--primary)">Net</th>
+            <th style="text-align:right;padding:5px 6px;color:var(--danger);background:#e8f4fd">Debit (DR)</th>
+            <th style="text-align:right;padding:5px 6px;color:var(--success);background:#e8f4fd">Credit (CR)</th>
+            <th style="text-align:right;padding:5px 6px;color:var(--primary);background:#e8f4fd">Net</th>
+          </tr>
+        </thead>
+        <tbody>
+        ${misRows.filter(r=>r.entries>0).map(r=>`
+          <tr style="border-bottom:.5px solid #f0f0f0">
+            <td style="padding:6px 6px;font-weight:600">${r.u}</td>
+            <td style="padding:6px 6px;text-align:right;color:var(--text-muted)">${r.entries}</td>
+            <td style="padding:6px 6px;text-align:right;color:${r.cashDr>0?'var(--danger)':'var(--text-muted)'}">${r.cashDr>0?'₹'+r.cashDr.toLocaleString('en-IN'):'-'}</td>
+            <td style="padding:6px 6px;text-align:right;color:${r.cashCr>0?'var(--success)':'var(--text-muted)'}">${r.cashCr>0?'₹'+r.cashCr.toLocaleString('en-IN'):'-'}</td>
+            <td style="padding:6px 6px;text-align:right;font-weight:600;color:${r.netCash>=0?'var(--success)':'var(--danger)'}">${r.netCash===0?'-':(r.netCash>0?'+':'')+'₹'+Math.abs(r.netCash).toLocaleString('en-IN')}</td>
+            <td style="padding:6px 6px;text-align:right;color:${r.bankDr>0?'var(--danger)':'var(--text-muted)'}">${r.bankDr>0?'₹'+r.bankDr.toLocaleString('en-IN'):'-'}</td>
+            <td style="padding:6px 6px;text-align:right;color:${r.bankCr>0?'var(--success)':'var(--text-muted)'}">${r.bankCr>0?'₹'+r.bankCr.toLocaleString('en-IN'):'-'}</td>
+            <td style="padding:6px 6px;text-align:right;font-weight:600;color:${r.netBank>=0?'var(--success)':'var(--danger)'}">${r.netBank===0?'-':(r.netBank>0?'+':'')+'₹'+Math.abs(r.netBank).toLocaleString('en-IN')}</td>
+            <td style="padding:6px 6px;font-size:11px;color:var(--text-muted)">${r.topHead}</td>
+          </tr>`).join('') || '<tr><td colspan="9" style="text-align:center;padding:16px;color:var(--text-muted)">No entries</td></tr>'}
+        </tbody>
+        <tfoot>
+          <tr style="border-top:2px solid var(--primary);font-weight:700;background:#f0f4f8">
+            <td style="padding:7px 6px">TOTAL</td>
+            <td style="padding:7px 6px;text-align:right">${all.length}</td>
+            <td style="padding:7px 6px;text-align:right;color:var(--danger)">₹${totCashDr.toLocaleString('en-IN')}</td>
+            <td style="padding:7px 6px;text-align:right;color:var(--success)">₹${totCashCr.toLocaleString('en-IN')}</td>
+            <td style="padding:7px 6px;text-align:right;color:${totCashCr-totCashDr>=0?'var(--success)':'var(--danger)'}">${totCashCr-totCashDr>=0?'+':''}₹${Math.abs(totCashCr-totCashDr).toLocaleString('en-IN')}</td>
+            <td style="padding:7px 6px;text-align:right;color:var(--danger)">₹${totBankDr.toLocaleString('en-IN')}</td>
+            <td style="padding:7px 6px;text-align:right;color:var(--success)">₹${totBankCr.toLocaleString('en-IN')}</td>
+            <td style="padding:7px 6px;text-align:right;color:${totBankCr-totBankDr>=0?'var(--success)':'var(--danger)'}">${totBankCr-totBankDr>=0?'+':''}₹${Math.abs(totBankCr-totBankDr).toLocaleString('en-IN')}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+      </div>
+    </div>
+
+    <!-- Top Vendors -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
     <div class="card">
       <div class="card-title">🏪 Top Vendors by Spend (Debit)</div>
-      <table style="width:100%;font-size:12px;border-collapse:collapse">
-        <thead><tr style="border-bottom:1.5px solid var(--border)">
-          <th style="text-align:left;padding:5px 4px">#</th>
-          <th style="text-align:left;padding:5px 4px">Vendor / Payee</th>
-          <th style="text-align:right;padding:5px 4px">Amount</th>
-          <th style="text-align:right;padding:5px 4px;color:var(--danger)">%</th>
-          <th style="padding:5px 4px;width:50px">Bar</th>
-        </tr></thead>
-        <tbody>
-        ${vendorEntries.map(([v,amt],i)=>`
-          <tr style="border-bottom:.5px solid #f0f0f0">
-            <td style="padding:5px 4px;color:var(--text-muted);font-size:10px">${i+1}</td>
-            <td style="padding:5px 4px;font-weight:500;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${v}</td>
-            <td style="padding:5px 4px;text-align:right;color:var(--danger)">₹${amt.toLocaleString('en-IN')}</td>
-            <td style="padding:5px 4px;text-align:right;font-weight:700;color:var(--primary)">${totalDebit>0?(amt/totalDebit*100).toFixed(1):0}%</td>
-            <td style="padding:5px 4px">
-              <div style="background:#ecf0f1;border-radius:3px;height:6px">
-                <div style="background:var(--danger);height:6px;border-radius:3px;width:${vendorEntries.length>0?(amt/vendorEntries[0][1]*100):0}%"></div>
-              </div>
-            </td>
-          </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--text-muted)">No debit entries</td></tr>'}
-        </tbody>
-      </table>
+      ${vendorEntries.length===0?'<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:12px">No debit entries</div>':
+      '<table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr style="border-bottom:1.5px solid var(--border)"><th style="text-align:left;padding:5px 4px">#</th><th style="text-align:left;padding:5px 4px">Vendor</th><th style="text-align:right;padding:5px 4px">Amount</th><th style="text-align:right;padding:5px 4px">%</th></tr></thead><tbody>'
+      + vendorEntries.map(([v,amt],i)=>'<tr style="border-bottom:.5px solid #f0f0f0"><td style="padding:5px 4px;color:var(--text-muted);font-size:10px">'+(i+1)+'</td><td style="padding:5px 4px;font-weight:500;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+v+'</td><td style="padding:5px 4px;text-align:right;color:var(--danger)">₹'+amt.toLocaleString('en-IN')+'</td><td style="padding:5px 4px;text-align:right;font-weight:700;color:var(--primary)">'+(totalDebit>0?(amt/totalDebit*100).toFixed(1):0)+'%</td></tr>').join('')
+      + '</tbody><tfoot><tr style="border-top:1.5px solid var(--border);font-weight:700"><td colspan="2" style="padding:5px 4px">Total</td><td style="padding:5px 4px;text-align:right;color:var(--danger)">₹'+totalDebit.toLocaleString('en-IN')+'</td><td style="padding:5px 4px;text-align:right">100%</td></tr></tfoot></table>'}
     </div>
-
-    <!-- Spend by User / Creator -->
     <div class="card">
-      <div class="card-title">👤 Spend by Creator / User (Debit)</div>
-      <table style="width:100%;font-size:12px;border-collapse:collapse">
-        <thead><tr style="border-bottom:1.5px solid var(--border)">
-          <th style="text-align:left;padding:5px 4px">User</th>
-          <th style="text-align:right;padding:5px 4px">Entries</th>
-          <th style="text-align:right;padding:5px 4px">Amount</th>
-          <th style="text-align:right;padding:5px 4px;color:var(--danger)">%</th>
-          <th style="padding:5px 4px;width:50px">Bar</th>
-        </tr></thead>
-        <tbody>
-        ${userEntries.map(([u,amt])=>`
-          <tr style="border-bottom:.5px solid #f0f0f0">
-            <td style="padding:5px 4px;font-weight:500">${u}</td>
-            <td style="padding:5px 4px;text-align:right;color:var(--text-muted)">${debits.filter(e=>e.createdBy===u).length}</td>
-            <td style="padding:5px 4px;text-align:right;color:var(--danger)">₹${amt.toLocaleString('en-IN')}</td>
-            <td style="padding:5px 4px;text-align:right;font-weight:700;color:var(--primary)">${totalDebit>0?(amt/totalDebit*100).toFixed(1):0}%</td>
-            <td style="padding:5px 4px">
-              <div style="background:#ecf0f1;border-radius:3px;height:6px">
-                <div style="background:var(--accent);height:6px;border-radius:3px;width:${userEntries.length>0?(amt/userEntries[0][1]*100):0}%"></div>
-              </div>
-            </td>
-          </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--text-muted)">No debit entries</td></tr>'}
-        </tbody>
-        ${totalDebit>0?`<tfoot><tr style="border-top:1.5px solid var(--border);font-weight:700;background:#f8f9fa">
-          <td style="padding:5px 4px">Total</td>
-          <td style="padding:5px 4px;text-align:right">${debits.length}</td>
-          <td style="padding:5px 4px;text-align:right;color:var(--danger)">₹${totalDebit.toLocaleString('en-IN')}</td>
-          <td style="padding:5px 4px;text-align:right">100%</td><td></td>
-        </tr></tfoot>`:''}
-      </table>
+      <div class="card-title">💰 Top Sources by Credit</div>
+      ${(()=>{
+        const creditVendors={};
+        credits.forEach(e=>{const v=(e.vendor||e.createdBy||'Unknown').trim();creditVendors[v]=(creditVendors[v]||0)+Number(e.amount);});
+        const cvEntries=Object.entries(creditVendors).sort((a,b)=>b[1]-a[1]).slice(0,10);
+        if(cvEntries.length===0) return '<div style="text-align:center;padding:16px;color:var(--text-muted);font-size:12px">No credit entries</div>';
+        return '<table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr style="border-bottom:1.5px solid var(--border)"><th style="text-align:left;padding:5px 4px">#</th><th style="text-align:left;padding:5px 4px">User/Source</th><th style="text-align:right;padding:5px 4px">Amount</th><th style="text-align:right;padding:5px 4px">%</th></tr></thead><tbody>'
+          + cvEntries.map(([v,amt],i)=>'<tr style="border-bottom:.5px solid #f0f0f0"><td style="padding:5px 4px;color:var(--text-muted);font-size:10px">'+(i+1)+'</td><td style="padding:5px 4px;font-weight:500;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+v+'</td><td style="padding:5px 4px;text-align:right;color:var(--success)">₹'+amt.toLocaleString('en-IN')+'</td><td style="padding:5px 4px;text-align:right;font-weight:700;color:var(--primary)">'+(totalCredit>0?(amt/totalCredit*100).toFixed(1):0)+'%</td></tr>').join('')
+          + '</tbody><tfoot><tr style="border-top:1.5px solid var(--border);font-weight:700"><td colspan="2" style="padding:5px 4px">Total</td><td style="padding:5px 4px;text-align:right;color:var(--success)">₹'+totalCredit.toLocaleString('en-IN')+'</td><td style="padding:5px 4px;text-align:right">100%</td></tr></tfoot></table>';
+      })()}
     </div>
-
-  </div>
+    </div>`;
+  })()}
 
   <!-- ══ EXPENSE LEDGER ══ -->
   <div class="card">
@@ -2494,8 +2552,12 @@ function issuePettyCash() {
     id: cashEntryId, srno, date, head: 'Cash Deposit',
     category: 'Cash Withdrawal', type: 'debit', amount,
     desc: 'Petty Cash issued to ' + toUser + ' — ' + purpose,
-    vendor: toUser, status: 'paid', paytype: 'cash',
-    createdBy: currentUser.name, approvedBy: currentUser.name, paidBy: currentUser.name,
+    vendor: toUser,
+    // createdBy = toUser so the petty cash shows in the creator's own entry list
+    createdBy: toUser,
+    issuedBy: currentUser.name,   // who actually issued it
+    status: 'paid', paytype: 'cash',
+    approvedBy: currentUser.name, paidBy: currentUser.name,
     paymentRef: pcId, remarks: 'Auto-entry: Petty Cash issue ' + pcId,
     createdAt: new Date().toISOString(), paidAt: new Date().toISOString(),
     invoiceLink: '', screenshotLink: '', invoiceFiles: [], screenshotFiles: []
@@ -2545,8 +2607,12 @@ function settlePettyCash(id) {
       id: genId(), srno, date: settleDate, head: 'Cash Receipts',
       category: 'Cash Receipts', type: 'credit', amount: returnAmt,
       desc: 'Petty Cash return from ' + r.toUser + ' — ' + r.purpose,
-      vendor: r.toUser, status: 'paid', paytype: 'cash',
-      createdBy: currentUser.name, approvedBy: currentUser.name, paidBy: currentUser.name,
+      vendor: r.toUser,
+      // createdBy = toUser so credit also shows in creator's own list
+      createdBy: r.toUser,
+      issuedBy: currentUser.name,
+      status: 'paid', paytype: 'cash',
+      approvedBy: currentUser.name, paidBy: currentUser.name,
       paymentRef: r.id, remarks: 'Auto-entry: Petty Cash return for ' + r.id,
       createdAt: new Date().toISOString(), paidAt: new Date().toISOString(),
       invoiceLink: '', screenshotLink: '', invoiceFiles: [], screenshotFiles: []
@@ -2707,6 +2773,44 @@ function renderPettyCash() {
     </tbody></table>
     </div>
   </div>`;
+}
+
+function downloadMIS() {
+  const d = getData();
+  const periodFn = getReportPeriodFilter(reportPeriod);
+  const allRaw = [
+    ...d.cash.map(e=>({...e,paytype:'cash'})),
+    ...d.bank.map(e=>({...e,paytype:'bank'}))
+  ];
+  const filtered = allRaw.filter(e => e.status !== 'voided' && periodFn(e));
+  const allUsers = [...new Set(filtered.map(e=>e.createdBy||'Unknown'))].sort();
+  const allCash  = filtered.filter(e=>e.paytype==='cash');
+  const allBank  = filtered.filter(e=>e.paytype==='bank');
+
+  const rows = allUsers.map(u => {
+    const cashDr = allCash.filter(e=>e.type==='debit' &&e.createdBy===u).reduce((s,e)=>s+Number(e.amount),0);
+    const cashCr = allCash.filter(e=>e.type==='credit'&&e.createdBy===u).reduce((s,e)=>s+Number(e.amount),0);
+    const bankDr = allBank.filter(e=>e.type==='debit' &&e.createdBy===u).reduce((s,e)=>s+Number(e.amount),0);
+    const bankCr = allBank.filter(e=>e.type==='credit'&&e.createdBy===u).reduce((s,e)=>s+Number(e.amount),0);
+    const headMap = {};
+    filtered.filter(e=>e.createdBy===u&&e.type==='debit').forEach(e=>{headMap[e.head]=(headMap[e.head]||0)+Number(e.amount);});
+    const topHead = Object.entries(headMap).sort((a,b)=>b[1]-a[1])[0];
+    return {
+      User: u,
+      Entries: filtered.filter(e=>e.createdBy===u).length,
+      'Cash Debit (DR)': cashDr,
+      'Cash Credit (CR)': cashCr,
+      'Cash Net': cashCr - cashDr,
+      'Bank Debit (DR)': bankDr,
+      'Bank Credit (CR)': bankCr,
+      'Bank Net': bankCr - bankDr,
+      'Total Debit': cashDr + bankDr,
+      'Total Credit': cashCr + bankCr,
+      'Net Overall': (cashCr + bankCr) - (cashDr + bankDr),
+      'Top Head': topHead ? topHead[0] : '-'
+    };
+  });
+  downloadCSV(rows, 'GHJ_MIS_' + reportPeriod);
 }
 
 function downloadPettyCash() {
