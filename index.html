@@ -478,11 +478,16 @@
 // ║  Paste your Apps Script URL below — all users get it instantly  ║
 // ╚══════════════════════════════════════════════════════════════════╝
 
-// ─── STEP 1: Paste your Apps Script URL here (replaces manual Settings entry) ───
+// ─── STEP 1: Paste your Apps Script URL and set a secret token ──────────────────
 const APP_CONFIG = {
-  scriptUrl: 'https://script.google.com/macros/s/AKfycbwNRzWNDVEMkBJo0JQ3YAim9ANKTmZOXY8dVmdTF_pUO_8mJ5IAeRlHMOqodGmjHIOK/exec',   // ← PASTE YOUR APPS SCRIPT URL HERE
-                   //   e.g. 'https://script.google.com/macros/s/AKfyc.../exec'
-  sheetId:   '',   // ← PASTE YOUR GOOGLE SHEET ID HERE (optional, for reference)
+scriptUrl:   'https://script.google.com/macros/s/AKfycbwWyM32vJ3A55mBMApGfQs-KCEBSKlUV_GNNRSfXFsV47iFYWtijpxHUDcTpglaijYm/exec',      // ← PASTE YOUR APPS SCRIPT URL HERE
+                        //   e.g. 'https://script.google.com/macros/s/AKfyc.../exec'
+  sheetId:     '1JL8flLniqzH-9E36dnOZorCzHerjMO6BKxeQ0efkznk',      // ← PASTE YOUR GOOGLE SHEET ID HERE
+
+  // APP SECRET — set any private word/code here AND also in your Apps Script (line 9).
+  // Requests without this token are rejected. Only you and your team know this.
+  // Example: 'GHJ2025secure' — avoid spaces, use letters+numbers only.
+  appSecret:   'Peax@Dida166',      // ← SET A PRIVATE SECRET CODE (same must be in Apps Script)
 };
 // ────────────────────────────────────────────────────────────────────────────────
 
@@ -493,6 +498,9 @@ const APP_CONFIG = {
   }
   if (APP_CONFIG.sheetId) {
     localStorage.setItem('ghj_sheet_id', APP_CONFIG.sheetId);
+  }
+  if (APP_CONFIG.appSecret) {
+    localStorage.setItem('ghj_app_secret', APP_CONFIG.appSecret);
   }
   // AUTO-CLEAR STALE CACHE: if cached data is older than 60 minutes,
   // clear it so next login always pulls fresh from Sheet.
@@ -527,12 +535,17 @@ let USERS = JSON.parse(localStorage.getItem('ghj_users') || 'null') || DEFAULT_U
 const HEADS = [
   'Groceries/Food Items', 'Admin', 'Operational Expenses', 'Repair & Maintenance',
   'Program/Event/Welfare', 'Purchase', 'Inventories', 'Cash Receipts',
-  'Cash Deposit', 'Bank Deposit', 'Bank Withdrawal', 'Corpus Fund', 'Capital'
+  'Cash Donation', 'Cash Fees', 'Cash Sale', 'Cash Stay Charges',
+  'Cash Deposit', 'Bank Deposit', 'Bank Withdrawal', 'Corpus Fund', 'Capital',
+  'Petty Cash Transfer'
 ];
 const CATEGORIES = [
-  'Cash Withdrawal', 'Cash Deposit to Bank', 'Cash Receipts', 'Langar/Bhandara',
-  'Social Work Activities', 'Staff/Volunteers Welfare', 'Staff/Volunteers Accommodation',
-  'Accounting & Audit Fees', 'Legal & Professional Services', 'Office Rent',
+  'Cash Withdrawal', 'Cash Deposit to Bank', 'Cash Receipts',
+  'Cash Donation', 'Cash Fees', 'Cash Sale', 'Cash Stay Charges',
+  'Petty Cash Issued', 'Petty Cash Return',
+  'Langar/Bhandara', 'Social Work Activities', 'Staff/Volunteers Welfare',
+  'Staff/Volunteers Accommodation', 'Accounting & Audit Fees',
+  'Legal & Professional Services', 'Office Rent',
   'Electricity/Water/Gas Payments', 'Groceries/Food', 'Printing/Stationery',
   'Courier & Shipping Services', 'Insurance Premium', 'Banking Charges',
   'Salaries & Wages', 'Program Supplies', 'Travel & Transportation', 'Marketing & Events',
@@ -563,7 +576,9 @@ async function loadFromSheet() {
   if (!url) return;
   try {
     for (const type of ['cash', 'bank']) {
-      const resp = await fetch(url + '?type=' + type, { redirect: 'follow' });
+      const secret2 = APP_CONFIG.appSecret || localStorage.getItem('ghj_app_secret') || '';
+      const getUrl = url + '?type=' + type + (secret2 ? '&secret=' + encodeURIComponent(secret2) : '');
+      const resp = await fetch(getUrl, { redirect: 'follow' });
       const raw = await resp.text();
       if (!raw || raw.trimStart().startsWith('<')) continue;
       const rows = JSON.parse(raw);
@@ -809,7 +824,9 @@ function parseUsersFromSheetRows(rows) {
 }
 
 async function fetchUsersFromSheet(scriptUrl) {
-  const resp = await fetch(scriptUrl + '?type=users', { redirect: 'follow' });
+  const secret3 = APP_CONFIG.appSecret || localStorage.getItem('ghj_app_secret') || '';
+  const usersUrl = scriptUrl + '?type=users' + (secret3 ? '&secret=' + encodeURIComponent(secret3) : '');
+  const resp = await fetch(usersUrl, { redirect: 'follow' });
   const raw = await resp.text();
   if (!raw || raw.trimStart().startsWith('<')) {
     throw new Error('Sheet returned HTML. Fix: Apps Script → Deploy → Who has access = Anyone');
@@ -1697,10 +1714,12 @@ function saveEntry(type) {
 // data   = flat object with only scalar fields (no arrays)
 async function pushToSheet(action, data) {
   const scriptUrl = getScriptUrl();
+  const secret = APP_CONFIG.appSecret || localStorage.getItem('ghj_app_secret') || '';
 
   // Build a clean flat payload — strip arrays/objects that bloat the request
   const payload = {
     action:         action,
+    _secret:        secret,
     id:             data.id             || '',
     srno:           data.srno           || '',
     date:           data.date           || '',
@@ -2543,34 +2562,12 @@ function issuePettyCash() {
   records.push(record);
   savePettyCashData(records);
 
-  // Auto-create Cash DEBIT entry — money going out of trust to creator
-  const d = getData();
-  const cashList = d.cash;
-  const srno = 'GHJ/C/' + String(cashList.length + 1).padStart(4, '0');
-  const cashEntryId = genId();
-  const cashEntry = {
-    id: cashEntryId, srno, date, head: 'Cash Deposit',
-    category: 'Cash Withdrawal', type: 'debit', amount,
-    desc: 'Petty Cash issued to ' + toUser + ' — ' + purpose,
-    vendor: toUser,
-    // createdBy = toUser so the petty cash shows in the creator's own entry list
-    createdBy: toUser,
-    issuedBy: currentUser.name,   // who actually issued it
-    status: 'paid', paytype: 'cash',
-    approvedBy: currentUser.name, paidBy: currentUser.name,
-    paymentRef: pcId, remarks: 'Auto-entry: Petty Cash issue ' + pcId,
-    createdAt: new Date().toISOString(), paidAt: new Date().toISOString(),
-    invoiceLink: '', screenshotLink: '', invoiceFiles: [], screenshotFiles: []
-  };
-  cashList.push(cashEntry);
-  saveData('ghj_cash', cashList);
+  // Petty cash = INTERNAL FUND TRANSFER, not an expense.
+  // It does NOT create a cash/bank ledger entry.
+  // The PC Register is the authoritative record of who holds what cash.
+  // When the creator submits expense receipts, those are separate Cash entries.
 
-  // Link cash entry to petty cash record
-  const idx2 = records.findIndex(r => r.id === pcId);
-  if (idx2 >= 0) { records[idx2].cashEntryId = cashEntryId; savePettyCashData(records); }
-
-  showToast('✅ ₹' + amount.toLocaleString('en-IN') + ' issued to ' + toUser + '. Cash debit entry auto-created.');
-  pushToSheet('saveEntry', cashEntry);
+  showToast('✅ ₹' + amount.toLocaleString('en-IN') + ' petty cash issued to ' + toUser + '. Recorded in Petty Cash register.');
   syncPettyCashToSheet(record);
   showPage('pettycash');
 }
@@ -2598,31 +2595,13 @@ function settlePettyCash(id) {
   records[idx].remarks = remarks;
   savePettyCashData(records);
 
-  // Auto-create Cash CREDIT entry for the returned amount
+  // Petty cash settlement = INTERNAL record only, not a cash ledger entry.
+  // Creator submits their expense receipts as separate Cash Debit entries.
+  // The return of unused cash is tracked only in the PC register.
   if (returnAmt > 0) {
-    const d = getData();
-    const cashList = d.cash;
-    const srno = 'GHJ/C/' + String(cashList.length + 1).padStart(4, '0');
-    const returnEntry = {
-      id: genId(), srno, date: settleDate, head: 'Cash Receipts',
-      category: 'Cash Receipts', type: 'credit', amount: returnAmt,
-      desc: 'Petty Cash return from ' + r.toUser + ' — ' + r.purpose,
-      vendor: r.toUser,
-      // createdBy = toUser so credit also shows in creator's own list
-      createdBy: r.toUser,
-      issuedBy: currentUser.name,
-      status: 'paid', paytype: 'cash',
-      approvedBy: currentUser.name, paidBy: currentUser.name,
-      paymentRef: r.id, remarks: 'Auto-entry: Petty Cash return for ' + r.id,
-      createdAt: new Date().toISOString(), paidAt: new Date().toISOString(),
-      invoiceLink: '', screenshotLink: '', invoiceFiles: [], screenshotFiles: []
-    };
-    cashList.push(returnEntry);
-    saveData('ghj_cash', cashList);
-    pushToSheet('saveEntry', returnEntry);
-    showToast('✅ Settled! Spent: ₹' + spentAmount + '  Return: ₹' + returnAmt + ' — Cash credit entry auto-created.');
+    showToast('✅ Settled! Spent: ₹' + spentAmount + '  Return: ₹' + returnAmt + ' — PC register updated. Creator should deposit return cash physically.');
   } else {
-    showToast('✅ Settled! Full ₹' + r.amount + ' spent. No return.');
+    showToast('✅ Settled! Full ₹' + r.amount + ' spent. Ensure expense entries are submitted.');
   }
   syncPettyCashToSheet(records[idx]);
   showPage('pettycash');
@@ -2674,9 +2653,10 @@ function renderPettyCash() {
   const issueForm = canIssue ? `
   <div class="card" style="border-left:4px solid #27ae60">
     <div class="card-title">💼 Issue Petty Cash to Creator</div>
-    <div style="background:#eafaf1;border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#1e8449">
-      ℹ️ Issuing petty cash auto-creates a <b>Cash Debit entry</b> in the main ledger.
-      When settled, if cash is returned, a <b>Cash Credit entry</b> is auto-created. No manual entries needed.
+    <div style="background:#eafaf1;border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#1e8449;line-height:1.8">
+      ℹ️ This records a <b>fund transfer</b> to the creator — not an expense.<br>
+      The creator must then add individual <b>Cash Debit entries</b> for each actual spend in the Cash tab.<br>
+      Any unspent balance is returned physically when Admin settles.
     </div>
     <div class="form-row col2">
       <div><label class="field-label">Issue To (Creator) *</label>
@@ -2727,12 +2707,19 @@ function renderPettyCash() {
 
   return `
   <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:16px">💼 Petty Cash Register</div>
-  <div style="background:#fff3cd;border-left:4px solid var(--accent);padding:11px 14px;border-radius:0 8px 8px 0;font-size:12px;margin-bottom:16px;line-height:1.8">
-    <b>Workflow:</b><br>
-    <b>1. Admin issues cash</b> → Cash Debit entry auto-created in main ledger<br>
-    <b>2. Creator spends</b> → creates normal Cash Debit entries (the expenses)<br>
-    <b>3. Admin settles</b> → enter actual spent amount. If return > 0, Cash Credit auto-created<br>
-    All entries are reflected in the main Cash account automatically.
+  <div style="background:#eaf0fb;border-left:4px solid var(--primary);padding:14px 16px;border-radius:0 8px 8px 0;font-size:12px;margin-bottom:16px;line-height:2">
+    <b style="font-size:13px;display:block;margin-bottom:6px;color:var(--primary)">💼 Petty Cash — Fund Transfer, Not an Expense</b>
+    Petty cash is a <b>transfer of responsibility</b> from Admin to Creator. It is NOT recorded as an income/expense in the main ledger.<br>
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin-top:8px">
+      <span style="color:var(--primary);font-weight:700">Step 1 — Admin issues cash</span>
+      <span>Recorded in Petty Cash Register only. Creator physically receives cash.</span>
+      <span style="color:var(--primary);font-weight:700">Step 2 — Creator spends</span>
+      <span>Creator adds <b>Cash Debit entries</b> in the Cash tab for each actual expense (groceries, supplies, etc.).</span>
+      <span style="color:var(--primary);font-weight:700">Step 3 — Admin settles</span>
+      <span>Enter actual amount spent. Balance (unspent) = cash Creator returns physically to Admin. PC register updated.</span>
+      <span style="color:var(--success);font-weight:700">✅ Main ledger</span>
+      <span>Only shows actual expense entries created by Creator in Cash/Bank tabs. Petty cash transfer itself stays in PC Register.</span>
+    </div>
   </div>
   ${issueForm}
   ${summaryHtml}
@@ -2834,6 +2821,25 @@ function renderSettings() {
     <b style="color:#c0392b">Current status:</b>
     ${getScriptUrl() ? '<span style="color:#27ae60">✅ Apps Script URL is configured (hardcoded or saved)</span>' : '<span style="color:#c0392b">⚠️ No URL set — paste it below or in APP_CONFIG in the HTML file</span>'}
   </div>
+  <div class="card" style="border-left:4px solid #c0392b">
+    <div class="card-title">🔒 App Security & Privacy</div>
+    <div style="font-size:12px;line-height:1.9">
+      <b style="color:#c0392b">What is exposed:</b> The Apps Script URL is embedded in the HTML file which is public on GitHub.
+      Anyone who reads the source code can see the URL.<br><br>
+      <b style="color:#27ae60">Why the risk is limited:</b>
+      The URL alone cannot access your Google Sheet directly — it only accepts correctly formatted POST/GET requests.
+      Your Google account still controls what data is stored. Malformed or unexpected requests are ignored.<br><br>
+      <b style="color:#1a5276">How to add a password layer (recommended):</b><br>
+      &nbsp;&nbsp;1. Open the HTML file in Notepad and set <code>appSecret: 'YourSecretCode123'</code> in APP_CONFIG<br>
+      &nbsp;&nbsp;2. In your Apps Script, set <code>var APP_SECRET = 'YourSecretCode123'</code> (same value)<br>
+      &nbsp;&nbsp;3. Redeploy as New Version<br>
+      &nbsp;&nbsp;Now every request must include the secret — without it the Apps Script rejects it with "Unauthorized".<br><br>
+      <b>Current secret status:</b>
+      ${(APP_CONFIG.appSecret||localStorage.getItem('ghj_app_secret'))
+        ? '<span style="color:#27ae60">✅ Secret token is set — requests are protected</span>'
+        : '<span style="color:#e67e22">⚠️ No secret set — anyone with the URL can read/write data. Set appSecret in APP_CONFIG.</span>'}
+    </div>
+  </div>
   <div class="card">
     <div class="card-title">Step 1 — Create Google Sheet (Database)</div>
     <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Create a Google Sheet with these tabs: CashEntries, BankEntries, Users. Share it with your Google account.</p>
@@ -2926,7 +2932,9 @@ A:Name  B:Email  C:Password  D:Role</div>
 // 5. Save (Ctrl+S), then Deploy → New deployment
 // ════════════════════════════════════════════════════════
 
-var SHEET_ID = 'YOUR_SHEET_ID_HERE'; // ← CHANGE THIS LINE ONLY
+var SHEET_ID    = 'YOUR_SHEET_ID_HERE'; // ← CHANGE THIS (your Google Sheet ID)
+var APP_SECRET  = '';                   // ← SET SAME SECRET as in APP_CONFIG.appSecret
+                                        //   e.g. 'GHJ2025secure' — leave blank to disable check
 
 // ── CORS helper — required for browser fetch to work ─────
 function corsResponse(data) {
@@ -2950,6 +2958,11 @@ function doPost(e) {
       payload = JSON.parse(e.postData.contents);
     } catch(parseErr) {
       return corsResponse({ status: 'error', error: 'Invalid JSON: ' + parseErr.message });
+    }
+
+    // ── Security: verify secret token if APP_SECRET is set ──────────────
+    if (APP_SECRET && payload._secret !== APP_SECRET) {
+      return corsResponse({ status: 'error', error: 'Unauthorized: invalid secret token' });
     }
 
     // ── 1. Upload file to Google Drive ───────────────────
@@ -3112,6 +3125,10 @@ function doGet(e) {
   try {
     if (!SHEET_ID || SHEET_ID === 'YOUR_SHEET_ID_HERE') {
       return corsResponse({ status: 'error', error: 'SHEET_ID not set' });
+    }
+    // ── Security: verify secret token if APP_SECRET is set ────────────
+    if (APP_SECRET && (!e || !e.parameter || e.parameter.secret !== APP_SECRET)) {
+      return corsResponse({ status: 'error', error: 'Unauthorized: invalid secret token' });
     }
     var sheet = SpreadsheetApp.openById(SHEET_ID);
     var type = (e && e.parameter && e.parameter.type) ? e.parameter.type : 'cash';
