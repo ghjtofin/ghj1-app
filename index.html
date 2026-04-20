@@ -527,10 +527,10 @@ let USERS = JSON.parse(localStorage.getItem('ghj_users') || 'null') || DEFAULT_U
 const HEADS = [
   'Groceries/Food Items', 'Admin', 'Operational Expenses', 'Repair & Maintenance',
   'Program/Event/Welfare', 'Purchase', 'Inventories', 'Cash Receipts',
-  'Cash Debit', 'Bank Deposit', 'Bank Withdrawal', 'Corpus Fund', 'Capital'
+  'Cash Deposit', 'Bank Deposit', 'Bank Withdrawal', 'Corpus Fund', 'Capital'
 ];
 const CATEGORIES = [
-  'Cash Withdrawal', 'Cash Deposit to Bank', 'Cash Receipts', 'Cash Debit', 'Langar/Bhandara',
+  'Cash Withdrawal', 'Cash Deposit to Bank', 'Cash Receipts', 'Langar/Bhandara',
   'Social Work Activities', 'Staff/Volunteers Welfare', 'Staff/Volunteers Accommodation',
   'Accounting & Audit Fees', 'Legal & Professional Services', 'Office Rent',
   'Electricity/Water/Gas Payments', 'Groceries/Food', 'Printing/Stationery',
@@ -2136,30 +2136,70 @@ function changeReportPeriod(val) {
   showPage('reports');
 }
 
+let reportMode = 'cash'; // 'cash' | 'bank' | 'all'
+
+function changeReportMode(val) { reportMode = val; showPage('reports'); }
+
 function renderReports() {
   const d = getData();
   const periodFn = getReportPeriodFilter(reportPeriod);
-  const allRaw = [...d.cash.map(e=>({...e,paytype:'cash'})), ...d.bank.map(e=>({...e,paytype:'bank'}))];
-  // Apply period filter + exclude voided from calculations
-  const all = allRaw.filter(e => e.status !== 'voided' && periodFn(e));
-  const allForLedger = allRaw.filter(periodFn); // ledger shows voided too
 
-  // DEBIT-ONLY for Head/Category charts (expenses only — makes sense for spend analysis)
-  const debits = all.filter(e => e.type === 'debit');
-  const totalDebitAmt = debits.reduce((s,e) => s + Number(e.amount), 0);
-  const totalCreditAmt = all.filter(e=>e.type==='credit').reduce((s,e)=>s+Number(e.amount),0);
+  // ── Filter by mode (cash / bank / all) and period ──────────────────
+  const allRaw = [
+    ...d.cash.map(e=>({...e,paytype:'cash'})),
+    ...d.bank.map(e=>({...e,paytype:'bank'}))
+  ];
+  const modeFiltered = reportMode === 'all' ? allRaw
+    : allRaw.filter(e => e.paytype === reportMode);
 
-  // Head breakdown — debit only
-  const byHead = {};
-  HEADS.forEach(h => { byHead[h] = debits.filter(e=>e.head===h).reduce((s,e)=>s+Number(e.amount),0); });
-  const headEntries = Object.entries(byHead).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  const maxHead = headEntries.length > 0 ? headEntries[0][1] : 1;
+  const all         = modeFiltered.filter(e => e.status !== 'voided' && periodFn(e));
+  const allForLedger= modeFiltered.filter(e => periodFn(e));
+  const debits      = all.filter(e => e.type === 'debit');
+  const credits     = all.filter(e => e.type === 'credit');
 
-  // Category breakdown — debit only
+  // ── Totals ───────────────────────────────────────────────────────────
+  const totalDebit  = debits.reduce((s,e) => s + Number(e.amount), 0);
+  const totalCredit = credits.reduce((s,e) => s + Number(e.amount), 0);
+  const net         = totalCredit - totalDebit;
+
+  // Cash-specific for balance sheet
+  const cashDebits  = allRaw.filter(e=>e.paytype==='cash'&&e.type==='debit'&&e.status!=='voided'&&periodFn(e)).reduce((s,e)=>s+Number(e.amount),0);
+  const cashCredits = allRaw.filter(e=>e.paytype==='cash'&&e.type==='credit'&&e.status!=='voided'&&periodFn(e)).reduce((s,e)=>s+Number(e.amount),0);
+  const bankDebits  = allRaw.filter(e=>e.paytype==='bank'&&e.type==='debit'&&e.status!=='voided'&&periodFn(e)).reduce((s,e)=>s+Number(e.amount),0);
+  const bankCredits = allRaw.filter(e=>e.paytype==='bank'&&e.type==='credit'&&e.status!=='voided'&&periodFn(e)).reduce((s,e)=>s+Number(e.amount),0);
+
+  // ── Head breakdown (debit only for expenses, credit separately) ──────
+  const byHeadDr = {}, byHeadCr = {};
+  HEADS.forEach(h => {
+    byHeadDr[h] = debits.filter(e=>e.head===h).reduce((s,e)=>s+Number(e.amount),0);
+    byHeadCr[h] = credits.filter(e=>e.head===h).reduce((s,e)=>s+Number(e.amount),0);
+  });
+  const headDrEntries = Object.entries(byHeadDr).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  const headCrEntries = Object.entries(byHeadCr).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  const maxDr = headDrEntries.length>0?headDrEntries[0][1]:1;
+  const maxCr = headCrEntries.length>0?headCrEntries[0][1]:1;
+
+  // ── Category debit breakdown ─────────────────────────────────────────
   const catAmt = {};
-  CATEGORIES.forEach(c => { catAmt[c] = debits.filter(e=>e.category===c).reduce((s,e)=>s+Number(e.amount),0); });
+  CATEGORIES.forEach(c=>{catAmt[c]=debits.filter(e=>e.category===c).reduce((s,e)=>s+Number(e.amount),0);});
   const catEntries = Object.entries(catAmt).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  const maxCat = catEntries.length > 0 ? catEntries[0][1] : 1;
+  const maxCat = catEntries.length>0?catEntries[0][1]:1;
+
+  // ── MIS: Top vendors by spend ─────────────────────────────────────────
+  const vendorAmt = {};
+  debits.forEach(e=>{
+    const v = (e.vendor||'Unknown').trim();
+    vendorAmt[v] = (vendorAmt[v]||0) + Number(e.amount);
+  });
+  const vendorEntries = Object.entries(vendorAmt).sort((a,b)=>b[1]-a[1]).slice(0,10);
+
+  // ── MIS: Spend by User (Creator) ─────────────────────────────────────
+  const userAmt = {};
+  debits.forEach(e=>{
+    const u = e.createdBy||'Unknown';
+    userAmt[u] = (userAmt[u]||0) + Number(e.amount);
+  });
+  const userEntries = Object.entries(userAmt).sort((a,b)=>b[1]-a[1]);
 
   const periodLabel = {
     all:'All Time', this_month:'This Month', prev_month:'Previous Month',
@@ -2167,13 +2207,20 @@ function renderReports() {
     last_3m:'Last 3 Months', last_6m:'Last 6 Months'
   }[reportPeriod] || 'All Time';
 
+  const modeLabel = {cash:'Cash Only', bank:'Bank Only', all:'Cash + Bank'}[reportMode];
+
   return `
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-    <div style="font-size:20px;font-weight:700;color:var(--primary)">📈 Reports & Analytics</div>
+  <!-- HEADER BAR -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+    <div style="font-size:20px;font-weight:700;color:var(--primary)">📈 MIS Reports</div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-outline btn-sm" onclick="downloadReportData()" style="font-size:12px">⬇ Download CSV</button>
-      <label style="font-size:12px;color:var(--text-muted)">Period:</label>
-      <select onchange="changeReportPeriod(this.value)" style="font-size:13px;padding:6px 10px;border:1.5px solid var(--border);border-radius:7px">
+      <button class="btn btn-outline btn-sm" onclick="downloadReportData()" style="font-size:12px">⬇ CSV</button>
+      <select onchange="changeReportMode(this.value)" style="font-size:13px;padding:5px 8px;border:1.5px solid var(--border);border-radius:7px">
+        <option value="all"  ${reportMode==='all' ?'selected':''}>Cash + Bank</option>
+        <option value="cash" ${reportMode==='cash'?'selected':''}>Cash Only</option>
+        <option value="bank" ${reportMode==='bank'?'selected':''}>Bank Only</option>
+      </select>
+      <select onchange="changeReportPeriod(this.value)" style="font-size:13px;padding:5px 8px;border:1.5px solid var(--border);border-radius:7px">
         <option value="this_month" ${reportPeriod==='this_month'?'selected':''}>This Month</option>
         <option value="prev_month" ${reportPeriod==='prev_month'?'selected':''}>Previous Month</option>
         <option value="last_3m"    ${reportPeriod==='last_3m'?'selected':''}>Last 3 Months</option>
@@ -2182,153 +2229,233 @@ function renderReports() {
         <option value="prev_year"  ${reportPeriod==='prev_year'?'selected':''}>Previous Year</option>
         <option value="all"        ${reportPeriod==='all'?'selected':''}>All Time</option>
       </select>
-      <span style="font-size:12px;color:var(--text-muted);font-weight:600">${periodLabel}</span>
+      <span style="font-size:11px;color:var(--text-muted)">${periodLabel} · ${modeLabel}</span>
     </div>
   </div>
 
-  <div class="stats-row">
-    <div class="stat-card"><div class="stat-label">Entries (${periodLabel})</div><div class="stat-value">${all.length}</div><div class="stat-sub">Debit: ${debits.length} | Credit: ${all.filter(e=>e.type==='credit').length}</div></div>
-    <div class="stat-card"><div class="stat-label">Total Debit / Spend</div><div class="stat-value" style="color:var(--danger)">₹${totalDebitAmt.toLocaleString('en-IN')}</div></div>
-    <div class="stat-card"><div class="stat-label">Total Credit / Received</div><div class="stat-value" style="color:var(--success)">₹${totalCreditAmt.toLocaleString('en-IN')}</div></div>
-    <div class="stat-card"><div class="stat-label">Net (Credit − Debit)</div><div class="stat-value" style="color:${totalCreditAmt-totalDebitAmt>=0?'var(--success)':'var(--danger)'}">${totalCreditAmt-totalDebitAmt>=0?'+':''}₹${Math.abs(totalCreditAmt-totalDebitAmt).toLocaleString('en-IN')}</div></div>
+  <!-- ══ BALANCE SHEET SUMMARY ══ -->
+  <div class="card" style="border:2px solid var(--primary);margin-bottom:16px">
+    <div class="card-title" style="font-size:16px">📋 Balance Sheet Summary — ${periodLabel} · ${modeLabel}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid var(--border)">
+
+      <!-- LEFT: INCOME/RECEIPTS -->
+      <div style="padding:14px;border-right:1px solid var(--border)">
+        <div style="font-size:13px;font-weight:700;color:var(--success);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">
+          Income / Receipts (Credit)
+        </div>
+        ${reportMode!=='bank'?`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:.5px solid #f0f0f0;font-size:12px"><span>💵 Cash Credit</span><span style="font-weight:600;color:var(--success)">₹${cashCredits.toLocaleString('en-IN')}</span></div>`:''}
+        ${reportMode!=='cash'?`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:.5px solid #f0f0f0;font-size:12px"><span>🏦 Bank Credit</span><span style="font-weight:600;color:var(--success)">₹${bankCredits.toLocaleString('en-IN')}</span></div>`:''}
+        <div style="display:flex;justify-content:space-between;padding:8px 0 0;font-size:13px;font-weight:700;border-top:1.5px solid var(--border);margin-top:6px">
+          <span>TOTAL CREDIT</span>
+          <span style="color:var(--success)">₹${totalCredit.toLocaleString('en-IN')}</span>
+        </div>
+      </div>
+
+      <!-- RIGHT: EXPENSES/PAYMENTS -->
+      <div style="padding:14px">
+        <div style="font-size:13px;font-weight:700;color:var(--danger);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">
+          Expenses / Payments (Debit)
+        </div>
+        ${reportMode!=='bank'?`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:.5px solid #f0f0f0;font-size:12px"><span>💵 Cash Debit</span><span style="font-weight:600;color:var(--danger)">₹${cashDebits.toLocaleString('en-IN')}</span></div>`:''}
+        ${reportMode!=='cash'?`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:.5px solid #f0f0f0;font-size:12px"><span>🏦 Bank Debit</span><span style="font-weight:600;color:var(--danger)">₹${bankDebits.toLocaleString('en-IN')}</span></div>`:''}
+        <div style="display:flex;justify-content:space-between;padding:8px 0 0;font-size:13px;font-weight:700;border-top:1.5px solid var(--border);margin-top:6px">
+          <span>TOTAL DEBIT</span>
+          <span style="color:var(--danger)">₹${totalDebit.toLocaleString('en-IN')}</span>
+        </div>
+      </div>
+
+    </div>
+    <!-- NET BALANCE ROW -->
+    <div style="background:${net>=0?'#eafaf1':'#fde8e8'};padding:12px 14px;border-top:2px solid var(--primary);display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:14px;font-weight:700">NET BALANCE (Credit − Debit)</span>
+      <span style="font-size:20px;font-weight:700;color:${net>=0?'var(--success)':'var(--danger)'}">
+        ${net>=0?'+':''}₹${Math.abs(net).toLocaleString('en-IN')}
+        <span style="font-size:12px;font-weight:400;margin-left:6px">${net>=0?'Surplus':'Deficit'}</span>
+      </span>
+    </div>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
-
-  <div class="card">
-    <div class="card-title">📊 Debit Spend by Head — Amount &amp; %</div>
-    <div style="font-size:10px;color:var(--text-muted);margin-bottom:8px">Debit (expense) entries only · % of total debit spend</div>
-    <table style="width:100%;font-size:12px;border-collapse:collapse">
-      <thead><tr style="border-bottom:1.5px solid var(--border)">
-        <th style="text-align:left;padding:5px 4px">Head</th>
-        <th style="text-align:right;padding:5px 4px">Amount</th>
-        <th style="text-align:right;padding:5px 4px;color:var(--primary)">%</th>
-        <th style="padding:5px 4px;width:70px">Bar</th>
-      </tr></thead>
-      <tbody>
-      ${headEntries.map(([h,v])=>`
-        <tr style="border-bottom:.5px solid #f0f0f0">
-          <td style="padding:6px 4px;font-weight:500">${h}</td>
-          <td style="padding:6px 4px;text-align:right">₹${v.toLocaleString('en-IN')}</td>
-          <td style="padding:6px 4px;text-align:right;color:var(--primary);font-weight:700">${totalDebitAmt>0?(v/totalDebitAmt*100).toFixed(1):0}%</td>
-          <td style="padding:6px 4px">
-            <div style="background:#ecf0f1;border-radius:4px;height:8px">
-              <div style="background:var(--primary);height:8px;border-radius:4px;width:${maxHead>0?(v/maxHead*100):0}%;transition:width 0.5s"></div>
-            </div>
-          </td>
-        </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--text-muted)">No debit entries for this period</td></tr>'}
-      </tbody>
-      ${totalDebitAmt>0?`<tfoot><tr style="border-top:1.5px solid var(--border);font-weight:700;background:#f8f9fa">
-        <td style="padding:6px 4px">Total Debit</td>
-        <td style="padding:6px 4px;text-align:right;color:var(--danger)">₹${totalDebitAmt.toLocaleString('en-IN')}</td>
-        <td style="padding:6px 4px;text-align:right">100%</td>
-        <td></td>
-      </tr></tfoot>`:''}
-    </table>
+  <!-- ══ 4 STAT CARDS ══ -->
+  <div class="stats-row" style="margin-bottom:16px">
+    <div class="stat-card" style="border-left-color:#1a5276">
+      <div class="stat-label">Total Entries</div>
+      <div class="stat-value">${all.length}</div>
+      <div class="stat-sub">Dr: ${debits.length} · Cr: ${credits.length}</div>
+    </div>
+    <div class="stat-card" style="border-left-color:#c0392b">
+      <div class="stat-label">Total Debit / Spend</div>
+      <div class="stat-value" style="color:var(--danger)">₹${totalDebit.toLocaleString('en-IN')}</div>
+    </div>
+    <div class="stat-card" style="border-left-color:#27ae60">
+      <div class="stat-label">Total Credit / Received</div>
+      <div class="stat-value" style="color:var(--success)">₹${totalCredit.toLocaleString('en-IN')}</div>
+    </div>
+    <div class="stat-card" style="border-left-color:${net>=0?'#27ae60':'#c0392b'}">
+      <div class="stat-label">Net Balance</div>
+      <div class="stat-value" style="color:${net>=0?'var(--success)':'var(--danger)'}">
+        ${net>=0?'+':''}₹${Math.abs(net).toLocaleString('en-IN')}
+      </div>
+    </div>
   </div>
 
-  <div class="card">
-    <div class="card-title">📋 Debit Spend by Category — Amount &amp; %</div>
-    <div style="font-size:10px;color:var(--text-muted);margin-bottom:8px">Debit (expense) entries only · % of total debit spend</div>
-    <table style="width:100%;font-size:11px;border-collapse:collapse">
-      <thead><tr style="border-bottom:1.5px solid var(--border)">
-        <th style="text-align:left;padding:5px 4px">Category</th>
-        <th style="text-align:right;padding:5px 4px">Amount</th>
-        <th style="text-align:right;padding:5px 4px;color:var(--accent)">%</th>
-        <th style="padding:5px 4px;width:55px">Bar</th>
-      </tr></thead>
-      <tbody>
+  <!-- ══ 3-COLUMN CHARTS ══ -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px">
+
+    <!-- Debit by Head -->
+    <div class="card">
+      <div class="card-title" style="font-size:13px">📊 Debit by Head</div>
+      <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px">% of total debit</div>
+      ${headDrEntries.map(([h,v])=>`
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px">${h}</span>
+          <span style="font-weight:600;color:var(--danger);white-space:nowrap;margin-left:4px">₹${v.toLocaleString('en-IN')} <span style="color:var(--primary)">${totalDebit>0?(v/totalDebit*100).toFixed(0):0}%</span></span>
+        </div>
+        <div style="background:#ecf0f1;border-radius:3px;height:6px">
+          <div style="background:var(--danger);height:6px;border-radius:3px;width:${maxDr>0?(v/maxDr*100):0}%"></div>
+        </div>
+      </div>`).join('') || '<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:11px">No data</div>'}
+      ${totalDebit>0?`<div style="border-top:1px solid var(--border);padding-top:6px;font-size:11px;font-weight:700;display:flex;justify-content:space-between"><span>Total</span><span style="color:var(--danger)">₹${totalDebit.toLocaleString('en-IN')}</span></div>`:''}
+    </div>
+
+    <!-- Credit by Head -->
+    <div class="card">
+      <div class="card-title" style="font-size:13px">💰 Credit by Head</div>
+      <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px">% of total credit</div>
+      ${headCrEntries.map(([h,v])=>`
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px">${h}</span>
+          <span style="font-weight:600;color:var(--success);white-space:nowrap;margin-left:4px">₹${v.toLocaleString('en-IN')} <span style="color:var(--primary)">${totalCredit>0?(v/totalCredit*100).toFixed(0):0}%</span></span>
+        </div>
+        <div style="background:#ecf0f1;border-radius:3px;height:6px">
+          <div style="background:var(--success);height:6px;border-radius:3px;width:${maxCr>0?(v/maxCr*100):0}%"></div>
+        </div>
+      </div>`).join('') || '<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:11px">No data</div>'}
+      ${totalCredit>0?`<div style="border-top:1px solid var(--border);padding-top:6px;font-size:11px;font-weight:700;display:flex;justify-content:space-between"><span>Total</span><span style="color:var(--success)">₹${totalCredit.toLocaleString('en-IN')}</span></div>`:''}
+    </div>
+
+    <!-- Debit by Category -->
+    <div class="card">
+      <div class="card-title" style="font-size:13px">📋 Debit by Category</div>
+      <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px">% of total debit</div>
       ${catEntries.map(([c,v])=>`
-        <tr style="border-bottom:.5px solid #f0f0f0">
-          <td style="padding:5px 4px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c}">${c}</td>
-          <td style="padding:5px 4px;text-align:right">₹${v.toLocaleString('en-IN')}</td>
-          <td style="padding:5px 4px;text-align:right;color:var(--accent);font-weight:700">${totalDebitAmt>0?(v/totalDebitAmt*100).toFixed(1):0}%</td>
-          <td style="padding:5px 4px">
-            <div style="background:#ecf0f1;border-radius:3px;height:6px">
-              <div style="background:var(--accent);height:6px;border-radius:3px;width:${maxCat>0?(v/maxCat*100):0}%;transition:width 0.5s"></div>
-            </div>
-          </td>
-        </tr>`).join('') || '<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--text-muted)">No debit entries for this period</td></tr>'}
-      </tbody>
-      ${totalDebitAmt>0?`<tfoot><tr style="border-top:1.5px solid var(--border);font-weight:700;background:#f8f9fa">
-        <td style="padding:5px 4px">Total Debit</td>
-        <td style="padding:5px 4px;text-align:right;color:var(--danger)">₹${totalDebitAmt.toLocaleString('en-IN')}</td>
-        <td style="padding:5px 4px;text-align:right">100%</td>
-        <td></td>
-      </tr></tfoot>`:''}
-    </table>
-  </div>
+      <div style="margin-bottom:7px">
+        <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px">
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px" title="${c}">${c}</span>
+          <span style="font-weight:600;color:var(--accent);white-space:nowrap;margin-left:4px">₹${v.toLocaleString('en-IN')} <span style="color:var(--primary)">${totalDebit>0?(v/totalDebit*100).toFixed(0):0}%</span></span>
+        </div>
+        <div style="background:#ecf0f1;border-radius:3px;height:5px">
+          <div style="background:var(--accent);height:5px;border-radius:3px;width:${maxCat>0?(v/maxCat*100):0}%"></div>
+        </div>
+      </div>`).join('') || '<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:11px">No data</div>'}
+    </div>
 
   </div>
 
-  <!-- CREDIT RECEIPTS REPORT -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:4px">
+  <!-- ══ MIS: VENDOR + USER ══ -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+
+    <!-- Top Vendors by Spend -->
+    <div class="card">
+      <div class="card-title">🏪 Top Vendors by Spend (Debit)</div>
+      <table style="width:100%;font-size:12px;border-collapse:collapse">
+        <thead><tr style="border-bottom:1.5px solid var(--border)">
+          <th style="text-align:left;padding:5px 4px">#</th>
+          <th style="text-align:left;padding:5px 4px">Vendor / Payee</th>
+          <th style="text-align:right;padding:5px 4px">Amount</th>
+          <th style="text-align:right;padding:5px 4px;color:var(--danger)">%</th>
+          <th style="padding:5px 4px;width:50px">Bar</th>
+        </tr></thead>
+        <tbody>
+        ${vendorEntries.map(([v,amt],i)=>`
+          <tr style="border-bottom:.5px solid #f0f0f0">
+            <td style="padding:5px 4px;color:var(--text-muted);font-size:10px">${i+1}</td>
+            <td style="padding:5px 4px;font-weight:500;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${v}</td>
+            <td style="padding:5px 4px;text-align:right;color:var(--danger)">₹${amt.toLocaleString('en-IN')}</td>
+            <td style="padding:5px 4px;text-align:right;font-weight:700;color:var(--primary)">${totalDebit>0?(amt/totalDebit*100).toFixed(1):0}%</td>
+            <td style="padding:5px 4px">
+              <div style="background:#ecf0f1;border-radius:3px;height:6px">
+                <div style="background:var(--danger);height:6px;border-radius:3px;width:${vendorEntries.length>0?(amt/vendorEntries[0][1]*100):0}%"></div>
+              </div>
+            </td>
+          </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--text-muted)">No debit entries</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Spend by User / Creator -->
+    <div class="card">
+      <div class="card-title">👤 Spend by Creator / User (Debit)</div>
+      <table style="width:100%;font-size:12px;border-collapse:collapse">
+        <thead><tr style="border-bottom:1.5px solid var(--border)">
+          <th style="text-align:left;padding:5px 4px">User</th>
+          <th style="text-align:right;padding:5px 4px">Entries</th>
+          <th style="text-align:right;padding:5px 4px">Amount</th>
+          <th style="text-align:right;padding:5px 4px;color:var(--danger)">%</th>
+          <th style="padding:5px 4px;width:50px">Bar</th>
+        </tr></thead>
+        <tbody>
+        ${userEntries.map(([u,amt])=>`
+          <tr style="border-bottom:.5px solid #f0f0f0">
+            <td style="padding:5px 4px;font-weight:500">${u}</td>
+            <td style="padding:5px 4px;text-align:right;color:var(--text-muted)">${debits.filter(e=>e.createdBy===u).length}</td>
+            <td style="padding:5px 4px;text-align:right;color:var(--danger)">₹${amt.toLocaleString('en-IN')}</td>
+            <td style="padding:5px 4px;text-align:right;font-weight:700;color:var(--primary)">${totalDebit>0?(amt/totalDebit*100).toFixed(1):0}%</td>
+            <td style="padding:5px 4px">
+              <div style="background:#ecf0f1;border-radius:3px;height:6px">
+                <div style="background:var(--accent);height:6px;border-radius:3px;width:${userEntries.length>0?(amt/userEntries[0][1]*100):0}%"></div>
+              </div>
+            </td>
+          </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--text-muted)">No debit entries</td></tr>'}
+        </tbody>
+        ${totalDebit>0?`<tfoot><tr style="border-top:1.5px solid var(--border);font-weight:700;background:#f8f9fa">
+          <td style="padding:5px 4px">Total</td>
+          <td style="padding:5px 4px;text-align:right">${debits.length}</td>
+          <td style="padding:5px 4px;text-align:right;color:var(--danger)">₹${totalDebit.toLocaleString('en-IN')}</td>
+          <td style="padding:5px 4px;text-align:right">100%</td><td></td>
+        </tr></tfoot>`:''}
+      </table>
+    </div>
+
+  </div>
+
+  <!-- ══ EXPENSE LEDGER ══ -->
   <div class="card">
-    <div class="card-title">💰 Credit Receipts by Head — Amount &amp; %</div>
-    <div style="font-size:10px;color:var(--text-muted);margin-bottom:8px">Credit (receipt/income) entries only · % of total credit received</div>
-    ${(()=>{
-      const credits = all.filter(e=>e.type==='credit');
-      const cTotal = credits.reduce((s,e)=>s+Number(e.amount),0);
-      const cByHead = {};
-      HEADS.forEach(h=>{cByHead[h]=credits.filter(e=>e.head===h).reduce((s,e)=>s+Number(e.amount),0);});
-      const cEntries = Object.entries(cByHead).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-      const cMax = cEntries.length>0?cEntries[0][1]:1;
-      if(cEntries.length===0) return '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">No credit entries for this period</div>';
-      return '<table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr style="border-bottom:1.5px solid var(--border)"><th style="text-align:left;padding:5px 4px">Head</th><th style="text-align:right;padding:5px 4px">Amount</th><th style="text-align:right;padding:5px 4px;color:var(--success)">%</th><th style="padding:5px 4px;width:70px">Bar</th></tr></thead><tbody>' +
-        cEntries.map(([h,v])=>'<tr style="border-bottom:.5px solid #f0f0f0"><td style="padding:6px 4px;font-weight:500">'+h+'</td><td style="padding:6px 4px;text-align:right">₹'+v.toLocaleString('en-IN')+'</td><td style="padding:6px 4px;text-align:right;color:var(--success);font-weight:700">'+(cTotal>0?(v/cTotal*100).toFixed(1):0)+'%</td><td style="padding:6px 4px"><div style="background:#ecf0f1;border-radius:4px;height:8px"><div style="background:var(--success);height:8px;border-radius:4px;width:'+(cMax>0?(v/cMax*100):0)+'%;transition:width 0.5s"></div></div></td></tr>').join('') +
-        '</tbody><tfoot><tr style="border-top:1.5px solid var(--border);font-weight:700;background:#f8f9fa"><td style="padding:6px 4px">Total Credit</td><td style="padding:6px 4px;text-align:right;color:var(--success)">₹'+cTotal.toLocaleString('en-IN')+'</td><td style="padding:6px 4px;text-align:right">100%</td><td></td></tr></tfoot></table>';
-    })()}
-  </div>
-
-  <div class="card">
-    <div class="card-title">💰 Credit Receipts by Category — Amount &amp; %</div>
-    <div style="font-size:10px;color:var(--text-muted);margin-bottom:8px">Credit (receipt/income) entries only · % of total credit received</div>
-    ${(()=>{
-      const credits = all.filter(e=>e.type==='credit');
-      const cTotal = credits.reduce((s,e)=>s+Number(e.amount),0);
-      const cCatAmt = {};
-      CATEGORIES.forEach(c=>{cCatAmt[c]=credits.filter(e=>e.category===c).reduce((s,e)=>s+Number(e.amount),0);});
-      const cCatEntries = Object.entries(cCatAmt).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-      const cCatMax = cCatEntries.length>0?cCatEntries[0][1]:1;
-      if(cCatEntries.length===0) return '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">No credit entries for this period</div>';
-      return '<table style="width:100%;font-size:11px;border-collapse:collapse"><thead><tr style="border-bottom:1.5px solid var(--border)"><th style="text-align:left;padding:5px 4px">Category</th><th style="text-align:right;padding:5px 4px">Amount</th><th style="text-align:right;padding:5px 4px;color:var(--success)">%</th><th style="padding:5px 4px;width:55px">Bar</th></tr></thead><tbody>' +
-        cCatEntries.map(([c,v])=>'<tr style="border-bottom:.5px solid #f0f0f0"><td style="padding:5px 4px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+c+'">'+c+'</td><td style="padding:5px 4px;text-align:right">₹'+v.toLocaleString('en-IN')+'</td><td style="padding:5px 4px;text-align:right;color:var(--success);font-weight:700">'+(cTotal>0?(v/cTotal*100).toFixed(1):0)+'%</td><td style="padding:5px 4px"><div style="background:#ecf0f1;border-radius:3px;height:6px"><div style="background:var(--success);height:6px;border-radius:3px;width:'+(cCatMax>0?(v/cCatMax*100):0)+'%;transition:width 0.5s"></div></div></td></tr>').join('') +
-        '</tbody><tfoot><tr style="border-top:1.5px solid var(--border);font-weight:700;background:#f8f9fa"><td style="padding:5px 4px">Total Credit</td><td style="padding:5px 4px;text-align:right;color:var(--success)">₹'+cTotal.toLocaleString('en-IN')+'</td><td style="padding:5px 4px;text-align:right">100%</td><td></td></tr></tfoot></table>';
-    })()}
-  </div>
-  </div>
-
-  <div class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-      <div class="card-title" style="margin:0">📄 Expense Ledger — ${periodLabel}</div>
-      <div style="font-size:12px;color:var(--text-muted)">${allForLedger.length} entries · newest first</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <div class="card-title" style="margin:0">📄 Ledger — ${periodLabel} · ${modeLabel}</div>
+      <div style="font-size:12px;color:var(--text-muted)">${allForLedger.length} entries</div>
     </div>
     <div class="tbl-wrap">
     <table><thead><tr>
       <th>Sr.No</th><th>Date</th><th>Mode</th><th>Head</th><th>Category</th>
-      <th>Description</th><th>Vendor</th><th>Dr/Cr</th><th>Amount</th><th>Status</th>
+      <th>Description</th><th>Vendor</th><th>Created By</th><th>Dr/Cr</th><th>Amount</th><th>Status</th>
     </tr></thead>
-    <tbody>${allForLedger.slice().sort((a,b)=>b.date>a.date?1:-1).map(e=>`<tr style='${e.status==="voided"?"opacity:0.45;text-decoration:line-through":""}'>
-      <td style="font-size:10px">${e.srno}</td><td>${e.date}</td>
+    <tbody>${allForLedger.slice().sort((a,b)=>b.date>a.date?1:-1).map(e=>`<tr style="${e.status==='voided'?'opacity:0.4;text-decoration:line-through':''}">
+      <td style="font-size:10px">${e.srno}</td>
+      <td>${e.date}</td>
       <td><span class="badge badge-${e.paytype}">${e.paytype.toUpperCase()}</span></td>
-      <td>${e.head}</td><td style="font-size:10px">${e.category}</td>
+      <td>${e.head}</td>
+      <td style="font-size:10px">${e.category}</td>
       <td>${e.desc}</td>
       <td style="color:var(--primary-light);font-size:11px">${e.vendor||'-'}</td>
+      <td style="font-size:11px;color:var(--text-muted)">${e.createdBy||'-'}</td>
       <td style="font-weight:700;color:${e.type==='debit'?'#c0392b':'#27ae60'}">${e.type==='debit'?'DR':'CR'}</td>
       <td style="font-weight:600;color:${e.type==='debit'?'var(--danger)':'var(--success)'}">₹${Number(e.amount).toLocaleString('en-IN')}</td>
       <td><span class="badge badge-${e.status}">${e.status==='voided'?'VOID':e.status.toUpperCase()}</span></td>
-    </tr>`).join('') || '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text-muted)">No entries for this period.</td></tr>'}
+    </tr>`).join('') || '<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--text-muted)">No entries for this period/mode.</td></tr>'}
     </tbody></table>
     </div>
   </div>`;
 }
 
+
 // ===== PETTY CASH =====
-// Petty Cash Register:
-// Admin/Approver issues cash to a Creator → creates a "PCIssue" record
-// Creator records spending against their balance → creates "PCSpend" record
-// Balance = Total Issued - Total Spent (per creator)
-// All records synced to Google Sheet "PettyCash" tab
+// FLOW:
+// 1. Admin issues petty cash → auto-creates a Cash DEBIT entry (money going out to creator)
+// 2. Creator records spending as normal Cash DEBIT entries (linked by their name)
+// 3. Admin settles: enters actual spent. If return > 0 → auto-creates Cash CREDIT entry
+// This keeps the main Cash ledger always balanced. No manual entries needed by creator.
 
 function getPettyCashData() {
   try { return JSON.parse(localStorage.getItem('ghj_pettycash') || '[]'); } catch { return []; }
@@ -2338,67 +2465,113 @@ function savePettyCashData(data) {
 }
 
 function issuePettyCash() {
-  const toUser   = document.getElementById('pc_to').value.trim();
-  const amount   = parseFloat(document.getElementById('pc_amount').value);
-  const purpose  = document.getElementById('pc_purpose').value.trim();
-  const date     = document.getElementById('pc_date').value;
+  const toUser  = document.getElementById('pc_to').value.trim();
+  const amount  = parseFloat(document.getElementById('pc_amount').value);
+  const purpose = document.getElementById('pc_purpose').value.trim();
+  const date    = document.getElementById('pc_date').value;
   if (!toUser || !amount || !purpose || !date) {
-    alert('Please fill all fields: To (Creator), Amount, Purpose, Date');
-    return;
+    alert('Please fill all fields: To (Creator), Amount, Purpose, Date'); return;
   }
-  // Validate the recipient is a creator-role user
   const recipient = USERS.find(u => u.name === toUser && u.role === 'creator');
-  if (!recipient) { alert('Recipient must be a Creator-role user. Check the name exactly.'); return; }
+  if (!recipient) { alert('Recipient must be a Creator-role user.'); return; }
 
   const records = getPettyCashData();
+  const pcId = 'PC-' + Date.now();
   const record = {
-    id:         'PC-' + Date.now(),
-    type:       'issue',
-    date:       date,
-    toUser:     toUser,
-    fromUser:   currentUser.name,
-    amount:     amount,
-    purpose:    purpose,
-    status:     'open',
-    issuedAt:   new Date().toISOString(),
-    settledAt:  '',
-    remarks:    ''
+    id: pcId, type: 'issue', date, toUser, fromUser: currentUser.name,
+    amount, purpose, status: 'open',
+    issuedAt: new Date().toISOString(), settledAt: '', remarks: '', cashEntryId: ''
   };
   records.push(record);
   savePettyCashData(records);
-  showToast('✅ ₹' + amount.toLocaleString('en-IN') + ' petty cash issued to ' + toUser);
+
+  // Auto-create Cash DEBIT entry — money going out of trust to creator
+  const d = getData();
+  const cashList = d.cash;
+  const srno = 'GHJ/C/' + String(cashList.length + 1).padStart(4, '0');
+  const cashEntryId = genId();
+  const cashEntry = {
+    id: cashEntryId, srno, date, head: 'Cash Deposit',
+    category: 'Cash Withdrawal', type: 'debit', amount,
+    desc: 'Petty Cash issued to ' + toUser + ' — ' + purpose,
+    vendor: toUser, status: 'paid', paytype: 'cash',
+    createdBy: currentUser.name, approvedBy: currentUser.name, paidBy: currentUser.name,
+    paymentRef: pcId, remarks: 'Auto-entry: Petty Cash issue ' + pcId,
+    createdAt: new Date().toISOString(), paidAt: new Date().toISOString(),
+    invoiceLink: '', screenshotLink: '', invoiceFiles: [], screenshotFiles: []
+  };
+  cashList.push(cashEntry);
+  saveData('ghj_cash', cashList);
+
+  // Link cash entry to petty cash record
+  const idx2 = records.findIndex(r => r.id === pcId);
+  if (idx2 >= 0) { records[idx2].cashEntryId = cashEntryId; savePettyCashData(records); }
+
+  showToast('✅ ₹' + amount.toLocaleString('en-IN') + ' issued to ' + toUser + '. Cash debit entry auto-created.');
+  pushToSheet('saveEntry', cashEntry);
   syncPettyCashToSheet(record);
   showPage('pettycash');
 }
 
 function settlePettyCash(id) {
-  const spentAmount = parseFloat(prompt('Enter actual amount spent (to settle this petty cash):'));
-  if (isNaN(spentAmount) || spentAmount < 0) { showToast('Invalid amount'); return; }
-  const remarks = prompt('Settlement remarks / details:') || '';
   const records = getPettyCashData();
   const idx = records.findIndex(r => r.id === id);
   if (idx < 0) return;
-  records[idx].status     = 'settled';
-  records[idx].settledAt  = new Date().toISOString();
+  const r = records[idx];
+
+  const spentAmount = parseFloat(prompt(
+    'Settle: ' + r.id + '\nIssued to: ' + r.toUser + '  Amount: ₹' + r.amount +
+    '\nPurpose: ' + r.purpose + '\n\nEnter actual amount SPENT (₹):'
+  ));
+  if (isNaN(spentAmount) || spentAmount < 0) { showToast('Invalid amount. Cancelled.'); return; }
+  if (spentAmount > r.amount) { showToast('Spent cannot exceed issued ₹' + r.amount); return; }
+  const remarks = prompt('Settlement remarks:') || '';
+  const returnAmt = r.amount - spentAmount;
+  const settleDate = new Date().toISOString().split('T')[0];
+
+  records[idx].status = 'settled';
+  records[idx].settledAt = new Date().toISOString();
   records[idx].spentAmount = spentAmount;
-  records[idx].returnAmount = records[idx].amount - spentAmount;
-  records[idx].remarks    = remarks;
+  records[idx].returnAmount = returnAmt;
+  records[idx].remarks = remarks;
   savePettyCashData(records);
-  showToast('✅ Petty cash settled. Spent: ₹' + spentAmount + ' · Return: ₹' + (records[idx].amount - spentAmount));
+
+  // Auto-create Cash CREDIT entry for the returned amount
+  if (returnAmt > 0) {
+    const d = getData();
+    const cashList = d.cash;
+    const srno = 'GHJ/C/' + String(cashList.length + 1).padStart(4, '0');
+    const returnEntry = {
+      id: genId(), srno, date: settleDate, head: 'Cash Receipts',
+      category: 'Cash Receipts', type: 'credit', amount: returnAmt,
+      desc: 'Petty Cash return from ' + r.toUser + ' — ' + r.purpose,
+      vendor: r.toUser, status: 'paid', paytype: 'cash',
+      createdBy: currentUser.name, approvedBy: currentUser.name, paidBy: currentUser.name,
+      paymentRef: r.id, remarks: 'Auto-entry: Petty Cash return for ' + r.id,
+      createdAt: new Date().toISOString(), paidAt: new Date().toISOString(),
+      invoiceLink: '', screenshotLink: '', invoiceFiles: [], screenshotFiles: []
+    };
+    cashList.push(returnEntry);
+    saveData('ghj_cash', cashList);
+    pushToSheet('saveEntry', returnEntry);
+    showToast('✅ Settled! Spent: ₹' + spentAmount + '  Return: ₹' + returnAmt + ' — Cash credit entry auto-created.');
+  } else {
+    showToast('✅ Settled! Full ₹' + r.amount + ' spent. No return.');
+  }
   syncPettyCashToSheet(records[idx]);
   showPage('pettycash');
 }
 
 function cancelPettyCash(id) {
-  if (!confirm('Cancel this petty cash issue? (No cash was given / returned)')) return;
+  if (!confirm('Cancel this petty cash? (No cash was given / it was returned immediately)')) return;
   const records = getPettyCashData();
   const idx = records.findIndex(r => r.id === id);
   if (idx < 0) return;
   records[idx].status = 'cancelled';
   records[idx].settledAt = new Date().toISOString();
   savePettyCashData(records);
-  showToast('Petty cash cancelled.');
   syncPettyCashToSheet(records[idx]);
+  showToast('Petty cash cancelled.');
   showPage('pettycash');
 }
 
@@ -2406,16 +2579,15 @@ async function syncPettyCashToSheet(record) {
   const url = getScriptUrl();
   if (!url) return;
   try {
-    const payload = { action: 'savePettyCash', ...record };
     const resp = await fetch(url, {
       method: 'POST', redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ action: 'savePettyCash', ...record })
     });
     const raw = await resp.text();
     if (raw && !raw.trimStart().startsWith('<')) {
-      const r = JSON.parse(raw);
-      if (r.status === 'ok') { setLastSyncTime(); updateSyncBadge(); }
+      const res = JSON.parse(raw);
+      if (res.status === 'ok') { setLastSyncTime(); updateSyncBadge(); }
     }
   } catch(e) { /* non-critical */ }
 }
@@ -2423,41 +2595,39 @@ async function syncPettyCashToSheet(record) {
 function renderPettyCash() {
   const canIssue = currentUser.role === 'admin' || currentUser.role === 'approver';
   const records  = getPettyCashData();
-
-  // Summary per creator
   const creators = USERS.filter(u => u.role === 'creator');
+
+  // Balance summary per creator
   const summaryRows = creators.map(u => {
-    const issued   = records.filter(r => r.toUser === u.name && r.type === 'issue' && r.status !== 'cancelled').reduce((s,r) => s + Number(r.amount), 0);
-    const spent    = records.filter(r => r.toUser === u.name && r.status === 'settled').reduce((s,r) => s + Number(r.spentAmount || 0), 0);
-    const open     = records.filter(r => r.toUser === u.name && r.status === 'open').reduce((s,r) => s + Number(r.amount), 0);
-    const balance  = issued - spent;
-    return { name: u.name, issued, spent, open, balance };
+    const issued  = records.filter(r => r.toUser===u.name&&r.status!=='cancelled').reduce((s,r)=>s+Number(r.amount),0);
+    const spent   = records.filter(r => r.toUser===u.name&&r.status==='settled').reduce((s,r)=>s+Number(r.spentAmount||0),0);
+    const open    = records.filter(r => r.toUser===u.name&&r.status==='open').reduce((s,r)=>s+Number(r.amount),0);
+    return { name: u.name, issued, spent, open, balance: issued - spent };
   });
 
-  // Issue form (admin/approver only)
   const issueForm = canIssue ? `
   <div class="card" style="border-left:4px solid #27ae60">
     <div class="card-title">💼 Issue Petty Cash to Creator</div>
+    <div style="background:#eafaf1;border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#1e8449">
+      ℹ️ Issuing petty cash auto-creates a <b>Cash Debit entry</b> in the main ledger.
+      When settled, if cash is returned, a <b>Cash Credit entry</b> is auto-created. No manual entries needed.
+    </div>
     <div class="form-row col2">
-      <div>
-        <label class="field-label">Issue To (Creator Name) *</label>
+      <div><label class="field-label">Issue To (Creator) *</label>
         <select id="pc_to" style="width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px">
           <option value="">Select Creator...</option>
-          ${USERS.filter(u=>u.role==='creator').map(u=>`<option value="${u.name}">${u.name}</option>`).join('')}
+          ${creators.map(u=>'<option value="'+u.name+'">'+u.name+'</option>').join('')}
         </select>
       </div>
-      <div>
-        <label class="field-label">Amount (₹) *</label>
+      <div><label class="field-label">Amount (₹) *</label>
         <input type="number" id="pc_amount" placeholder="e.g. 5000" min="1">
       </div>
     </div>
     <div class="form-row col2">
-      <div>
-        <label class="field-label">Purpose / For *</label>
+      <div><label class="field-label">Purpose / For *</label>
         <input type="text" id="pc_purpose" placeholder="e.g. Weekly grocery purchase">
       </div>
-      <div>
-        <label class="field-label">Date *</label>
+      <div><label class="field-label">Date *</label>
         <input type="date" id="pc_date" value="${new Date().toISOString().split('T')[0]}">
       </div>
     </div>
@@ -2466,8 +2636,7 @@ function renderPettyCash() {
     </div>
   </div>` : '';
 
-  // Balance summary table
-  const summaryHtml = `
+  const summaryHtml = canIssue ? `
   <div class="card">
     <div class="card-title">📊 Petty Cash Balance — All Creators</div>
     <table style="width:100%;font-size:13px;border-collapse:collapse">
@@ -2475,30 +2644,34 @@ function renderPettyCash() {
         <th style="text-align:left;padding:7px 6px">Creator</th>
         <th style="text-align:right;padding:7px 6px">Total Issued</th>
         <th style="text-align:right;padding:7px 6px">Total Spent</th>
-        <th style="text-align:right;padding:7px 6px">Open / Unsettle</th>
+        <th style="text-align:right;padding:7px 6px">Open Cash</th>
         <th style="text-align:right;padding:7px 6px">Balance</th>
       </tr></thead>
       <tbody>
-        ${summaryRows.map(r=>`<tr style="border-bottom:.5px solid #f0f0f0">
-          <td style="padding:7px 6px;font-weight:500">${r.name}</td>
-          <td style="padding:7px 6px;text-align:right">₹${r.issued.toLocaleString('en-IN')}</td>
-          <td style="padding:7px 6px;text-align:right;color:var(--danger)">₹${r.spent.toLocaleString('en-IN')}</td>
-          <td style="padding:7px 6px;text-align:right;color:var(--accent)">₹${r.open.toLocaleString('en-IN')}</td>
-          <td style="padding:7px 6px;text-align:right;font-weight:700;color:${r.balance>=0?'var(--success)':'var(--danger)'}">₹${r.balance.toLocaleString('en-IN')}</td>
-        </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--text-muted)">No creators found</td></tr>'}
+      ${summaryRows.map(r=>'<tr style="border-bottom:.5px solid #f0f0f0"><td style="padding:7px 6px;font-weight:500">'+r.name+'</td><td style="padding:7px 6px;text-align:right">₹'+r.issued.toLocaleString('en-IN')+'</td><td style="padding:7px 6px;text-align:right;color:var(--danger)">₹'+r.spent.toLocaleString('en-IN')+'</td><td style="padding:7px 6px;text-align:right;color:var(--accent)">₹'+r.open.toLocaleString('en-IN')+'</td><td style="padding:7px 6px;text-align:right;font-weight:700;color:'+(r.balance>=0?'var(--success)':'var(--danger)')+'">₹'+r.balance.toLocaleString('en-IN')+'</td></tr>').join('')
+      || '<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--text-muted)">No creators found</td></tr>'}
       </tbody>
     </table>
-  </div>`;
+  </div>` : '';
 
-  // Records table (creator sees only their own; admin sees all)
   const myRecords = currentUser.role === 'creator'
     ? records.filter(r => r.toUser === currentUser.name)
     : records;
-  const sortedRecords = myRecords.slice().sort((a,b) => b.issuedAt > a.issuedAt ? 1 : -1);
+  const sorted = myRecords.slice().sort((a,b) => b.issuedAt > a.issuedAt ? 1 : -1);
 
-  const recordsHtml = `
+  return `
+  <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:16px">💼 Petty Cash Register</div>
+  <div style="background:#fff3cd;border-left:4px solid var(--accent);padding:11px 14px;border-radius:0 8px 8px 0;font-size:12px;margin-bottom:16px;line-height:1.8">
+    <b>Workflow:</b><br>
+    <b>1. Admin issues cash</b> → Cash Debit entry auto-created in main ledger<br>
+    <b>2. Creator spends</b> → creates normal Cash Debit entries (the expenses)<br>
+    <b>3. Admin settles</b> → enter actual spent amount. If return > 0, Cash Credit auto-created<br>
+    All entries are reflected in the main Cash account automatically.
+  </div>
+  ${issueForm}
+  ${summaryHtml}
   <div class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div class="card-title" style="margin:0">📋 Petty Cash Register</div>
       <button class="btn btn-outline btn-sm" onclick="downloadPettyCash()" style="font-size:12px">⬇ Download CSV</button>
     </div>
@@ -2507,37 +2680,33 @@ function renderPettyCash() {
       <th>ID</th><th>Date</th><th>Issued To</th><th>Issued By</th><th>Purpose</th>
       <th>Issued ₹</th><th>Spent ₹</th><th>Return ₹</th><th>Status</th><th>Remarks</th>
       ${canIssue?'<th>Action</th>':''}
-    </tr></thead><tbody>
-    ${sortedRecords.map(r=>`<tr style="border-bottom:.5px solid #f0f0f0;${r.status==='cancelled'?'opacity:0.4':''}">
-      <td style="font-size:10px;color:var(--text-muted)">${r.id}</td>
-      <td>${r.date}</td>
-      <td style="font-weight:500">${r.toUser}</td>
-      <td style="font-size:11px">${r.fromUser}</td>
-      <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.purpose}</td>
-      <td style="font-weight:600;color:var(--accent)">₹${Number(r.amount).toLocaleString('en-IN')}</td>
-      <td style="color:var(--danger)">${r.spentAmount!=null?'₹'+Number(r.spentAmount).toLocaleString('en-IN'):'-'}</td>
-      <td style="color:var(--success)">${r.returnAmount!=null?'₹'+Number(r.returnAmount).toLocaleString('en-IN'):'-'}</td>
-      <td><span class="badge badge-${r.status==='open'?'pending':r.status==='settled'?'paid':'voided'}">${r.status.toUpperCase()}</span></td>
-      <td style="font-size:11px">${r.remarks||'-'}</td>
-      ${canIssue?`<td>${r.status==='open'?`
-        <button class="btn btn-approve btn-sm" onclick="settlePettyCash('${r.id}')">✓ Settle</button>
-        <button class="btn btn-sm" style="background:#fee;color:#c0392b;border:1px solid #f5c6cb;margin-top:3px" onclick="cancelPettyCash('${r.id}')">✕</button>
-      `:'—'}</td>`:''}
-    </tr>`).join('') || '<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--text-muted)">No petty cash records yet.</td></tr>'}
+    </tr></thead>
+    <tbody>
+    ${(function(){
+      return sorted.map(function(r){
+        const badgeCls = r.status==='open'?'pending':r.status==='settled'?'paid':'voided';
+        const actionCell = canIssue ? '<td>' + (r.status==='open'
+          ? '<button class="btn btn-approve btn-sm" data-pcid="'+r.id+'" onclick="settlePettyCash(this.dataset.pcid)">✓ Settle</button> '
+          + '<button class="btn btn-sm" data-pcid="'+r.id+'" style="background:#fee;color:#c0392b;border:1px solid #f5c6cb" onclick="cancelPettyCash(this.dataset.pcid)">✕</button>'
+          : '—') + '</td>' : '';
+        return '<tr style="border-bottom:.5px solid #f0f0f0;'+(r.status==='cancelled'?'opacity:0.4':'')+'">'
+          + '<td style="font-size:10px;color:var(--text-muted)">'+r.id+'</td>'
+          + '<td>'+r.date+'</td>'
+          + '<td style="font-weight:500">'+r.toUser+'</td>'
+          + '<td style="font-size:11px">'+r.fromUser+'</td>'
+          + '<td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+r.purpose+'</td>'
+          + '<td style="font-weight:600;color:var(--accent)">₹'+Number(r.amount).toLocaleString('en-IN')+'</td>'
+          + '<td style="color:var(--danger)">'+(r.spentAmount!=null?'₹'+Number(r.spentAmount).toLocaleString('en-IN'):'-')+'</td>'
+          + '<td style="color:var(--success)">'+(r.returnAmount!=null?'₹'+Number(r.returnAmount).toLocaleString('en-IN'):'-')+'</td>'
+          + '<td><span class="badge badge-'+badgeCls+'">'+r.status.toUpperCase()+'</span></td>'
+          + '<td style="font-size:11px">'+(r.remarks||'-')+'</td>'
+          + actionCell + '</tr>';
+      }).join('');
+    })()}
+    || '<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--text-muted)">No petty cash records yet.</td></tr>'}
     </tbody></table>
     </div>
   </div>`;
-
-  return `
-  <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:16px">💼 Petty Cash</div>
-  <div style="background:#fff3cd;border-left:4px solid var(--accent);padding:11px 14px;border-radius:0 8px 8px 0;font-size:12px;margin-bottom:16px">
-    <b>How it works:</b> Admin/Approver issues cash to a Creator. Creator spends it and submits receipts.
-    Admin settles by entering the amount actually spent — the balance is tracked automatically.
-    Petty cash is <b>separate from Cash/Bank entries</b> — it does not affect the main ledger until settled.
-  </div>
-  ${issueForm}
-  ${canIssue ? summaryHtml : ''}
-  ${recordsHtml}`;
 }
 
 function downloadPettyCash() {
