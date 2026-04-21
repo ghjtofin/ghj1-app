@@ -480,7 +480,7 @@
 
 // ─── STEP 1: Paste your Apps Script URL and set a secret token ──────────────────
 const APP_CONFIG = {
-scriptUrl:   'https://script.google.com/macros/s/AKfycbwWyM32vJ3A55mBMApGfQs-KCEBSKlUV_GNNRSfXFsV47iFYWtijpxHUDcTpglaijYm/exec',      // ← PASTE YOUR APPS SCRIPT URL HERE
+  scriptUrl:   'https://script.google.com/macros/s/AKfycbwWyM32vJ3A55mBMApGfQs-KCEBSKlUV_GNNRSfXFsV47iFYWtijpxHUDcTpglaijYm/exec',      // ← PASTE YOUR APPS SCRIPT URL HERE
                         //   e.g. 'https://script.google.com/macros/s/AKfyc.../exec'
   sheetId:     '1JL8flLniqzH-9E36dnOZorCzHerjMO6BKxeQ0efkznk',      // ← PASTE YOUR GOOGLE SHEET ID HERE
 
@@ -977,15 +977,130 @@ function renderDashboard() {
   const headRows = Object.entries(byHead).sort((a,b)=>b[1]-a[1]).slice(0,6)
     .map(([h,v]) => `<tr><td>${h}</td><td style="font-weight:600">₹${v.toLocaleString('en-IN')}</td><td style="width:120px"><div style="background:#e8f4fd;border-radius:4px;height:8px"><div style="background:var(--primary);height:8px;border-radius:4px;width:${Math.min(100,(v/maxHead)*100)}%"></div></div></td></tr>`).join('');
 
+  // ── Creator: petty cash issued to them (from PC register) ──────────────────
+  const myPettyCash = isCreator ? getPettyCashData().filter(r =>
+    r.toUser === currentUser.name && r.status !== 'cancelled'
+  ) : [];
+  const pcOpenAmt    = myPettyCash.filter(r=>r.status==='open').reduce((s,r)=>s+Number(r.amount),0);
+  const pcIssuedAmt  = myPettyCash.reduce((s,r)=>s+Number(r.amount),0);
+  const pcSettledAmt = myPettyCash.filter(r=>r.status==='settled').reduce((s,r)=>s+Number(r.spentAmount||0),0);
+
   return `
   <div style="margin-bottom:4px;font-size:20px;font-weight:700;color:var(--primary)">Dashboard</div>
   <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">Welcome, ${currentUser.name} (${currentUser.role}) · ${new Date().toLocaleDateString('en-IN',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
   ${getPendingQueue().length > 0 ? `
   <div style="background:#fff3cd;border:1.5px solid #ffc107;border-radius:8px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:#856404;display:flex;align-items:center;justify-content:space-between">
-    <span>⚠️ <b>${getPendingQueue().length}</b> entr${getPendingQueue().length===1?'y':'ies'} saved locally and waiting to sync to Google Sheets. Click Retry to sync now.</span>
+    <span>⚠️ <b>${getPendingQueue().length}</b> entr${getPendingQueue().length===1?'y':'ies'} saved locally and waiting to sync. Click Retry.</span>
     <button onclick="retrySyncQueue()" style="background:#e67e22;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;font-weight:600">↻ Retry Sync</button>
   </div>` : ''}
 
+  ${isCreator ? `
+  <!-- ══ CREATOR: MY CASH ACCOUNT ══════════════════════════════════════ -->
+  <div style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px;padding-bottom:6px;border-bottom:2px solid var(--primary)">
+    💰 My Cash Account — Complete Picture
+  </div>
+
+  <!-- RECEIPTS SECTION -->
+  <div style="font-size:12px;font-weight:700;color:var(--success);margin-bottom:6px;margin-top:12px">
+    ✅ Cash Received (All Sources)
+  </div>
+  <div class="stats-row" style="margin-bottom:8px">
+    <div class="stat-card" style="border-left-color:#27ae60;background:#eafaf1">
+      <div class="stat-label">Petty Cash from Admin</div>
+      <div class="stat-value" style="color:#27ae60">₹${pcIssuedAmt.toLocaleString('en-IN')}</div>
+      <div class="stat-sub">${myPettyCash.length} issue(s) · Open: ₹${pcOpenAmt.toLocaleString('en-IN')}</div>
+    </div>
+    <div class="stat-card" style="border-left-color:#27ae60">
+      <div class="stat-label">Other Cash Receipts</div>
+      <div class="stat-value" style="color:#27ae60">₹${cashCredit.toLocaleString('en-IN')}</div>
+      <div class="stat-sub">${cashAll.filter(e=>e.type==='credit'&&e.status!=='voided').length} entries (sales, donations etc.)</div>
+    </div>
+    <div class="stat-card" style="border-left-color:#1a5276;background:#f0f4ff">
+      <div class="stat-label">Total Cash In Hand</div>
+      <div class="stat-value" style="color:var(--primary);font-size:22px">₹${(pcOpenAmt + cashCredit).toLocaleString('en-IN')}</div>
+      <div class="stat-sub">Petty cash open + other receipts</div>
+    </div>
+  </div>
+
+  <!-- EXPENSES SECTION -->
+  <div style="font-size:12px;font-weight:700;color:var(--danger);margin-bottom:6px;margin-top:12px">
+    🔴 Cash Spent (All Expenses I Created)
+  </div>
+  <div class="stats-row" style="margin-bottom:8px">
+    <div class="stat-card" style="border-left-color:#c0392b">
+      <div class="stat-label">Total Cash Spent</div>
+      <div class="stat-value" style="color:var(--danger)">₹${cashDebit.toLocaleString('en-IN')}</div>
+      <div class="stat-sub">${cashAll.filter(e=>e.type==='debit'&&e.status!=='voided').length} debit entries</div>
+    </div>
+    <div class="stat-card" style="border-left-color:#e67e22">
+      <div class="stat-label">Pending Approval</div>
+      <div class="stat-value" style="color:var(--accent)">₹${cashAll.filter(e=>e.status==='pending').reduce((s,e)=>s+Number(e.amount),0).toLocaleString('en-IN')}</div>
+      <div class="stat-sub">${cashAll.filter(e=>e.status==='pending').length} entries awaiting approval</div>
+    </div>
+    <div class="stat-card" style="border-left-color:#27ae60">
+      <div class="stat-label">Approved & Paid</div>
+      <div class="stat-value" style="color:var(--success)">₹${cashAll.filter(e=>e.status==='paid').reduce((s,e)=>s+Number(e.amount),0).toLocaleString('en-IN')}</div>
+      <div class="stat-sub">${cashAll.filter(e=>e.status==='paid').length} entries settled</div>
+    </div>
+  </div>
+
+  <!-- NET BALANCE BOX -->
+  <div style="background:${(pcOpenAmt+cashCredit-cashDebit)>=0?'#eafaf1':'#fde8e8'};border:2px solid ${(pcOpenAmt+cashCredit-cashDebit)>=0?'#27ae60':'#c0392b'};border-radius:10px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div>
+      <div style="font-size:12px;color:var(--text-muted)">NET CASH BALANCE (Received − Spent)</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
+        (₹${pcOpenAmt.toLocaleString('en-IN')} PC open + ₹${cashCredit.toLocaleString('en-IN')} receipts) − ₹${cashDebit.toLocaleString('en-IN')} spent
+      </div>
+    </div>
+    <div style="font-size:26px;font-weight:700;color:${(pcOpenAmt+cashCredit-cashDebit)>=0?'#27ae60':'#c0392b'}">
+      ${(pcOpenAmt+cashCredit-cashDebit)>=0?'+':''}₹${Math.abs(pcOpenAmt+cashCredit-cashDebit).toLocaleString('en-IN')}
+      <span style="font-size:13px;font-weight:400;margin-left:6px">${(pcOpenAmt+cashCredit-cashDebit)>=0?'you hold this much cash':'you owe this amount'}</span>
+    </div>
+  </div>
+
+  <!-- PETTY CASH BREAKDOWN TABLE -->
+  ${myPettyCash.length > 0 ? `
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">💼 My Petty Cash Issues</div>
+    <table style="width:100%;font-size:12px;border-collapse:collapse">
+      <thead><tr style="border-bottom:1.5px solid var(--border)">
+        <th style="text-align:left;padding:6px 4px">Date</th>
+        <th style="text-align:left;padding:6px 4px">Purpose</th>
+        <th style="text-align:right;padding:6px 4px">Issued</th>
+        <th style="text-align:right;padding:6px 4px">Spent</th>
+        <th style="text-align:right;padding:6px 4px">Balance</th>
+        <th style="padding:6px 4px">Status</th>
+      </tr></thead>
+      <tbody>
+      ${myPettyCash.map(r=>{
+        const bal = r.status==='settled' ? (r.amount - (r.spentAmount||0)) : r.amount;
+        return '<tr style="border-bottom:.5px solid #f0f0f0"><td style="padding:5px 4px">'+r.date+'</td><td style="padding:5px 4px">'+r.purpose+'</td><td style="padding:5px 4px;text-align:right;color:var(--success)">₹'+Number(r.amount).toLocaleString('en-IN')+'</td><td style="padding:5px 4px;text-align:right;color:var(--danger)">'+(r.spentAmount!=null?'₹'+Number(r.spentAmount).toLocaleString('en-IN'):'-')+'</td><td style="padding:5px 4px;text-align:right;font-weight:600;color:'+(bal>0?'var(--primary)':'var(--text-muted)')+'">'+( r.status==='open'?'₹'+Number(bal).toLocaleString('en-IN')+ ' (with you)': r.status==='settled'&&bal>0?'₹'+bal.toLocaleString('en-IN')+' returned':bal===0?'Fully spent':'-')+'</td><td style="padding:5px 4px"><span class="badge badge-'+(r.status==='open'?'pending':'paid')+'">'+r.status.toUpperCase()+'</span></td></tr>';
+      }).join('')}
+      </tbody>
+    </table>
+  </div>` : ''}
+
+  <!-- RECENT CASH ENTRIES (my own) -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div class="card">
+      <div class="card-title">📋 My Recent Cash Receipts</div>
+      <div class="tbl-wrap"><table style="font-size:11px"><thead><tr><th>Date</th><th>Description</th><th>Head</th><th>Amount</th><th>Status</th></tr></thead><tbody>
+      ${cashAll.filter(e=>e.type==='credit'&&e.status!=='voided').slice().reverse().slice(0,8).map(e=>
+        '<tr><td>'+e.date+'</td><td style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e.desc+'</td><td style="font-size:10px">'+e.head+'</td><td style="color:var(--success);font-weight:600">₹'+Number(e.amount).toLocaleString('en-IN')+'</td><td><span class="badge badge-'+e.status+'">'+e.status.toUpperCase()+'</span></td></tr>'
+      ).join('') || '<tr><td colspan="5" style="text-align:center;padding:12px;color:var(--text-muted)">No receipts yet</td></tr>'}
+      </tbody></table></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📋 My Recent Cash Expenses</div>
+      <div class="tbl-wrap"><table style="font-size:11px"><thead><tr><th>Date</th><th>Description</th><th>Head</th><th>Amount</th><th>Status</th></tr></thead><tbody>
+      ${cashAll.filter(e=>e.type==='debit'&&e.status!=='voided').slice().reverse().slice(0,8).map(e=>
+        '<tr><td>'+e.date+'</td><td style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e.desc+'</td><td style="font-size:10px">'+e.head+'</td><td style="color:var(--danger);font-weight:600">₹'+Number(e.amount).toLocaleString('en-IN')+'</td><td><span class="badge badge-'+e.status+'">'+e.status.toUpperCase()+'</span></td></tr>'
+      ).join('') || '<tr><td colspan="5" style="text-align:center;padding:12px;color:var(--text-muted)">No expenses yet</td></tr>'}
+      </tbody></table></div>
+    </div>
+  </div>
+  ` : `
+  <!-- ══ ADMIN/APPROVER DASHBOARD ══ -->
   <!-- CASH SUMMARY ROW -->
   <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">💵 Cash Account</div>
   <div class="stats-row" style="margin-bottom:20px">
@@ -1036,7 +1151,8 @@ function renderDashboard() {
       ${headRows || '<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:20px">No data</td></tr>'}
       </tbody></table>
     </div>
-  </div>`;
+  </div>
+  `}`;
 }
 
 // ===== EXPENSE LIST =====
