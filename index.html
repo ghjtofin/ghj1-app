@@ -5,29 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GHJ Exp App</title>
 <style>
-  :root {
-    --primary:#1a5276;--primary-light:#2980b9;--accent:#e67e22;--accent-light:#f39c12;
-    --success:#27ae60;--danger:#c0392b;--warn:#d4ac0d;--bg:#f4f6f8;--card:#ffffff;
-    --border:#dce3ea;--text:#1c2833;--text-muted:#7f8c8d;--sidebar-w:260px;--header-h:64px;
-  }
+  :root{--primary:#1a5276;--primary-light:#2980b9;--accent:#e67e22;--accent-light:#f39c12;--success:#27ae60;--danger:#c0392b;--bg:#f4f6f8;--card:#fff;--border:#dce3ea;--text:#1c2833;--text-muted:#7f8c8d;--sidebar-w:260px;--header-h:64px;}
   *{box-sizing:border-box;margin:0;padding:0;}
   body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background:var(--bg);color:var(--text);font-size:14px;}
-  #loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a5276 0%,#154360 50%,#0d2137 100%);}
-  .login-box{background:#fff;border-radius:16px;padding:40px 36px;width:380px;box-shadow:0 20px 60px rgba(0,0,0,0.3);text-align:center;}
+  #loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a5276,#154360,#0d2137);}
+  .login-box{background:#fff;border-radius:16px;padding:40px 36px;width:380px;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center;}
   .login-title{font-size:22px;font-weight:700;color:var(--primary);margin-bottom:4px;}
   .login-sub{font-size:12px;color:var(--text-muted);margin-bottom:28px;}
   .form-group{margin-bottom:16px;text-align:left;}
   .form-group label{font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px;}
   .form-group input{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;color:var(--text);}
   .btn-primary{width:100%;padding:12px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;}
-  .btn-primary:hover{background:var(--primary-light);}
   .login-error{color:var(--danger);font-size:12px;margin-top:8px;display:none;}
   #appShell{display:none;min-height:100vh;}
   .header{position:fixed;top:0;left:0;right:0;height:var(--header-h);background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 20px;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2);}
   .header-left{display:flex;align-items:center;gap:12px;}
   .header-title{font-size:18px;font-weight:700;}
   .header-title span{color:var(--accent-light);}
-  .header-right{display:flex;align-items:center;gap:12px;}
+  .header-right{display:flex;align-items:center;gap:10px;}
+  .sync-info{font-size:11px;color:rgba(255,255,255,.75);background:rgba(255,255,255,.1);padding:4px 10px;border-radius:12px;white-space:nowrap;}
   .user-badge{background:rgba(255,255,255,.15);border-radius:20px;padding:5px 12px;font-size:13px;}
   .btn-logout{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;}
   .sidebar{position:fixed;top:var(--header-h);left:0;width:var(--sidebar-w);bottom:0;background:#1a2537;overflow-y:auto;z-index:50;padding:16px 0;}
@@ -39,7 +35,7 @@
   .nav-badge{background:var(--accent);color:#fff;border-radius:10px;padding:2px 7px;font-size:10px;margin-left:auto;}
   .main{margin-left:var(--sidebar-w);margin-top:var(--header-h);padding:24px;min-height:calc(100vh - var(--header-h));}
   .card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 1px 6px rgba(0,0,0,.07);margin-bottom:20px;}
-  .card-title{font-size:15px;font-weight:700;color:var(--primary);margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+  .card-title{font-size:15px;font-weight:700;color:var(--primary);margin-bottom:16px;}
   .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px;}
   .stat-card{background:#fff;border-radius:10px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid var(--primary);}
   .stat-label{font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;}
@@ -48,22 +44,20 @@
   .form-row{display:grid;gap:14px;margin-bottom:14px;}
   .form-row.col2{grid-template-columns:1fr 1fr;}
   .form-row.col3{grid-template-columns:1fr 1fr 1fr;}
-  .form-row.col4{grid-template-columns:1fr 1fr 1fr 1fr;}
   label.field-label{font-size:11px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:5px;text-transform:uppercase;}
   input[type=text],input[type=number],input[type=date],input[type=email],select,textarea{width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;color:var(--text);background:#fff;}
   input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary-light);}
-  textarea{resize:vertical;min-height:70px;}
+  textarea{resize:vertical;min-height:60px;}
   .btn-row{display:flex;gap:10px;justify-content:flex-end;margin-top:16px;}
   .btn{padding:9px 20px;border-radius:7px;border:none;cursor:pointer;font-size:13px;font-weight:600;transition:all .2s;}
   .btn-save{background:var(--primary);color:#fff;}
-  .btn-save:hover{background:var(--primary-light);}
   .btn-cancel{background:#ecf0f1;color:var(--text);}
   .btn-approve{background:var(--success);color:#fff;padding:5px 12px;font-size:12px;border-radius:5px;border:none;cursor:pointer;}
   .btn-reject{background:var(--danger);color:#fff;padding:5px 12px;font-size:12px;border-radius:5px;border:none;cursor:pointer;}
   .btn-pay{background:var(--accent);color:#fff;padding:5px 12px;font-size:12px;border-radius:5px;border:none;cursor:pointer;}
   .btn-sm{padding:4px 10px;font-size:11px;}
   .btn-outline{background:transparent;border:1.5px solid var(--primary);color:var(--primary);}
-  .btn-new{background:var(--accent);color:#fff;border:none;padding:9px 18px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;}
+  .btn-new{background:var(--accent);color:#fff;border:none;padding:9px 18px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;}
   .tbl-wrap{overflow-x:auto;}
   table{width:100%;border-collapse:collapse;font-size:12px;}
   thead th{background:#f0f4f8;padding:10px 12px;text-align:left;font-weight:700;color:var(--text-muted);font-size:11px;text-transform:uppercase;border-bottom:2px solid var(--border);}
@@ -79,9 +73,8 @@
   .badge-bank{background:#e8f4fd;color:#1b6ca8;}
   .badge-debit{background:#fdedec;color:#922b21;}
   .badge-credit{background:#eafaf1;color:#1e8449;}
-  .badge-transfer{background:#f0e8ff;color:#6c3483;}
-  .badge-open{background:#fef9e7;color:#d68910;}
-  .badge-settled{background:#eafaf1;color:#1e8449;}
+  .badge-active{background:#eafaf1;color:#1e8449;}
+  .badge-settled{background:#eaf0fb;color:#1a5276;}
   .badge-cancelled{background:#f0f0f0;color:#888;}
   .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center;}
   .modal-bg.open{display:flex;}
@@ -91,54 +84,43 @@
   .modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted);}
   #toast{position:fixed;bottom:24px;right:24px;background:#1a2537;color:#fff;padding:12px 20px;border-radius:8px;font-size:13px;z-index:500;display:none;box-shadow:0 4px 12px rgba(0,0,0,.2);}
   .filter-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;background:#fff;padding:14px 16px;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.06);}
-  .filter-bar .form-group{margin:0;min-width:140px;}
-  .pipeline{display:flex;gap:0;margin-bottom:20px;}
-  .pipe-step{flex:1;padding:10px 14px;background:#ecf0f1;text-align:center;font-size:11px;font-weight:700;color:var(--text-muted);position:relative;}
-  .pipe-step:not(:last-child)::after{content:'';position:absolute;right:-10px;top:0;bottom:0;width:20px;background:inherit;clip-path:polygon(0 0,calc(100% - 5px) 50%,0 100%);z-index:1;}
-  .pipe-step.active{background:var(--primary);color:#fff;}
-  .pipe-step.done{background:var(--success);color:#fff;}
-  .pipe-step:first-child{border-radius:6px 0 0 6px;}
-  .pipe-step:last-child{border-radius:0 6px 6px 0;}
-  /* Holding card */
-  .holding-card{border-radius:10px;padding:14px;margin-bottom:10px;border:1.5px solid var(--border);}
-  .holding-card.positive{border-color:#27ae60;background:#f0fff4;}
-  .holding-card.zero{border-color:#bdc3c7;background:#f8f9fa;}
-  .holding-card.negative{border-color:#c0392b;background:#fff5f5;}
+  .filter-bar .form-group{margin:0;min-width:130px;}
+  .holding-bar{height:10px;border-radius:5px;background:#ecf0f1;margin-top:4px;}
+  .holding-bar-fill{height:10px;border-radius:5px;background:var(--success);}
   @media(max-width:768px){
     .sidebar{display:none!important;}
     .main{margin-left:0!important;padding:12px!important;}
     .stats-row{grid-template-columns:repeat(2,1fr)!important;}
-    .form-row.col2,.form-row.col3,.form-row.col4{grid-template-columns:1fr!important;}
-    .modal{width:100vw!important;max-width:100vw!important;border-radius:16px 16px 0 0!important;position:fixed;bottom:0;left:0;right:0;margin:0;}
+    .form-row.col2,.form-row.col3{grid-template-columns:1fr!important;}
+    .modal{width:100vw!important;border-radius:16px 16px 0 0!important;position:fixed;bottom:0;left:0;right:0;margin:0;}
     .modal-bg.open{align-items:flex-end!important;}
   }
 </style>
 </head>
 <body>
 
-<!-- LOGIN -->
+<!-- ══ LOGIN ══ -->
 <div id="loginScreen">
   <div class="login-box">
     <div class="login-title">GHJ <span style="color:var(--accent)">Exp</span> App</div>
     <div class="login-sub">MISSION 800 CRORE · EXPENSE MANAGEMENT</div>
     <div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="your@email.com"></div>
     <div class="form-group"><label>Password</label><input type="password" id="loginPwd" placeholder="••••••••"></div>
-    <div class="login-error" id="loginErr">Invalid email or password.</div>
+    <div class="login-error" id="loginErr"></div>
     <button class="btn-primary" onclick="doLogin()">Sign In</button>
-    <div style="margin-top:12px;font-size:11px;color:var(--text-muted)">
-      Demo: admin@ghj.org / admin123 &nbsp;|&nbsp; creator@ghj.org / create123
-    </div>
+    <div style="margin-top:10px;font-size:11px;color:var(--text-muted)">Demo: admin@ghj.org / admin123 | creator@ghj.org / create123</div>
   </div>
 </div>
 
-<!-- APP SHELL -->
+<!-- ══ APP ══ -->
 <div id="appShell">
   <div class="header">
     <div class="header-left">
       <div class="header-title">GHJ <span>Exp</span> App</div>
     </div>
     <div class="header-right">
-      <span id="syncBadge" style="font-size:11px;color:#fff;padding:3px 8px;border-radius:10px;display:none;cursor:pointer" onclick="retrySyncQueue()"></span>
+      <div id="syncInfo" class="sync-info" style="display:none"></div>
+      <span id="syncBadge" style="font-size:11px;color:#fff;padding:3px 8px;border-radius:10px;display:none;cursor:pointer;background:#e67e22" onclick="retrySyncQueue()"></span>
       <div class="user-badge" id="userBadge">👤 User</div>
       <button class="btn-logout" onclick="doLogout()">Logout</button>
     </div>
@@ -147,7 +129,6 @@
   <div class="main" id="mainContent"></div>
 </div>
 
-<!-- ENTRY MODAL -->
 <div class="modal-bg" id="entryModal">
   <div class="modal">
     <div class="modal-header">
@@ -158,7 +139,6 @@
   </div>
 </div>
 
-<!-- PAY MODAL -->
 <div class="modal-bg" id="payModal">
   <div class="modal">
     <div class="modal-header">
@@ -172,51 +152,39 @@
 <div id="toast"></div>
 
 <script>
-// ══════════════════════════════════════════════════════════
-//  CONFIGURATION — edit these in the HTML file
-// ══════════════════════════════════════════════════════════
-const APP_CONFIG = {
-  scriptUrl: 'https://script.google.com/macros/s/AKfycbzy_MDK_4WGGg9TUYTcN2YNGAnf3onbBcQQpvHRcZC6tUCpNd2LYOgbScw6kL3SUe9h/exec',
-  sheetId:   '1JL8flLniqzH-9E36dnOZorCzHerjMO6BKxeQ0efkznk',
-  appSecret: '6279@GSEKLX278905721',
-};
+// ════════════════════════════════════════════════════════════════════
+//  ▼▼▼  EDIT ONLY THESE 3 LINES — everything else is automatic  ▼▼▼
+// ════════════════════════════════════════════════════════════════════
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzy_MDK_4WGGg9TUYTcN2YNGAnf3onbBcQQpvHRcZC6tUCpNd2LYOgbScw6kL3SUe9h/exec';
+const SHEET_ID   = '1JL8flLniqzH-9E36dnOZorCzHerjMO6BKxeQ0efkznk';
+const APP_SECRET = '6279@GSEKLX278905721';
+// ════════════════════════════════════════════════════════════════════
 
-// Apply config
-(function(){
-  if(APP_CONFIG.scriptUrl) localStorage.setItem('ghj_api_url', APP_CONFIG.scriptUrl);
-  if(APP_CONFIG.sheetId)   localStorage.setItem('ghj_sheet_id', APP_CONFIG.sheetId);
-  if(APP_CONFIG.appSecret) localStorage.setItem('ghj_app_secret', APP_CONFIG.appSecret);
-})();
-
-// ══════════════════════════════════════════════════════════
-//  CONSTANTS
-// ══════════════════════════════════════════════════════════
-
-// CASH INFLOW HEADS — these bring cash INTO the system (from outside world)
-const CASH_INFLOW_HEADS = [
-  'Cash Donation','Cash Fees','Cash Sale','Cash Stay Charges (Accommodation)',
-  'Cash Fooding Charges','Cash Miscellaneous Receipts','Bank Withdrawal to Cash',
-  'Corpus Fund','Capital Contribution','Cash Receipts'
+// ── CASH INFLOW HEADS ──────────────────────────────────────────────
+const INFLOW_HEADS = [
+  'Cash Donation','Cash Fees','Cash Sale',
+  'Cash Stay Charges (Accommodation)','Cash Fooding Charges',
+  'Bank Withdrawal to Cash','Corpus Fund','Capital Contribution',
+  'Cash Miscellaneous Receipts'
 ];
 
-// CASH OUTFLOW / EXPENSE HEADS
+// ── EXPENSE / OUTFLOW HEADS ────────────────────────────────────────
 const EXPENSE_HEADS = [
-  'Groceries/Food Items','Admin','Operational Expenses','Repair & Maintenance',
-  'Program/Event/Welfare','Purchase','Inventories','Petty Cash Transfer',
-  'Bank Deposit','Salaries & Wages','Travel & Transportation',
-  'Marketing & Events','Government Fees/Taxes','Miscellaneous Expense'
+  'Groceries/Food Items','Admin & Office','Operational Expenses',
+  'Repair & Maintenance','Program/Event/Welfare','Purchase & Inventory',
+  'Salaries & Wages','Travel & Transportation','Marketing & Events',
+  'Bank Deposit from Cash','Government Fees/Taxes','Miscellaneous Expense'
 ];
 
-const ALL_HEADS = [...CASH_INFLOW_HEADS, ...EXPENSE_HEADS];
+const ALL_HEADS = [...INFLOW_HEADS, ...EXPENSE_HEADS];
 
 const CATEGORIES = [
-  'Cash Donation','Cash Fees','Cash Sale','Cash Stay / Accommodation','Cash Fooding Charges',
-  'Bank Withdrawal','Capital / Corpus Fund','Salaries & Wages','Office Rent',
+  'Cash Donation','Cash Fees','Cash Sale','Accommodation Charges','Fooding Charges',
+  'Bank Withdrawal','Capital / Corpus','Salaries & Wages','Office Rent',
   'Electricity/Water/Gas','Groceries/Food','Printing/Stationery','Courier & Shipping',
   'Insurance Premium','Banking Charges','Travel & Transportation','Marketing & Events',
   'Maintenance & Repair','Purchase of Equipment','Program Supplies',
-  'Govt Fees/Taxes','Cash Transfer to User','Cash Received from User',
-  'Bank Deposit from Cash','Miscellaneous'
+  'Govt Fees/Taxes','Bank Deposit','Miscellaneous'
 ];
 
 const DEFAULT_USERS = [
@@ -226,115 +194,261 @@ const DEFAULT_USERS = [
   {email:'creator2@ghj.org', pwd:'create456', name:'Creator2', role:'creator'},
 ];
 
-let USERS = JSON.parse(localStorage.getItem('ghj_users')||'null') || DEFAULT_USERS;
+let USERS       = JSON.parse(localStorage.getItem('ghj_users')||'null') || DEFAULT_USERS;
 let currentUser = null;
 let currentPage = 'dashboard';
 let editingId   = null;
 let reportPeriod= 'this_month';
 let reportMode  = 'cash';
 
-// ══════════════════════════════════════════════════════════
-//  DATA LAYER
-// ══════════════════════════════════════════════════════════
-function loadData(k){ try{return JSON.parse(localStorage.getItem(k))||[];}catch{return[];} }
-function saveData(k,v){ try{localStorage.setItem(k,JSON.stringify(v));}catch{} }
-function getData(){ return { cash: loadData('ghj_cash'), bank: loadData('ghj_bank') }; }
-function getCashAllocations(){ return loadData('ghj_alloc'); }
-function saveCashAllocations(d){ saveData('ghj_alloc',d); }
-function genId(){ return 'GHJ-'+Date.now()+'-'+Math.floor(Math.random()*9999); }
+// ── DATA LAYER ─────────────────────────────────────────────────────
+const ld  = k => { try{return JSON.parse(localStorage.getItem(k))||[];}catch{return[];} };
+const sd  = (k,v) => { try{localStorage.setItem(k,JSON.stringify(v));}catch{} };
+const getData   = () => ({cash:ld('ghj_cash'), bank:ld('ghj_bank')});
+const getAllocs  = () => ld('ghj_alloc');
+const saveAllocs= d  => sd('ghj_alloc',d);
+const genId     = () => 'GHJ-'+Date.now()+'-'+Math.floor(Math.random()*9999);
 
-// ── CASH HOLDINGS COMPUTATION ─────────────────────────────
-// Admin holds all cash by default.
-// Allocations transfer custodianship from Admin → any user.
-// Each user's holding = Cash allocated to them (credit) - Cash bills they paid (debit)
-// Admin's holding   = Total cash received (all inflows) - Allocated to others - Admin's own bills
-
-function computeCashHoldings() {
-  const d   = getData();
-  const allc= getCashAllocations();
-
-  // 1. Total cash received INTO the system (inflows, credit entries, status != voided)
-  const totalCashIn = d.cash
-    .filter(e => CASH_INFLOW_HEADS.includes(e.head) && e.type==='credit' && e.status!=='voided')
+// ── CASH HOLDINGS COMPUTATION ──────────────────────────────────────
+function computeHoldings(){
+  const d=getData(), allc=getAllocs();
+  // Total cash received into system
+  const totalIn = d.cash
+    .filter(e=>INFLOW_HEADS.includes(e.head)&&e.type==='credit'&&e.status!=='voided')
     .reduce((s,e)=>s+Number(e.amount),0);
-
-  // 2. Cash allocated OUT from Admin to each user (approved + paid allocations)
-  const allocByUser = {}; // { userName -> totalAllocated }
+  // Allocated to each user (from admin)
+  const allocByUser={};
   allc.filter(a=>a.status!=='cancelled').forEach(a=>{
-    const to = a.toUser||'';
-    allocByUser[to] = (allocByUser[to]||0) + Number(a.amount);
+    allocByUser[a.toUser]=(allocByUser[a.toUser]||0)+Number(a.amount);
   });
-
-  // 3. Cash bills/expenses paid by each user (debit entries they created, not voided)
-  const billsByUser = {};
+  // Bills paid by each user
+  const billsByUser={};
   d.cash.filter(e=>e.type==='debit'&&e.status!=='voided').forEach(e=>{
-    const u = e.paidByUser || e.createdBy || 'Admin';
-    billsByUser[u] = (billsByUser[u]||0) + Number(e.amount);
+    const u=e.paidByUser||e.createdBy||'Admin';
+    billsByUser[u]=(billsByUser[u]||0)+Number(e.amount);
   });
-
-  // 4. Total allocated to others (not admin)
-  const totalAllocatedToOthers = Object.entries(allocByUser)
-    .filter(([u])=>u!=='Admin')
-    .reduce((s,[,v])=>s+v,0);
-
-  // 5. Admin bills paid directly by admin
-  const adminBills = billsByUser['Admin']||0;
-
-  // 6. Holdings per non-admin user
-  const holdings = {};
+  // Holdings per user
+  const holdings={};
   USERS.filter(u=>u.name!=='Admin').forEach(u=>{
-    const allocated = allocByUser[u.name]||0;
-    const spent     = billsByUser[u.name]||0;
-    holdings[u.name] = {
-      allocated,
-      spent,
-      balance: allocated - spent,
-      role: u.role
-    };
+    holdings[u.name]={allocated:allocByUser[u.name]||0, spent:billsByUser[u.name]||0,
+      balance:(allocByUser[u.name]||0)-(billsByUser[u.name]||0), role:u.role};
   });
-
-  // 7. Admin holding = TotalIn - AllocatedToOthers - AdminDirectBills
-  const adminHolding = totalCashIn - totalAllocatedToOthers - adminBills;
-  holdings['Admin'] = {
-    allocated: totalCashIn,
-    spent:     totalAllocatedToOthers + adminBills,
-    balance:   adminHolding,
-    role:      'admin',
-    isAdmin:   true
-  };
-
-  return { holdings, totalCashIn, allocByUser, billsByUser, totalAllocatedToOthers, adminBills };
+  const totalAllocatedToOthers=Object.entries(allocByUser).filter(([u])=>u!=='Admin').reduce((s,[,v])=>s+v,0);
+  const adminBills=billsByUser['Admin']||0;
+  holdings['Admin']={allocated:totalIn, spent:totalAllocatedToOthers+adminBills,
+    balance:totalIn-totalAllocatedToOthers-adminBills, role:'admin', isAdmin:true};
+  return {holdings,totalIn,allocByUser,billsByUser,totalAllocatedToOthers,adminBills};
 }
 
-// ══════════════════════════════════════════════════════════
-//  AUTH
-// ══════════════════════════════════════════════════════════
-async function doLogin(){
-  const email = document.getElementById('loginEmail').value.trim();
-  const pwd   = document.getElementById('loginPwd').value;
-  const errEl = document.getElementById('loginErr');
-  const btn   = document.querySelector('.btn-primary');
-  errEl.style.display='none';
-  const url = localStorage.getItem('ghj_api_url');
-  if(url){
-    btn.textContent='Verifying...'; btn.disabled=true;
+// ── SYNC BADGE & TIME ─────────────────────────────────────────────
+function setLastSync(){ localStorage.setItem('ghj_last_sync',new Date().toISOString()); updateSyncInfo(); }
+function updateSyncInfo(){
+  const el=document.getElementById('syncInfo'); if(!el)return;
+  const ts=localStorage.getItem('ghj_last_sync');
+  if(!ts){el.style.display='none';return;}
+  const d=new Date(ts);
+  el.textContent='🔄 Last sync: '+d.toLocaleDateString('en-IN')+' '+d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+  el.style.display='block';
+}
+function getPQ(){ try{return JSON.parse(localStorage.getItem('ghj_sq')||'[]');}catch{return[];} }
+function setPQ(q){ try{localStorage.setItem('ghj_sq',JSON.stringify(q));}catch{} }
+function addQ(e){ const q=getPQ().filter(x=>x.id!==e.id); q.push({...e,_at:new Date().toISOString()}); setPQ(q); updateSyncBadge(); }
+function remQ(id){ setPQ(getPQ().filter(e=>e.id!==id)); updateSyncBadge(); }
+function updateSyncBadge(){
+  const q=getPQ(),b=document.getElementById('syncBadge'); if(!b)return;
+  if(q.length){b.textContent=q.length+' unsynced — retry';b.style.display='inline-block';}
+  else{b.style.display='none';}
+}
+
+// ── PUSH TO SHEET ─────────────────────────────────────────────────
+async function pushToSheet(action, data){
+  const payload={action,_secret:APP_SECRET,
+    id:data.id||'',srno:data.srno||'',date:data.date||'',head:data.head||'',
+    category:data.category||'',type:data.type||'debit',amount:Number(data.amount)||0,
+    desc:data.desc||data.description||'',vendor:data.vendor||'',
+    invoiceLink:data.invoiceLink||'',screenshotLink:data.screenshotLink||'',
+    status:data.status||'pending',createdBy:data.createdBy||'',
+    approvedBy:data.approvedBy||'',paymentRef:data.paymentRef||'',
+    remarks:data.remarks||'',paytype:data.paytype||'cash',
+    bankName:data.bankName||'',accNo:data.accNo||'',chequeRef:data.chequeRef||'',
+    paymentMode:data.paymentMode||'',paidBy:data.paidBy||'',paidByUser:data.paidByUser||''};
+  if(!SCRIPT_URL){addQ(payload);showToast('⚠️ No Script URL — saved locally.');return;}
+  try{
+    const r=await fetch(SCRIPT_URL,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+    const raw=await r.text();
+    if(!raw||raw.trimStart().startsWith('<')) throw new Error('HTML response — fix deployment settings');
+    const res=JSON.parse(raw);
+    if(res.status==='ok'){remQ(payload.id);setLastSync();showToast('✅ Saved to Google Sheets!');}
+    else throw new Error(res.error||'Script error');
+  }catch(e){addQ(payload);showToast('⚠️ Saved locally: '+e.message);}
+}
+
+// ── PUSH CASH ALLOCATION TO SHEET ─────────────────────────────────
+async function pushAllocToSheet(action, rec){
+  const payload={action,_secret:APP_SECRET,
+    id:rec.id||'',date:rec.date||'',toUser:rec.toUser||'',fromUser:rec.fromUser||'',
+    amount:Number(rec.amount)||0,purpose:rec.purpose||'',status:rec.status||'active',
+    remarks:rec.remarks||'',createdAt:rec.createdAt||'',settledAt:rec.settledAt||''};
+  if(!SCRIPT_URL){addQ({...payload,_type:'alloc'});showToast('⚠️ No Script URL — saved locally.');return;}
+  try{
+    const r=await fetch(SCRIPT_URL,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+    const raw=await r.text();
+    if(!raw||raw.trimStart().startsWith('<')) throw new Error('HTML response');
+    const res=JSON.parse(raw);
+    if(res.status==='ok'){remQ(payload.id);setLastSync();showToast('✅ Allocation saved to Sheet!');}
+    else throw new Error(res.error||'Script error');
+  }catch(e){addQ({...payload,_type:'alloc'});showToast('⚠️ Saved locally: '+e.message);}
+}
+
+// ── PUSH REPORT SUMMARY TO SHEET ──────────────────────────────────
+async function pushReportToSheet(){
+  if(!SCRIPT_URL){showToast('⚠️ No Script URL configured.');return;}
+  showToast('📊 Pushing report to Google Sheet...');
+  try{
+    const payload=buildReportPayload();
+    payload.action='saveReport';
+    payload._secret=APP_SECRET;
+    const r=await fetch(SCRIPT_URL,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+    const raw=await r.text();
+    if(!raw||raw.trimStart().startsWith('<')) throw new Error('HTML response — fix deployment');
+    const res=JSON.parse(raw);
+    if(res.status==='ok'){setLastSync();showToast('✅ Report saved to "Reports" tab in Google Sheet!');}
+    else throw new Error(res.error||'Script error');
+  }catch(e){showToast('❌ Report push failed: '+e.message);}
+}
+
+function buildReportPayload(){
+  const d=getData();
+  const periodFn=getPeriodFn(reportPeriod);
+  const all=[...d.cash.map(e=>({...e,paytype:'cash'})),...d.bank.map(e=>({...e,paytype:'bank'}))];
+  const filtered=all.filter(e=>e.status!=='voided'&&periodFn(e));
+  const debits=filtered.filter(e=>e.type==='debit');
+  const credits=filtered.filter(e=>e.type==='credit');
+  const h=computeHoldings();
+  // Inflow by head
+  const inflowByHead={};
+  INFLOW_HEADS.forEach(hd=>{ inflowByHead[hd]=d.cash.filter(e=>e.head===hd&&e.type==='credit'&&e.status!=='voided'&&periodFn(e)).reduce((s,e)=>s+Number(e.amount),0);});
+  // Expense by head
+  const expByHead={};
+  ALL_HEADS.forEach(hd=>{expByHead[hd]=debits.filter(e=>e.head===hd).reduce((s,e)=>s+Number(e.amount),0);});
+  // Expense by category
+  const expByCat={};
+  CATEGORIES.forEach(c=>{expByCat[c]=debits.filter(e=>e.category===c).reduce((s,e)=>s+Number(e.amount),0);});
+  const periodLabel={all:'All Time',this_month:'This Month',prev_month:'Previous Month',this_year:'This Year',last_3m:'Last 3 Months',last_6m:'Last 6 Months'}[reportPeriod]||'';
+  return{
+    period:periodLabel,
+    generatedAt:new Date().toISOString(),
+    generatedBy:currentUser.name,
+    totalCashIn:h.totalIn||Object.values(inflowByHead).reduce((s,v)=>s+v,0),
+    totalDebit:debits.reduce((s,e)=>s+Number(e.amount),0),
+    totalCredit:credits.reduce((s,e)=>s+Number(e.amount),0),
+    inflowByHead:JSON.stringify(inflowByHead),
+    expByHead:JSON.stringify(expByHead),
+    expByCat:JSON.stringify(expByCat),
+    holdingsByUser:JSON.stringify(Object.fromEntries(Object.entries(h.holdings).map(([u,v])=>[u,v.balance]))),
+  };
+}
+
+// ── LOAD FROM SHEET ────────────────────────────────────────────────
+async function loadFromSheet(){
+  if(!SCRIPT_URL){showToast('⚠️ No Script URL configured.');return;}
+  showToast('🔄 Refreshing from Google Sheet...');
+  try{
+    for(const type of['cash','bank']){
+      const resp=await fetch(SCRIPT_URL+'?type='+type+'&secret='+encodeURIComponent(APP_SECRET),{redirect:'follow'});
+      const raw=await resp.text();
+      if(!raw||raw.trimStart().startsWith('<')) continue;
+      const rows=JSON.parse(raw);
+      if(!Array.isArray(rows)||rows.length<2) continue;
+      const hdr=rows[0].map(h=>String(h).toLowerCase().trim());
+      const ix=h=>hdr.indexOf(h);
+      const qIds=new Set(getPQ().map(q=>q.id));
+      const entries=rows.slice(1).filter(r=>(r[ix('id')]||r[0])&&!qIds.has(String(r[ix('id')]||r[0]))).map(r=>({
+        id:String(r[ix('id')]||r[0]||''),srno:String(r[ix('srno')]||r[1]||''),
+        date:String(r[ix('date')]||r[2]||''),head:String(r[ix('head')]||r[3]||''),
+        category:String(r[ix('category')]||r[4]||''),type:String(r[ix('type')]||r[5]||'debit'),
+        amount:parseFloat(r[ix('amount')]||r[6]||0),desc:String(r[ix('description')]||r[7]||''),
+        vendor:String(r[ix('vendor')]||r[8]||''),invoiceLink:String(r[ix('invoicelink')]||r[9]||''),
+        screenshotLink:String(r[ix('screenshot')]||r[10]||''),status:String(r[ix('status')]||r[11]||'pending'),
+        createdBy:String(r[ix('createdby')]||r[12]||''),approvedBy:String(r[ix('approvedby')]||r[13]||''),
+        paymentRef:String(r[ix('paymentref')]||r[14]||''),remarks:String(r[ix('remarks')]||r[15]||''),
+        bankName:String(r[ix('bankname')]||r[16]||''),accNo:String(r[ix('accountno')]||r[17]||''),
+        chequeRef:String(r[ix('chequeref')]||r[18]||''),paytype:type,
+        paidByUser:String(r[ix('paidbyuser')]||r[21]||'')
+      }));
+      // merge with queued
+      const local=getPQ().filter(q=>q.paytype===type);
+      sd('ghj_'+type,[...entries,...local]);
+    }
+    // Load allocations from sheet
     try{
-      const secret3=APP_CONFIG.appSecret||'';
-      const resp=await fetch(url+'?type=users'+(secret3?'&secret='+encodeURIComponent(secret3):''),{redirect:'follow'});
+      const ar=await fetch(SCRIPT_URL+'?type=allocations&secret='+encodeURIComponent(APP_SECRET),{redirect:'follow'});
+      const araw=await ar.text();
+      if(araw&&!araw.trimStart().startsWith('<')){
+        const arows=JSON.parse(araw);
+        if(Array.isArray(arows)&&arows.length>1){
+          const ahdr=arows[0].map(h=>String(h).toLowerCase().trim());
+          const ax=h=>ahdr.indexOf(h);
+          const allocs=arows.slice(1).filter(r=>r[ax('id')]||r[0]).map(r=>({
+            id:String(r[ax('id')]||r[0]||''),date:String(r[ax('date')]||r[1]||''),
+            toUser:String(r[ax('touser')]||r[2]||''),fromUser:String(r[ax('fromuser')]||r[3]||''),
+            amount:parseFloat(r[ax('amount')]||r[4]||0),purpose:String(r[ax('purpose')]||r[5]||''),
+            status:String(r[ax('status')]||r[6]||'active'),remarks:String(r[ax('remarks')]||r[7]||''),
+            createdAt:String(r[ax('createdat')]||r[8]||''),settledAt:String(r[ax('settledat')]||r[9]||'')
+          }));
+          if(allocs.length) sd('ghj_alloc',allocs);
+        }
+      }
+    }catch{}
+    setLastSync();
+    showToast('✅ Data refreshed from Google Sheets!');
+    showPage(currentPage);
+  }catch(e){showToast('⚠️ Refresh failed: '+e.message);}
+}
+
+async function retrySyncQueue(){
+  if(!SCRIPT_URL||!getPQ().length)return;
+  showToast('🔄 Retrying sync...');
+  let n=0;
+  for(const e of[...getPQ()]){
+    try{
+      // Choose correct action based on type
+      const action=e._type==='alloc'?'saveAllocation':(e.action||'saveEntry');
+      const payload={...e,action};
+      const r=await fetch(SCRIPT_URL,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+      const raw=await r.text();
+      if(raw&&!raw.trimStart().startsWith('<')){const res=JSON.parse(raw);if(res.status==='ok'){remQ(e.id);n++;}}
+    }catch{}
+  }
+  if(n>0){setLastSync();showToast('✅ '+n+' item(s) synced!');showPage(currentPage);}
+  else showToast('⚠️ Sync failed — check connection & Script URL.');
+}
+
+// ── AUTH ───────────────────────────────────────────────────────────
+async function doLogin(){
+  const email=document.getElementById('loginEmail').value.trim();
+  const pwd=document.getElementById('loginPwd').value;
+  const err=document.getElementById('loginErr');
+  const btn=document.querySelector('.btn-primary');
+  err.style.display='none';
+  if(SCRIPT_URL){
+    btn.textContent='Verifying...';btn.disabled=true;
+    try{
+      const resp=await fetch(SCRIPT_URL+'?type=users&secret='+encodeURIComponent(APP_SECRET),{redirect:'follow'});
       const raw=await resp.text();
       if(raw&&!raw.trimStart().startsWith('<')){
         const rows=JSON.parse(raw);
         if(Array.isArray(rows)&&rows.length>1){
-          const hdr=rows[0].map(h=>String(h).toLowerCase().trim());
-          const ni=hdr.indexOf('name'),ei=hdr.indexOf('email'),pi=['password','pwd','pass'].reduce((f,k)=>f>=0?f:hdr.indexOf(k),-1),ri=hdr.indexOf('role');
+          const h=rows[0].map(x=>String(x).toLowerCase().trim());
+          const ei=h.indexOf('email'),pi=['password','pwd','pass'].reduce((f,k)=>f>=0?f:h.indexOf(k),-1),ni=h.indexOf('name'),ri=h.indexOf('role');
           if(ei>=0&&pi>=0){
-            const sheetUsers=rows.slice(1).filter(r=>r[ei]).map(r=>({name:ni>=0?String(r[ni]).trim():String(r[ei]).trim(),email:String(r[ei]).trim(),pwd:String(r[pi]).trim(),role:ri>=0?String(r[ri]).trim().toLowerCase():'creator'}));
-            if(sheetUsers.length){USERS=sheetUsers;localStorage.setItem('ghj_users',JSON.stringify(USERS));}
+            const su=rows.slice(1).filter(r=>r[ei]).map(r=>({email:String(r[ei]).trim(),pwd:String(r[pi]).trim(),name:ni>=0?String(r[ni]).trim():String(r[ei]).trim(),role:ri>=0?String(r[ri]).trim().toLowerCase():'creator'}));
+            if(su.length){USERS=su;sd('ghj_users',USERS);}
           }
         }
       }
-    }catch(e){/* fallback to cached */}
-    btn.textContent='Sign In'; btn.disabled=false;
+    }catch{}
+    btn.textContent='Sign In';btn.disabled=false;
   }
   const user=USERS.find(u=>u.email.toLowerCase()===email.toLowerCase()&&u.pwd===pwd);
   if(user){
@@ -342,14 +456,12 @@ async function doLogin(){
     document.getElementById('loginScreen').style.display='none';
     document.getElementById('appShell').style.display='block';
     document.getElementById('userBadge').textContent='👤 '+user.name+' ('+user.role+')';
-    buildSidebar();
-    showPage('dashboard');
-    updateBadges();
-    if(url) loadFromSheet();
+    buildSidebar();updateSyncInfo();updateSyncBadge();showPage('dashboard');
+    if(SCRIPT_URL) loadFromSheet();
     return;
   }
-  errEl.textContent='Invalid email or password. Demo: admin@ghj.org / admin123';
-  errEl.style.display='block';
+  err.textContent='Invalid email or password. Demo: admin@ghj.org / admin123';
+  err.style.display='block';
 }
 
 function doLogout(){
@@ -358,123 +470,31 @@ function doLogout(){
   document.getElementById('appShell').style.display='none';
 }
 
-// ══════════════════════════════════════════════════════════
-//  SHEET SYNC
-// ══════════════════════════════════════════════════════════
-function getScriptUrl(){ return APP_CONFIG.scriptUrl||localStorage.getItem('ghj_api_url')||''; }
-
-async function pushToSheet(action,data){
-  const url=getScriptUrl();
-  const secret=APP_CONFIG.appSecret||'';
-  const payload={action,_secret:secret,id:data.id||'',srno:data.srno||'',date:data.date||'',
-    head:data.head||'',category:data.category||'',type:data.type||'debit',
-    amount:Number(data.amount)||0,desc:data.desc||data.description||'',vendor:data.vendor||'',
-    invoiceLink:data.invoiceLink||'',screenshotLink:data.screenshotLink||'',
-    status:data.status||'pending',createdBy:data.createdBy||'',approvedBy:data.approvedBy||'',
-    paymentRef:data.paymentRef||'',remarks:data.remarks||'',paytype:data.paytype||'cash',
-    bankName:data.bankName||'',accNo:data.accNo||'',chequeRef:data.chequeRef||'',
-    paymentMode:data.paymentMode||'',paidBy:data.paidBy||'',paidByUser:data.paidByUser||''};
-  if(!url){addToQueue(payload);return;}
-  try{
-    const resp=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
-    const raw=await resp.text();
-    if(!raw||raw.trimStart().startsWith('<')) throw new Error('HTML response — fix deployment');
-    const r=JSON.parse(raw);
-    if(r.status==='ok'){removeFromQueue(payload.id);updateSyncBadge();showToast('✅ Saved to Google Sheets!');}
-    else throw new Error(r.error||'Script error');
-  }catch(e){addToQueue(payload);showToast('⚠️ Saved locally: '+e.message);}
-}
-
-async function loadFromSheet(){
-  const url=getScriptUrl(); if(!url) return;
-  const secret=APP_CONFIG.appSecret||'';
-  try{
-    for(const type of['cash','bank']){
-      const resp=await fetch(url+'?type='+type+(secret?'&secret='+encodeURIComponent(secret):''),{redirect:'follow'});
-      const raw=await resp.text();
-      if(!raw||raw.trimStart().startsWith('<')) continue;
-      const rows=JSON.parse(raw);
-      if(!Array.isArray(rows)||rows.length<2) continue;
-      const hdr=rows[0].map(h=>String(h).toLowerCase().trim());
-      const idx=h=>hdr.indexOf(h);
-      const entries=rows.slice(1).filter(r=>r[idx('id')]||r[0]).map(r=>({
-        id:String(r[idx('id')]||r[0]||''),srno:String(r[idx('srno')]||r[1]||''),
-        date:String(r[idx('date')]||r[2]||''),head:String(r[idx('head')]||r[3]||''),
-        category:String(r[idx('category')]||r[4]||''),type:String(r[idx('type')]||r[5]||'debit'),
-        amount:parseFloat(r[idx('amount')]||r[6]||0),desc:String(r[idx('description')]||r[7]||''),
-        vendor:String(r[idx('vendor')]||r[8]||''),invoiceLink:String(r[idx('invoicelink')]||r[9]||''),
-        screenshotLink:String(r[idx('screenshot')]||r[10]||''),status:String(r[idx('status')]||r[11]||'pending'),
-        createdBy:String(r[idx('createdby')]||r[12]||''),approvedBy:String(r[idx('approvedby')]||r[13]||''),
-        paymentRef:String(r[idx('paymentref')]||r[14]||''),remarks:String(r[idx('remarks')]||r[15]||''),
-        bankName:String(r[idx('bankname')]||r[16]||''),accNo:String(r[idx('accountno')]||r[17]||''),
-        chequeRef:String(r[idx('chequeref')]||r[18]||''),paytype:type,
-        paidByUser:String(r[idx('paidbyuser')]||r[21]||'')
-      }));
-      const queuedIds=new Set(getPendingQueue().map(q=>q.id));
-      const merged=entries.filter(e=>!queuedIds.has(e.id));
-      merged.push(...getPendingQueue().filter(q=>q.paytype===type));
-      saveData('ghj_'+type,merged);
-    }
-    showToast('✅ Data refreshed from Google Sheets');
-    showPage(currentPage);
-  }catch(e){showToast('⚠️ Refresh failed: '+e.message);}
-}
-
-// Sync queue
-function getPendingQueue(){try{return JSON.parse(localStorage.getItem('ghj_sync_queue')||'[]');}catch{return[];}}
-function savePendingQueue(q){try{localStorage.setItem('ghj_sync_queue',JSON.stringify(q));}catch{}}
-function addToQueue(e){const q=getPendingQueue().filter(x=>x.id!==e.id);q.push({...e,_at:new Date().toISOString()});savePendingQueue(q);updateSyncBadge();}
-function removeFromQueue(id){savePendingQueue(getPendingQueue().filter(e=>e.id!==id));updateSyncBadge();}
-function updateSyncBadge(){
-  const q=getPendingQueue(),b=document.getElementById('syncBadge');if(!b)return;
-  if(q.length>0){b.textContent=q.length+' unsynced';b.style.display='inline-block';b.style.background='#e67e22';}
-  else{b.style.display='none';}
-}
-async function retrySyncQueue(){
-  const url=getScriptUrl();if(!url||!getPendingQueue().length)return;
-  showToast('🔄 Retrying sync...');let n=0;
-  for(const e of[...getPendingQueue()]){
-    try{
-      const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(e)});
-      const raw=await r.text();
-      if(raw&&!raw.trimStart().startsWith('<')){const res=JSON.parse(raw);if(res.status==='ok'){removeFromQueue(e.id);n++;}}
-    }catch{}
-  }
-  if(n>0){showToast('✅ '+n+' item(s) synced!');showPage(currentPage);}
-}
-
-// ══════════════════════════════════════════════════════════
-//  SIDEBAR / NAV
-// ══════════════════════════════════════════════════════════
+// ── SIDEBAR ────────────────────────────────────────────────────────
 function buildSidebar(){
-  const isCreator=currentUser.role==='creator';
-  const el=document.getElementById('sidebarNav');if(!el)return;
+  const cr=currentUser.role==='creator';
   const pages=[
-    {s:'Main',     p:'dashboard',  i:'📊', l:'Dashboard'},
-    {s:'Cash',     p:'cash',       i:'💵', l:'Cash Ledger'},
-    {s:'',         p:'bank',       i:'🏦', l:'Bank Ledger'},
-    {s:'Cash Mgmt',p:'cashalloc',  i:'💸', l:'Cash Allocations',  admin:true},
-    {s:'',         p:'cashholding',i:'👛', l:'Cash Holdings',      admin:true},
-    {s:'Workflow', p:'approvals',  i:'✅', l:'Approvals',          admin:true},
-    {s:'',         p:'payments',   i:'💳', l:'Payment Releases',   admin:true},
-    {s:'Reports',  p:'reports',    i:'📈', l:'Reports / MIS',      admin:true},
-    {s:'Settings', p:'settings',   i:'⚙️', l:'Settings',           admin:true},
+    {s:'Main',     p:'dashboard',  i:'📊',l:'Dashboard'},
+    {s:'Ledgers',  p:'cash',       i:'💵',l:'Cash Ledger'},
+    {s:'',         p:'bank',       i:'🏦',l:'Bank Ledger'},
+    {s:'Cash Mgmt',p:'cashalloc',  i:'💸',l:'Cash Allocations',admin:true},
+    {s:'',         p:'cashholding',i:'👛',l:'Cash Holdings',   admin:true},
+    {s:'Workflow', p:'approvals',  i:'✅',l:'Approvals',       admin:true},
+    {s:'',         p:'payments',   i:'💳',l:'Payment Releases',admin:true},
+    {s:'Reports',  p:'reports',    i:'📈',l:'Reports / MIS',   admin:true},
+    {s:'Settings', p:'settings',   i:'⚙️',l:'Settings',        admin:true},
   ];
-  let prevS='',html='';
+  let prev='',html='';
   pages.forEach(p=>{
-    if(isCreator&&p.admin) return;
-    if(p.s&&p.s!==prevS){html+=`<div class="nav-section">${p.s}</div>`;prevS=p.s;}
-    html+=`<div class="nav-item" id="nav-${p.p}" data-page="${p.p}"><span class="nav-icon">${p.i}</span>${p.l}</div>`;
+    if(cr&&p.admin)return;
+    if(p.s&&p.s!==prev){html+=`<div class="nav-section">${p.s}</div>`;prev=p.s;}
+    html+=`<div class="nav-item" id="nav-${p.p}"><span class="nav-icon">${p.i}</span>${p.l}</div>`;
   });
   html+=`<div class="nav-section" style="margin-top:8px;border-top:1px solid #2a3547;padding-top:8px"></div>`;
   html+=`<div class="nav-item" id="nav-refresh"><span class="nav-icon">🔄</span>Refresh from Sheet</div>`;
-  el.innerHTML=html;
-  pages.forEach(p=>{
-    const el2=document.getElementById('nav-'+p.p);
-    if(el2) el2.addEventListener('click',()=>showPage(p.p));
-  });
-  const ref=document.getElementById('nav-refresh');
-  if(ref) ref.addEventListener('click',()=>loadFromSheet());
+  const el=document.getElementById('sidebarNav'); el.innerHTML=html;
+  pages.forEach(p=>{const n=document.getElementById('nav-'+p.p);if(n)n.addEventListener('click',()=>showPage(p.p));});
+  const ref=document.getElementById('nav-refresh');if(ref)ref.addEventListener('click',loadFromSheet);
   updateActiveNav();
 }
 
@@ -483,260 +503,154 @@ function updateActiveNav(){
   const a=document.getElementById('nav-'+currentPage);if(a)a.classList.add('active');
 }
 
-function updateBadges(){
-  const d=getData();
-  const pending=[...d.cash,...d.bank].filter(e=>e.status==='pending').length;
-  updateSyncBadge();
-}
-
-// ══════════════════════════════════════════════════════════
-//  ROUTING
-// ══════════════════════════════════════════════════════════
+// ── ROUTING ────────────────────────────────────────────────────────
 function showPage(page){
   const restricted=['cashalloc','cashholding','approvals','payments','reports','settings'];
   if(currentUser.role==='creator'&&restricted.includes(page)){showToast('⚠️ No permission.');page='dashboard';}
-  currentPage=page; updateActiveNav();
+  currentPage=page;updateActiveNav();
   const mc=document.getElementById('mainContent');
-  const pages={dashboard:renderDashboard,cash:()=>renderLedger('cash'),bank:()=>renderLedger('bank'),
-    cashalloc:renderCashAlloc,cashholding:renderCashHolding,approvals:renderApprovals,
-    payments:renderPayments,reports:renderReports,settings:renderSettings};
-  mc.innerHTML=(pages[page]||renderDashboard)();
-  updateBadges();
+  const map={dashboard:renderDashboard,cash:()=>renderLedger('cash'),bank:()=>renderLedger('bank'),
+    cashalloc:renderCashAlloc,cashholding:renderCashHolding,
+    approvals:renderApprovals,payments:renderPayments,reports:renderReports,settings:renderSettings};
+  mc.innerHTML=(map[page]||renderDashboard)();
 }
 
-// ══════════════════════════════════════════════════════════
+// ── PERIOD FILTER ──────────────────────────────────────────────────
+function getPeriodFn(period){
+  const now=new Date(),y=now.getFullYear(),m=now.getMonth();
+  if(period==='this_month'){const f=new Date(y,m,1).toISOString().slice(0,10),t=new Date(y,m+1,0).toISOString().slice(0,10);return e=>e.date>=f&&e.date<=t;}
+  if(period==='prev_month'){const f=new Date(y,m-1,1).toISOString().slice(0,10),t=new Date(y,m,0).toISOString().slice(0,10);return e=>e.date>=f&&e.date<=t;}
+  if(period==='this_year'){const f=y+'-01-01',t=y+'-12-31';return e=>e.date>=f&&e.date<=t;}
+  if(period==='last_3m'){const f=new Date(y,m-2,1).toISOString().slice(0,10);return e=>e.date>=f;}
+  if(period==='last_6m'){const f=new Date(y,m-5,1).toISOString().slice(0,10);return e=>e.date>=f;}
+  return()=>true;
+}
+
+// ════════════════════════════════════════════════════════════════════
 //  DASHBOARD
-// ══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════
 function renderDashboard(){
-  const d=getData();
+  const d=getData(),allc=getAllocs(),h=computeHoldings();
   const isCreator=currentUser.role==='creator';
-  const allc=getCashAllocations();
-  const h=computeCashHoldings();
+  const myName=currentUser.name;
 
   if(isCreator){
-    // ── CREATOR DASHBOARD ──────────────────────────────────
-    const myName=currentUser.name;
     const myH=h.holdings[myName]||{allocated:0,spent:0,balance:0};
     const myAllocs=allc.filter(a=>a.toUser===myName&&a.status!=='cancelled');
     const myBills=d.cash.filter(e=>e.type==='debit'&&e.status!=='voided'&&(e.paidByUser===myName||e.createdBy===myName));
-    const myBillsAmt=myBills.reduce((s,e)=>s+Number(e.amount),0);
-    const pendingBills=myBills.filter(e=>e.status==='pending');
-    const paidBills=myBills.filter(e=>e.status==='paid');
-
     return`
-    <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:4px">My Dashboard</div>
-    <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Welcome ${myName} · ${new Date().toLocaleDateString('en-IN',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
-
-    <!-- CASH WALLET CARD -->
-    <div style="background:linear-gradient(135deg,#1a5276,#2980b9);border-radius:14px;padding:22px;color:#fff;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px">
+    <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:4px">My Dashboard — ${myName}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">${new Date().toLocaleDateString('en-IN',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
+    <div style="background:linear-gradient(135deg,#1a5276,#2980b9);border-radius:14px;padding:22px;color:#fff;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
       <div>
-        <div style="font-size:13px;opacity:.8;margin-bottom:4px">MY CASH WALLET BALANCE</div>
-        <div style="font-size:36px;font-weight:700">${myH.balance>=0?'':'−'}₹${Math.abs(myH.balance).toLocaleString('en-IN')}</div>
-        <div style="font-size:12px;opacity:.75;margin-top:4px">
-          Total Received: ₹${myH.allocated.toLocaleString('en-IN')} &nbsp;|&nbsp; Total Spent: ₹${myH.spent.toLocaleString('en-IN')}
-        </div>
+        <div style="font-size:12px;opacity:.8">MY CASH WALLET BALANCE</div>
+        <div style="font-size:34px;font-weight:700;margin-top:4px">${myH.balance<0?'−':''}₹${Math.abs(myH.balance).toLocaleString('en-IN')}</div>
+        <div style="font-size:11px;opacity:.75;margin-top:4px">Received: ₹${myH.allocated.toLocaleString('en-IN')} · Spent: ₹${myH.spent.toLocaleString('en-IN')}</div>
       </div>
       <div style="text-align:right">
-        <div style="font-size:12px;opacity:.8">Status</div>
-        <div style="font-size:18px;font-weight:700;margin-top:4px">${myH.balance>0?'🟢 You hold cash':'🔴 Deficit'}</div>
-        <div style="font-size:11px;opacity:.7;margin-top:4px">${myH.balance>0?'Return excess to Admin when settled':'Request more cash from Admin'}</div>
+        <div style="font-size:20px">${myH.balance>0?'🟢':'🔴'}</div>
+        <div style="font-size:13px;margin-top:4px">${myH.balance>0?'You hold cash':'Deficit'}</div>
       </div>
     </div>
-
-    <!-- STATS -->
     <div class="stats-row">
-      <div class="stat-card" style="border-left-color:#27ae60">
-        <div class="stat-label">Cash Allocated to Me</div>
-        <div class="stat-value" style="color:#27ae60">₹${myH.allocated.toLocaleString('en-IN')}</div>
-        <div class="stat-sub">${myAllocs.length} allocation(s) from Admin</div>
-      </div>
-      <div class="stat-card" style="border-left-color:#c0392b">
-        <div class="stat-label">Bills Paid by Me</div>
-        <div class="stat-value" style="color:#c0392b">₹${myBillsAmt.toLocaleString('en-IN')}</div>
-        <div class="stat-sub">${myBills.length} entries</div>
-      </div>
-      <div class="stat-card" style="border-left-color:#e67e22">
-        <div class="stat-label">Pending Approval</div>
-        <div class="stat-value" style="color:#e67e22">${pendingBills.length}</div>
-        <div class="stat-sub">₹${pendingBills.reduce((s,e)=>s+Number(e.amount),0).toLocaleString('en-IN')}</div>
-      </div>
-      <div class="stat-card" style="border-left-color:#27ae60">
-        <div class="stat-label">Bills Completed</div>
-        <div class="stat-value" style="color:#27ae60">${paidBills.length}</div>
-        <div class="stat-sub">₹${paidBills.reduce((s,e)=>s+Number(e.amount),0).toLocaleString('en-IN')}</div>
-      </div>
+      <div class="stat-card" style="border-left-color:#27ae60"><div class="stat-label">Cash Allocated to Me</div><div class="stat-value" style="color:#27ae60">₹${myH.allocated.toLocaleString('en-IN')}</div><div class="stat-sub">${myAllocs.length} allocation(s)</div></div>
+      <div class="stat-card" style="border-left-color:#c0392b"><div class="stat-label">Bills Paid by Me</div><div class="stat-value" style="color:#c0392b">₹${myH.spent.toLocaleString('en-IN')}</div><div class="stat-sub">${myBills.length} entries</div></div>
+      <div class="stat-card" style="border-left-color:#e67e22"><div class="stat-label">Pending Approval</div><div class="stat-value" style="color:#e67e22">${myBills.filter(e=>e.status==='pending').length}</div><div class="stat-sub">entries</div></div>
+      <div class="stat-card" style="border-left-color:#27ae60"><div class="stat-label">Completed Bills</div><div class="stat-value" style="color:#27ae60">${myBills.filter(e=>e.status==='paid').length}</div><div class="stat-sub">paid</div></div>
     </div>
-
-    <!-- ALLOCATIONS TABLE -->
     <div class="card">
-      <div class="card-title">💸 Cash Received from Admin</div>
-      ${myAllocs.length===0?'<div style="text-align:center;padding:20px;color:var(--text-muted)">No cash allocated to you yet. Contact Admin.</div>':
-      `<table><thead><tr><th>Date</th><th>Amount</th><th>Purpose</th><th>Status</th><th>Remarks</th></tr></thead>
-      <tbody>${myAllocs.map(a=>`<tr>
-        <td>${a.date}</td>
-        <td style="font-weight:700;color:#27ae60">₹${Number(a.amount).toLocaleString('en-IN')}</td>
-        <td>${a.purpose}</td>
-        <td><span class="badge badge-${a.status==='active'?'approved':'settled'}">${a.status.toUpperCase()}</span></td>
-        <td style="font-size:11px">${a.remarks||'—'}</td>
-      </tr>`).join('')}</tbody></table>`}
-    </div>
-
-    <!-- MY RECENT BILLS -->
-    <div class="card">
-      <div class="card-title">📋 My Recent Bill Entries
+      <div class="card-title">💸 Cash Received from Admin
         <button class="btn-new" onclick="openNewEntry('cash')" style="margin-left:auto;font-size:12px;padding:6px 14px">+ Add Bill</button>
       </div>
-      ${myBills.length===0?'<div style="text-align:center;padding:20px;color:var(--text-muted)">No bill entries yet. Click "+ Add Bill" to start.</div>':
-      `<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Head</th><th>Description</th><th>Vendor</th><th>Amount</th><th>Status</th></tr></thead>
-      <tbody>${myBills.slice().reverse().slice(0,10).map(e=>`<tr>
-        <td>${e.date}</td><td>${e.head}</td>
-        <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.desc}</td>
-        <td style="color:var(--primary-light);font-size:11px">${e.vendor||'—'}</td>
-        <td style="font-weight:700;color:var(--danger)">₹${Number(e.amount).toLocaleString('en-IN')}</td>
-        <td><span class="badge badge-${e.status}">${e.status.toUpperCase()}</span></td>
-      </tr>`).join('')}</tbody></table></div>`}
+      ${myAllocs.length===0?'<div style="text-align:center;padding:16px;color:var(--text-muted)">No cash allocated to you yet.</div>':
+      `<table><thead><tr><th>Date</th><th>Amount</th><th>Purpose</th><th>Status</th><th>Remarks</th></tr></thead><tbody>
+      ${myAllocs.map(a=>`<tr><td>${a.date}</td><td style="font-weight:700;color:#27ae60">₹${Number(a.amount).toLocaleString('en-IN')}</td><td>${a.purpose}</td><td><span class="badge badge-${a.status==='active'?'approved':'settled'}">${a.status.toUpperCase()}</span></td><td style="font-size:11px">${a.remarks||'—'}</td></tr>`).join('')}
+      </tbody></table>`}
+    </div>
+    <div class="card">
+      <div class="card-title">📋 My Recent Bill Entries</div>
+      ${myBills.length===0?'<div style="text-align:center;padding:16px;color:var(--text-muted)">No bills yet. Click "+ Add Bill".</div>':
+      `<div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Head</th><th>Description</th><th>Vendor</th><th>Amount</th><th>Status</th></tr></thead><tbody>
+      ${myBills.slice().reverse().slice(0,10).map(e=>`<tr><td>${e.date}</td><td style="font-size:11px">${e.head}</td><td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.desc}</td><td style="color:var(--primary-light);font-size:11px">${e.vendor||'—'}</td><td style="font-weight:700;color:#c0392b">₹${Number(e.amount).toLocaleString('en-IN')}</td><td><span class="badge badge-${e.status}">${e.status.toUpperCase()}</span></td></tr>`).join('')}
+      </tbody></table></div>`}
     </div>`;
   }
 
-  // ── ADMIN / APPROVER DASHBOARD ────────────────────────────
-  const totalCashIn=h.totalCashIn;
-  const adminBalance=h.holdings['Admin']?.balance||0;
-  const allBalances=Object.entries(h.holdings).filter(([u])=>u!=='Admin');
-  const totalWithOthers=allBalances.reduce((s,[,v])=>s+v.balance,0);
+  // ── ADMIN / APPROVER DASHBOARD ─────────────────────────────────
   const all=[...d.cash,...d.bank];
   const totalDebit=all.filter(e=>e.type==='debit'&&e.status!=='voided').reduce((s,e)=>s+Number(e.amount),0);
   const pending=all.filter(e=>e.status==='pending').length;
   const approved=all.filter(e=>e.status==='approved').length;
-
+  const adminBal=h.holdings['Admin']?.balance||0;
+  const totalWithOthers=Object.entries(h.holdings).filter(([u])=>u!=='Admin').reduce((s,[,v])=>s+v.balance,0);
   return`
   <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:4px">Dashboard</div>
   <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px">Welcome ${currentUser.name} · ${new Date().toLocaleDateString('en-IN',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
-
-  ${getPendingQueue().length>0?`<div style="background:#fff3cd;border:1.5px solid #ffc107;border-radius:8px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:#856404;display:flex;align-items:center;justify-content:space-between">
-    <span>⚠️ ${getPendingQueue().length} entry(s) waiting to sync.</span>
-    <button onclick="retrySyncQueue()" style="background:#e67e22;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer">↻ Retry Sync</button>
-  </div>`:''}
-
-  <!-- CASH FLOW OVERVIEW -->
-  <div style="font-size:13px;font-weight:700;color:var(--primary);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">💵 Cash Flow Overview</div>
+  ${getPQ().length>0?`<div style="background:#fff3cd;border:1.5px solid #ffc107;border-radius:8px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:#856404;display:flex;justify-content:space-between;align-items:center"><span>⚠️ ${getPQ().length} item(s) waiting to sync.</span><button onclick="retrySyncQueue()" style="background:#e67e22;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer">↻ Retry</button></div>`:''}
+  <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:8px;text-transform:uppercase">💵 Cash Overview</div>
   <div class="stats-row" style="margin-bottom:20px">
-    <div class="stat-card" style="border-left-color:#27ae60">
-      <div class="stat-label">Total Cash Received</div>
-      <div class="stat-value" style="color:#27ae60">₹${totalCashIn.toLocaleString('en-IN')}</div>
-      <div class="stat-sub">From all inflow heads</div>
-    </div>
-    <div class="stat-card" style="border-left-color:#1a5276">
-      <div class="stat-label">Admin Holds (In Hand)</div>
-      <div class="stat-value" style="color:${adminBalance>=0?'#1a5276':'#c0392b'}">₹${Math.abs(adminBalance).toLocaleString('en-IN')}</div>
-      <div class="stat-sub">${adminBalance>=0?'With Admin':'Over-allocated'}</div>
-    </div>
-    <div class="stat-card" style="border-left-color:#e67e22">
-      <div class="stat-label">Cash With Others</div>
-      <div class="stat-value" style="color:#e67e22">₹${totalWithOthers.toLocaleString('en-IN')}</div>
-      <div class="stat-sub">${allBalances.length} users hold cash</div>
-    </div>
-    <div class="stat-card" style="border-left-color:#c0392b">
-      <div class="stat-label">Total Bills Paid</div>
-      <div class="stat-value" style="color:#c0392b">₹${totalDebit.toLocaleString('en-IN')}</div>
-      <div class="stat-sub">All expense entries</div>
-    </div>
+    <div class="stat-card" style="border-left-color:#27ae60"><div class="stat-label">Total Cash Received</div><div class="stat-value" style="color:#27ae60">₹${h.totalIn.toLocaleString('en-IN')}</div><div class="stat-sub">All inflow heads</div></div>
+    <div class="stat-card" style="border-left-color:#1a5276"><div class="stat-label">Admin Holds</div><div class="stat-value" style="color:${adminBal>=0?'#1a5276':'#c0392b'}">₹${Math.abs(adminBal).toLocaleString('en-IN')}</div><div class="stat-sub">${adminBal>=0?'In hand':'Over-allocated'}</div></div>
+    <div class="stat-card" style="border-left-color:#e67e22"><div class="stat-label">With Others</div><div class="stat-value" style="color:#e67e22">₹${totalWithOthers.toLocaleString('en-IN')}</div><div class="stat-sub">Users hold cash</div></div>
+    <div class="stat-card" style="border-left-color:#c0392b"><div class="stat-label">Total Bills Paid</div><div class="stat-value" style="color:#c0392b">₹${totalDebit.toLocaleString('en-IN')}</div><div class="stat-sub">All entries</div></div>
   </div>
-
-  <!-- HOLDINGS QUICK VIEW -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
     <div class="card">
-      <div class="card-title">👛 Current Cash Holdings</div>
+      <div class="card-title">👛 Cash Holdings</div>
       ${Object.entries(h.holdings).map(([u,v])=>`
-      <div class="holding-card ${v.balance>0?'positive':v.balance===0?'zero':'negative'}" style="margin-bottom:8px">
+      <div style="border-radius:8px;padding:12px;margin-bottom:8px;border:1.5px solid ${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#bdc3c7'};background:${v.balance>0?'#f0fff4':v.balance<0?'#fff5f5':'#f8f9fa'}">
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <div>
-            <div style="font-weight:700;font-size:13px">${u} <span style="font-size:10px;color:var(--text-muted)">(${v.role})</span></div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Received: ₹${v.allocated.toLocaleString('en-IN')} · Spent: ₹${v.spent.toLocaleString('en-IN')}</div>
-          </div>
-          <div style="text-align:right">
-            <div style="font-size:18px;font-weight:700;color:${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#888'}">
-              ${v.balance>0?'':'−'}₹${Math.abs(v.balance).toLocaleString('en-IN')}
-            </div>
-            <div style="font-size:10px;color:var(--text-muted)">${v.balance>0?'holds this':'deficit'}</div>
-          </div>
+          <div><div style="font-weight:700;font-size:13px">${u}</div><div style="font-size:11px;color:var(--text-muted)">${v.role} · Rcvd ₹${v.allocated.toLocaleString('en-IN')} · Spent ₹${v.spent.toLocaleString('en-IN')}</div></div>
+          <div style="text-align:right"><div style="font-size:18px;font-weight:700;color:${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#888'}">${v.balance<0?'−':''}₹${Math.abs(v.balance).toLocaleString('en-IN')}</div></div>
         </div>
       </div>`).join('')}
+      <div class="btn-row" style="margin-top:10px;justify-content:flex-start">
+        <button class="btn btn-save btn-sm" onclick="showPage('cashalloc')">+ Allocate Cash</button>
+        <button class="btn btn-outline btn-sm" onclick="showPage('cashholding')">Full View</button>
+      </div>
     </div>
     <div class="card">
       <div class="card-title">📋 Workflow Status</div>
       <div style="display:grid;gap:10px">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#fef9e7;border-radius:8px">
-          <span style="font-size:13px">⏳ Pending Approval</span>
-          <span style="font-size:18px;font-weight:700;color:#d68910">${pending}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#eaf0fb;border-radius:8px">
-          <span style="font-size:13px">✅ Approved / Unpaid</span>
-          <span style="font-size:18px;font-weight:700;color:#1a5276">${approved}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#eafaf1;border-radius:8px">
-          <span style="font-size:13px">💳 Paid / Complete</span>
-          <span style="font-size:18px;font-weight:700;color:#27ae60">${all.filter(e=>e.status==='paid').length}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:#f8f9fa;border-radius:8px">
-          <span style="font-size:13px">💸 Pending Allocations</span>
-          <span style="font-size:18px;font-weight:700;color:#6c3483">${getCashAllocations().filter(a=>a.status==='active').length}</span>
-        </div>
-      </div>
-      <div class="btn-row" style="margin-top:14px;justify-content:flex-start">
-        <button class="btn btn-save btn-sm" onclick="showPage('cashalloc')">+ Allocate Cash</button>
-        <button class="btn btn-outline btn-sm" onclick="showPage('cashholding')">View Holdings</button>
+        <div style="display:flex;justify-content:space-between;padding:10px;background:#fef9e7;border-radius:8px"><span>⏳ Pending Approval</span><span style="font-size:18px;font-weight:700;color:#d68910">${pending}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:10px;background:#eaf0fb;border-radius:8px"><span>✅ Approved / Unpaid</span><span style="font-size:18px;font-weight:700;color:#1a5276">${approved}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:10px;background:#eafaf1;border-radius:8px"><span>💳 Paid / Complete</span><span style="font-size:18px;font-weight:700;color:#27ae60">${all.filter(e=>e.status==='paid').length}</span></div>
+        <div style="display:flex;justify-content:space-between;padding:10px;background:#f0e8ff;border-radius:8px"><span>💸 Active Allocations</span><span style="font-size:18px;font-weight:700;color:#6c3483">${getAllocs().filter(a=>a.status==='active').length}</span></div>
       </div>
     </div>
   </div>
-
-  <!-- RECENT ENTRIES -->
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
       <div class="card-title" style="margin:0">📄 Recent Entries</div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-outline btn-sm" onclick="showPage('cash')">Cash Ledger</button>
-        <button class="btn btn-outline btn-sm" onclick="showPage('bank')">Bank Ledger</button>
-      </div>
     </div>
     <div class="tbl-wrap">
-    <table><thead><tr><th>Sr.No</th><th>Date</th><th>Mode</th><th>Head</th><th>Description</th><th>Vendor</th><th>Paid By User</th><th>Dr/Cr</th><th>Amount</th><th>Status</th></tr></thead>
+    <table><thead><tr><th>Sr.No</th><th>Date</th><th>Mode</th><th>Head</th><th>Description</th><th>Paid By</th><th>Dr/Cr</th><th>Amount</th><th>Status</th></tr></thead>
     <tbody>${all.slice().sort((a,b)=>b.date>a.date?1:-1).slice(0,12).map(e=>`<tr>
-      <td style="font-size:10px;color:var(--text-muted)">${e.srno}</td>
-      <td>${e.date}</td>
+      <td style="font-size:10px;color:var(--text-muted)">${e.srno}</td><td>${e.date}</td>
       <td><span class="badge badge-${e.paytype||'cash'}">${(e.paytype||'cash').toUpperCase()}</span></td>
       <td style="font-size:11px">${e.head}</td>
-      <td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.desc}</td>
-      <td style="color:var(--primary-light);font-size:11px">${e.vendor||'—'}</td>
+      <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.desc}</td>
       <td style="font-size:11px;color:#6c3483;font-weight:500">${e.paidByUser||e.createdBy||'—'}</td>
       <td><span class="badge badge-${e.type}">${e.type==='debit'?'DR':'CR'}</span></td>
       <td style="font-weight:700;color:${e.type==='debit'?'#c0392b':'#27ae60'}">₹${Number(e.amount).toLocaleString('en-IN')}</td>
       <td><span class="badge badge-${e.status}">${e.status.toUpperCase()}</span></td>
-    </tr>`).join('')||'<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text-muted)">No entries yet.</td></tr>'}
+    </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text-muted)">No entries yet.</td></tr>'}
     </tbody></table></div>
   </div>`;
 }
 
-// ══════════════════════════════════════════════════════════
-//  CASH ALLOCATIONS PAGE
-// ══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════
+//  CASH ALLOCATIONS
+// ════════════════════════════════════════════════════════════════════
 function renderCashAlloc(){
-  const allc=getCashAllocations();
+  const allc=getAllocs();
   const eligible=USERS.filter(u=>u.name!=='Admin');
   return`
   <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:16px">💸 Cash Allocations</div>
-
-  <!-- HOW IT WORKS -->
-  <div style="background:#eaf0fb;border-left:4px solid var(--primary);padding:14px 16px;border-radius:0 8px 8px 0;font-size:12px;margin-bottom:16px;line-height:1.9">
-    <b style="font-size:13px;display:block;margin-bottom:6px;color:var(--primary)">🏦 Cash Flow Model — Admin is Master Custodian</b>
-    <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px">
-      <b style="color:#27ae60">Step 1</b><span>Cash comes into system via: Donations, Fees, Sales, Accommodation, Bank Withdrawal, etc. — recorded as Cash CREDIT entries by Admin.</span>
-      <b style="color:#1a5276">Step 2</b><span>Admin allocates cash to Creators / Approvers to pay bills. Each allocation reduces Admin's holding and increases the user's holding.</span>
-      <b style="color:#e67e22">Step 3</b><span>Users add bill/expense entries. Each debit entry reduces their cash holding.</span>
-      <b style="color:#27ae60">Step 4</b><span>Admin settles: user returns unspent cash physically. Mark allocation as "Settled" in the register.</span>
-    </div>
+  <div style="background:#eaf0fb;border-left:4px solid var(--primary);padding:12px 16px;border-radius:0 8px 8px 0;font-size:12px;margin-bottom:16px;line-height:1.9;color:#1a5276">
+    <b>Admin is Master Custodian.</b> Cash flows: External → Admin → Allocated to Users → Bills paid.<br>
+    Each allocation reduces Admin's holding and increases the user's balance. Users create bill entries from their allocated cash.
   </div>
-
-  <!-- NEW ALLOCATION FORM -->
   <div class="card" style="border-left:4px solid #27ae60">
     <div class="card-title">➕ Allocate Cash to User</div>
     <div class="form-row col3">
@@ -747,17 +661,15 @@ function renderCashAlloc(){
       <div><label class="field-label">Date *</label><input type="date" id="al_date" value="${new Date().toISOString().split('T')[0]}"></div>
     </div>
     <div class="form-row col2">
-      <div><label class="field-label">Purpose *</label><input type="text" id="al_purpose" placeholder="e.g. Weekly grocery purchase, Event expenses..."></div>
-      <div><label class="field-label">Remarks</label><input type="text" id="al_remarks" placeholder="Additional notes..."></div>
+      <div><label class="field-label">Purpose *</label><input type="text" id="al_purpose" placeholder="e.g. Weekly grocery purchase..."></div>
+      <div><label class="field-label">Remarks</label><input type="text" id="al_remarks" placeholder="Notes..."></div>
     </div>
     <div class="btn-row"><button class="btn btn-save" onclick="issueAllocation()">💸 Allocate Cash</button></div>
   </div>
-
-  <!-- ALLOCATIONS LIST -->
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <div class="card-title" style="margin:0">📋 All Allocations (${allc.length})</div>
-      <button class="btn btn-outline btn-sm" onclick="downloadCSV(getCashAllocations().map(a=>({ID:a.id,Date:a.date,To:a.toUser,From:a.fromUser,Amount:a.amount,Purpose:a.purpose,Status:a.status,Remarks:a.remarks})),'GHJ_allocations')">⬇ CSV</button>
+      <div class="card-title" style="margin:0">📋 All Allocations</div>
+      <button class="btn btn-outline btn-sm" onclick="downloadCSV(getAllocs().map(a=>({ID:a.id,Date:a.date,To:a.toUser,From:a.fromUser,Amount:a.amount,Purpose:a.purpose,Status:a.status,Remarks:a.remarks,SettledAt:a.settledAt||''})),'GHJ_allocations')">⬇ CSV</button>
     </div>
     <div class="tbl-wrap">
     <table><thead><tr><th>Date</th><th>To</th><th>By</th><th>Amount</th><th>Purpose</th><th>Status</th><th>Remarks</th><th>Actions</th></tr></thead>
@@ -767,16 +679,14 @@ function renderCashAlloc(){
       <td style="font-weight:600;color:#6c3483">${a.toUser}</td>
       <td style="font-size:11px;color:var(--text-muted)">${a.fromUser||'Admin'}</td>
       <td style="font-weight:700;color:#27ae60">₹${Number(a.amount).toLocaleString('en-IN')}</td>
-      <td>${a.purpose}</td>
-      <td><span class="badge badge-${a.status==='active'?'approved':a.status==='settled'?'paid':'voided'}">${a.status.toUpperCase()}</span></td>
+      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.purpose}</td>
+      <td><span class="badge badge-${a.status==='active'?'approved':a.status==='settled'?'paid':'cancelled'}">${a.status.toUpperCase()}</span></td>
       <td style="font-size:11px">${a.remarks||'—'}</td>
-      <td>
-        ${a.status==='active'?`
-          <button class="btn btn-sm" style="background:#eafaf1;color:#27ae60;border:1px solid #27ae60" onclick="settleAllocation('${a.id}')">✓ Settle</button>
-          <button class="btn btn-sm" style="background:#fee;color:#c0392b;border:1px solid #f5c6cb;margin-left:4px" onclick="cancelAllocation('${a.id}')">✕</button>
-        `:'—'}
-      </td>
-    </tr>`).join('')||'<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text-muted)">No allocations yet. Issue cash above.</td></tr>'}
+      <td>${a.status==='active'?`
+        <button class="btn btn-sm" style="background:#eafaf1;color:#27ae60;border:1px solid #27ae60" onclick="settleAllocation('${a.id}')">✓ Settle</button>
+        <button class="btn btn-sm" style="background:#fee;color:#c0392b;border:1px solid #f5c6cb;margin-left:4px" onclick="cancelAllocation('${a.id}')">✕</button>
+      `:'—'}</td>
+    </tr>`).join('')||'<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text-muted)">No allocations yet.</td></tr>'}
     </tbody></table></div>
   </div>`;
 }
@@ -788,187 +698,139 @@ function issueAllocation(){
   const purpose=document.getElementById('al_purpose').value.trim();
   const remarks=document.getElementById('al_remarks').value.trim();
   if(!toUser||!amount||!date||!purpose){alert('Please fill all required fields.');return;}
-
-  const h=computeCashHoldings();
+  const h=computeHoldings();
   const adminBal=h.holdings['Admin']?.balance||0;
-  if(amount>adminBal){
-    if(!confirm(`⚠️ Admin only holds ₹${adminBal.toLocaleString('en-IN')} cash.\nAllocating ₹${amount.toLocaleString('en-IN')} will create a deficit.\nProceed anyway?`)) return;
-  }
-
-  const allc=getCashAllocations();
-  const rec={id:genId(),date,toUser,fromUser:currentUser.name,amount,purpose,status:'active',remarks,createdAt:new Date().toISOString()};
+  if(amount>adminBal&&!confirm(`⚠️ Admin holds ₹${adminBal.toLocaleString('en-IN')}. Allocating ₹${amount.toLocaleString('en-IN')} creates deficit. Proceed?`)) return;
+  const allc=getAllocs();
+  const rec={id:genId(),date,toUser,fromUser:currentUser.name,amount,purpose,status:'active',remarks,createdAt:new Date().toISOString(),settledAt:''};
   allc.push(rec);
-  saveCashAllocations(allc);
-  showToast(`✅ ₹${amount.toLocaleString('en-IN')} allocated to ${toUser}`);
+  saveAllocs(allc);
+  showToast(`✅ ₹${amount.toLocaleString('en-IN')} allocated to ${toUser} — syncing to Sheet...`);
+  pushAllocToSheet('saveAllocation',rec);
   showPage('cashalloc');
 }
 
 function settleAllocation(id){
-  const allc=getCashAllocations();
-  const idx=allc.findIndex(a=>a.id===id);
-  if(idx<0) return;
-  const remarks=prompt(`Settle allocation to ${allc[idx].toUser}\nAmount: ₹${allc[idx].amount}\nPurpose: ${allc[idx].purpose}\n\nSettlement remarks:`)||'';
+  const allc=getAllocs();
+  const idx=allc.findIndex(a=>a.id===id);if(idx<0)return;
+  const remarks=prompt(`Settle: ${allc[idx].toUser} · ₹${allc[idx].amount}\nPurpose: ${allc[idx].purpose}\n\nSettlement remarks:`)||'';
   allc[idx].status='settled';
   allc[idx].settledAt=new Date().toISOString();
   allc[idx].remarks=(allc[idx].remarks?allc[idx].remarks+' | ':'')+'Settled: '+remarks;
-  saveCashAllocations(allc);
-  showToast('✅ Allocation settled.');
+  saveAllocs(allc);
+  pushAllocToSheet('updateAllocation',allc[idx]);
+  showToast('✅ Allocation settled — syncing...');
   showPage('cashalloc');
 }
 
 function cancelAllocation(id){
-  if(!confirm('Cancel this allocation? (Use only if cash was NOT actually given.)')) return;
-  const allc=getCashAllocations();
-  const idx=allc.findIndex(a=>a.id===id);
-  if(idx<0) return;
+  if(!confirm('Cancel this allocation? (Use only if cash was NOT given.)')) return;
+  const allc=getAllocs();
+  const idx=allc.findIndex(a=>a.id===id);if(idx<0)return;
   allc[idx].status='cancelled';
-  saveCashAllocations(allc);
+  saveAllocs(allc);
+  pushAllocToSheet('updateAllocation',allc[idx]);
   showToast('Allocation cancelled.');
   showPage('cashalloc');
 }
 
-// ══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════
 //  CASH HOLDINGS PAGE
-// ══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════
 function renderCashHolding(){
-  const h=computeCashHoldings();
+  const h=computeHoldings();
   const d=getData();
-  const allc=getCashAllocations();
-
-  // Inflow breakdown by head
   const inflowByHead={};
-  CASH_INFLOW_HEADS.forEach(hd=>{
-    inflowByHead[hd]=d.cash.filter(e=>e.head===hd&&e.type==='credit'&&e.status!=='voided').reduce((s,e)=>s+Number(e.amount),0);
-  });
+  INFLOW_HEADS.forEach(hd=>{inflowByHead[hd]=d.cash.filter(e=>e.head===hd&&e.type==='credit'&&e.status!=='voided').reduce((s,e)=>s+Number(e.amount),0);});
   const inflowEntries=Object.entries(inflowByHead).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-
+  const maxH=h.totalIn||1;
   return`
   <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:16px">👛 Cash Holdings Register</div>
-
-  <!-- TOTAL CASH RECEIVED BY HEAD -->
   <div class="card" style="border:2px solid #27ae60;margin-bottom:16px">
-    <div class="card-title" style="font-size:16px">💰 Total Cash Received — By Head</div>
-    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">All cash that has come INTO the system from external sources</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div class="card-title" style="color:#27ae60">💰 Total Cash Received — By Head (All Time)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <table style="width:100%;font-size:12px;border-collapse:collapse">
+        <thead><tr style="border-bottom:1.5px solid var(--border)"><th style="text-align:left;padding:5px 4px">Head / Source</th><th style="text-align:right;padding:5px 4px">Amount</th><th style="text-align:right;padding:5px 4px">%</th></tr></thead>
+        <tbody>
+        ${inflowEntries.map(([hd,amt])=>`<tr style="border-bottom:.5px solid #f0f0f0"><td style="padding:6px 4px">${hd}</td><td style="padding:6px 4px;text-align:right;font-weight:600;color:#27ae60">₹${amt.toLocaleString('en-IN')}</td><td style="padding:6px 4px;text-align:right;color:var(--primary)">${h.totalIn>0?(amt/h.totalIn*100).toFixed(1):0}%</td></tr>`).join('')||'<tr><td colspan="3" style="text-align:center;padding:16px;color:var(--text-muted)">No inflows recorded</td></tr>'}
+        </tbody>
+        <tfoot><tr style="border-top:2px solid var(--border)"><td style="padding:8px 4px"><b>TOTAL</b></td><td style="padding:8px 4px;text-align:right;font-weight:700;font-size:14px;color:#27ae60">₹${h.totalIn.toLocaleString('en-IN')}</td><td style="padding:8px 4px;text-align:right"><b>100%</b></td></tr></tfoot>
+      </table>
       <div>
-        ${inflowEntries.length===0?'<div style="color:var(--text-muted);font-size:12px">No cash inflows recorded yet.</div>':
-        inflowEntries.map(([hd,amt])=>`
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:.5px solid #f0f0f0">
-          <span style="font-size:12px;color:var(--text)">${hd}</span>
-          <span style="font-weight:700;color:#27ae60;font-size:13px">₹${amt.toLocaleString('en-IN')}</span>
-        </div>`).join('')}
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:2px solid var(--primary);margin-top:6px">
-          <b style="font-size:14px">TOTAL CASH IN</b>
-          <b style="font-size:16px;color:#27ae60">₹${h.totalCashIn.toLocaleString('en-IN')}</b>
-        </div>
-      </div>
-      <div>
-        <div style="background:#f8f9fa;border-radius:10px;padding:16px">
-          <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px">CASH DISTRIBUTION</div>
-          <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:.5px solid var(--border)">
-            <span style="font-size:12px">With Admin</span>
-            <span style="font-weight:600;color:#1a5276">₹${(h.holdings['Admin']?.balance||0).toLocaleString('en-IN')}</span>
-          </div>
-          ${Object.entries(h.holdings).filter(([u])=>u!=='Admin').map(([u,v])=>`
-          <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:.5px solid var(--border)">
-            <span style="font-size:12px">${u} (${v.role})</span>
-            <span style="font-weight:600;color:${v.balance>0?'#e67e22':'#c0392b'}">₹${v.balance.toLocaleString('en-IN')}</span>
-          </div>`).join('')}
-          <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:2px solid var(--border);margin-top:4px">
-            <b style="font-size:13px">TOTAL ACCOUNTED</b>
-            <b style="font-size:14px;color:${h.totalCashIn===Object.values(h.holdings).reduce((s,v)=>s+v.balance,0)?'#27ae60':'#e67e22'}">₹${Object.values(h.holdings).reduce((s,v)=>s+v.balance,0).toLocaleString('en-IN')}</b>
-          </div>
-        </div>
+        ${inflowEntries.map(([hd,amt])=>`
+        <div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">${hd}</span><span style="color:#27ae60;font-weight:600">₹${amt.toLocaleString('en-IN')}</span></div>
+          <div class="holding-bar"><div class="holding-bar-fill" style="width:${maxH>0?(amt/maxH*100):0}%"></div></div>
+        </div>`).join('')||'<div style="text-align:center;padding:20px;color:var(--text-muted)">No data</div>'}
       </div>
     </div>
   </div>
-
-  <!-- PER-USER HOLDINGS DETAIL -->
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-bottom:16px">
-    ${Object.entries(h.holdings).map(([uName,v])=>{
-      const userAllocs=allc.filter(a=>a.toUser===uName&&a.status!=='cancelled');
-      const userBills=d.cash.filter(e=>e.type==='debit'&&e.status!=='voided'&&(e.paidByUser===uName||(uName==='Admin'&&!e.paidByUser&&e.createdBy==='Admin')));
-      return`
-      <div class="card" style="border-left:4px solid ${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#bdc3c7'}">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
-          <div>
-            <div style="font-size:15px;font-weight:700">${uName}</div>
-            <div style="font-size:11px;color:var(--text-muted)">${v.role.toUpperCase()}</div>
-          </div>
-          <div style="text-align:right">
-            <div style="font-size:22px;font-weight:700;color:${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#888'}">${v.balance<0?'−':''}₹${Math.abs(v.balance).toLocaleString('en-IN')}</div>
-            <div style="font-size:11px;color:var(--text-muted)">${v.balance>0?'Cash in hand':v.balance<0?'Deficit / Overspent':'Settled'}</div>
-          </div>
-        </div>
-        <div style="font-size:12px;display:grid;gap:4px">
-          <div style="display:flex;justify-content:space-between"><span>Total Received:</span><span style="color:#27ae60;font-weight:600">₹${v.allocated.toLocaleString('en-IN')}</span></div>
-          <div style="display:flex;justify-content:space-between"><span>Total Spent:</span><span style="color:#c0392b;font-weight:600">₹${v.spent.toLocaleString('en-IN')}</span></div>
-          <div style="border-top:.5px solid var(--border);padding-top:4px;display:flex;justify-content:space-between"><b>Balance:</b><b style="color:${v.balance>=0?'#27ae60':'#c0392b'}">₹${v.balance.toLocaleString('en-IN')}</b></div>
-        </div>
-        ${userBills.length>0?`
-        <div style="margin-top:10px;font-size:11px;color:var(--text-muted);border-top:.5px solid var(--border);padding-top:8px">
-          <b>Recent bills (${userBills.length}):</b><br>
-          ${userBills.slice().reverse().slice(0,3).map(e=>`${e.date} · ${e.head} · ₹${Number(e.amount).toLocaleString('en-IN')}`).join('<br>')}
-          ${userBills.length>3?`<br>...and ${userBills.length-3} more`:''}
-        </div>`:''}
-      </div>`}).join('')}
+  <div class="card" style="border:2px solid #e67e22;margin-bottom:16px">
+    <div class="card-title" style="color:#e67e22">👛 Current Cash Holdings — Who Holds What</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px">Real-time: based on all allocations and all bill entries (all-time)</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-bottom:16px">
+      ${Object.entries(h.holdings).map(([u,v])=>`
+      <div style="border-radius:10px;padding:14px;border:2px solid ${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#bdc3c7'};background:${v.balance>0?'#f0fff4':v.balance<0?'#fff5f5':'#f8f9fa'}">
+        <div style="font-weight:700;font-size:13px">${u} <span style="font-size:10px;font-weight:400;color:var(--text-muted)">(${v.role})</span></div>
+        <div style="font-size:26px;font-weight:700;margin:6px 0;color:${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#888'}">${v.balance<0?'−':''}₹${Math.abs(v.balance).toLocaleString('en-IN')}</div>
+        <div style="font-size:11px;color:var(--text-muted)">Rcvd: ₹${v.allocated.toLocaleString('en-IN')} · Spent: ₹${v.spent.toLocaleString('en-IN')}</div>
+        <div style="margin-top:6px;font-size:11px;font-weight:600;color:${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#888'}">${v.balance>0?'🟢 Holds cash':v.balance<0?'🔴 Deficit':'⚪ Settled'}</div>
+      </div>`).join('')}
+    </div>
+    <table style="width:100%;font-size:12px;border-collapse:collapse">
+      <thead><tr style="background:#f0f4f8"><th style="text-align:left;padding:7px 6px">User</th><th style="text-align:left;padding:7px 6px">Role</th><th style="text-align:right;padding:7px 6px">Total Received</th><th style="text-align:right;padding:7px 6px">Total Spent</th><th style="text-align:right;padding:7px 6px">Balance</th><th style="padding:7px 6px">Status</th></tr></thead>
+      <tbody>
+      ${Object.entries(h.holdings).map(([u,v])=>`<tr style="border-bottom:.5px solid #f0f0f0"><td style="padding:7px 6px;font-weight:600">${u}</td><td style="padding:7px 6px;color:var(--text-muted)">${v.role}</td><td style="padding:7px 6px;text-align:right;color:#27ae60;font-weight:600">₹${v.allocated.toLocaleString('en-IN')}</td><td style="padding:7px 6px;text-align:right;color:#c0392b;font-weight:600">₹${v.spent.toLocaleString('en-IN')}</td><td style="padding:7px 6px;text-align:right;font-weight:700;font-size:14px;color:${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#888'}">${v.balance<0?'−':''}₹${Math.abs(v.balance).toLocaleString('en-IN')}</td><td style="padding:7px 6px"><span class="badge badge-${v.balance>0?'approved':v.balance<0?'rejected':'paid'}">${v.balance>0?'HOLDS':'DEFICIT'}</span></td></tr>`).join('')}
+      </tbody>
+    </table>
   </div>`;
 }
 
-// ══════════════════════════════════════════════════════════
-//  CASH / BANK LEDGER
-// ══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════
+//  LEDGER
+// ════════════════════════════════════════════════════════════════════
 function renderLedger(type){
   const d=getData();
-  const isCreator=currentUser.role==='creator';
-  const myName=currentUser.name;
-  // Creator sees only their own entries
-  let entries=isCreator
-    ?d[type].filter(e=>e.createdBy===myName||e.paidByUser===myName)
-    :d[type];
-
+  const cr=currentUser.role==='creator';
+  const mn=currentUser.name;
+  const entries=cr?d[type].filter(e=>e.createdBy===mn||e.paidByUser===mn):d[type];
   const label=type==='cash'?'💵 Cash Ledger':'🏦 Bank Ledger';
-  const canCreate=currentUser.role==='admin'||currentUser.role==='approver'||currentUser.role==='creator';
-
+  const canCreate=['admin','approver','creator'].includes(currentUser.role);
   const rows=entries.slice().sort((a,b)=>b.date>a.date?1:-1).map(e=>`
-  <tr style="${e.status==='voided'?'opacity:.45;text-decoration:line-through':''}">
+  <tr style="${e.status==='voided'?'opacity:.45':''}">
     <td style="font-size:10px;color:var(--text-muted)">${e.srno}</td>
     <td>${e.date}</td>
     <td style="font-size:11px">${e.head}</td>
     <td style="font-size:10px">${e.category}</td>
-    <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.desc}</td>
+    <td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.desc}</td>
     <td style="color:var(--primary-light);font-size:11px">${e.vendor||'—'}</td>
     <td style="font-size:11px;color:#6c3483;font-weight:500">${e.paidByUser||e.createdBy||'—'}</td>
     ${type==='bank'?`<td style="font-size:10px">${e.bankName||'—'}</td><td style="font-size:10px">${e.chequeRef||'—'}</td>`:''}
     <td><span class="badge badge-${e.type}">${e.type==='debit'?'DR':'CR'}</span></td>
     <td style="font-weight:700;color:${e.type==='debit'?'#c0392b':'#27ae60'}">₹${Number(e.amount).toLocaleString('en-IN')}</td>
-    <td>${e.invoiceLink?`<a href="${e.invoiceLink}" target="_blank" class="badge badge-approved" style="text-decoration:none">📎</a>`:''}${e.screenshotLink?` <a href="${e.screenshotLink}" target="_blank" class="badge badge-paid" style="text-decoration:none">📷</a>`:''}</td>
+    <td>${e.invoiceLink?`<a href="${e.invoiceLink}" target="_blank" class="badge badge-approved" style="text-decoration:none">📎</a>`:''}</td>
+    <td><span class="badge badge-${e.status}">${e.status==='voided'?'VOID ✕':e.status.toUpperCase()}</span>${getPQ().find(q=>q.id===e.id)?'<span style="font-size:9px;background:#e67e22;color:#fff;border-radius:8px;padding:2px 5px;margin-left:3px">⚡</span>':''}</td>
     <td>
-      <span class="badge badge-${e.status}">${e.status==='voided'?'VOID ✕':e.status.toUpperCase()}</span>
-      ${getPendingQueue().find(q=>q.id===e.id)?'<span style="font-size:9px;background:#e67e22;color:#fff;border-radius:8px;padding:2px 5px;margin-left:3px">⚡</span>':''}
-    </td>
-    <td>
-      ${(currentUser.role==='admin'||(currentUser.role==='creator'&&(e.createdBy===myName)))&&e.status==='pending'?`<button class="btn btn-outline btn-sm" onclick="editEntry('${type}','${e.id}')">Edit</button> `:''}
+      ${(currentUser.role==='admin'||(cr&&e.createdBy===mn))&&e.status==='pending'?`<button class="btn btn-outline btn-sm" onclick="editEntry('${type}','${e.id}')">Edit</button> `:''}
       ${e.status==='approved'&&(currentUser.role==='admin'||currentUser.role==='approver')?`<button class="btn-pay btn-sm" onclick="openPayModal('${type}','${e.id}')">Pay</button> `:''}
       ${currentUser.role==='admin'&&e.status!=='paid'&&e.status!=='voided'?`<button class="btn btn-sm" style="background:#fee;color:#c0392b;border:1px solid #f5c6cb" onclick="voidEntry('${type}','${e.id}')">✕ Void</button>`:''}
     </td>
   </tr>`).join('');
-
   return`
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
     <div style="font-size:20px;font-weight:700;color:var(--primary)">${label}</div>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-outline btn-sm" onclick="downloadEntries('${type}')">⬇ CSV</button>
+      <button class="btn btn-outline btn-sm" onclick="downloadEntries('${type}')">⬇ Download CSV</button>
       ${canCreate?`<button class="btn-new" onclick="openNewEntry('${type}')">+ New Entry</button>`:''}
     </div>
   </div>
   <div class="filter-bar">
-    <div class="form-group"><label class="field-label">From</label><input type="date" id="filterFrom" onchange="filterTable('${type}')"></div>
-    <div class="form-group"><label class="field-label">To</label><input type="date" id="filterTo" onchange="filterTable('${type}')"></div>
-    <div class="form-group"><label class="field-label">Head</label><select onchange="filterTable('${type}')" id="filterHead"><option value="">All Heads</option>${ALL_HEADS.map(h=>`<option>${h}</option>`).join('')}</select></div>
-    <div class="form-group"><label class="field-label">Type</label><select onchange="filterTable('${type}')" id="filterType"><option value="">All</option><option value="debit">Debit (DR)</option><option value="credit">Credit (CR)</option></select></div>
-    <div class="form-group"><label class="field-label">Status</label><select onchange="filterTable('${type}')" id="filterStatus"><option value="">All</option><option>pending</option><option>approved</option><option>paid</option><option>rejected</option><option>voided</option></select></div>
-    <div class="form-group" style="min-width:160px"><label class="field-label">Search</label><input type="text" id="filterSearch" placeholder="Desc / Vendor..." oninput="filterTable('${type}')"></div>
+    <div class="form-group"><label class="field-label">From</label><input type="date" id="fFrom" onchange="filterTable('${type}')"></div>
+    <div class="form-group"><label class="field-label">To</label><input type="date" id="fTo" onchange="filterTable('${type}')"></div>
+    <div class="form-group"><label class="field-label">Head</label><select onchange="filterTable('${type}')" id="fHead"><option value="">All Heads</option>${ALL_HEADS.map(h=>`<option>${h}</option>`).join('')}</select></div>
+    <div class="form-group"><label class="field-label">Dr/Cr</label><select onchange="filterTable('${type}')" id="fType"><option value="">All</option><option value="debit">Debit</option><option value="credit">Credit</option></select></div>
+    <div class="form-group"><label class="field-label">Status</label><select onchange="filterTable('${type}')" id="fStatus"><option value="">All</option><option>pending</option><option>approved</option><option>paid</option><option>rejected</option><option>voided</option></select></div>
+    <div class="form-group" style="min-width:150px"><label class="field-label">Search</label><input type="text" id="fSearch" placeholder="Desc / Vendor..." oninput="filterTable('${type}')"></div>
   </div>
   <div class="card">
     <div class="tbl-wrap">
@@ -977,64 +839,55 @@ function renderLedger(type){
       ${type==='bank'?'<th>Bank</th><th>Ref</th>':''}
       <th>Dr/Cr</th><th>Amount</th><th>Files</th><th>Status</th><th>Actions</th>
     </tr></thead>
-    <tbody id="tableBody">${rows||'<tr><td colspan="13" style="text-align:center;padding:30px;color:var(--text-muted)">No entries. Click "+ New Entry" to add.</td></tr>'}</tbody>
+    <tbody id="tableBody">${rows||'<tr><td colspan="13" style="text-align:center;padding:30px;color:var(--text-muted)">No entries yet.</td></tr>'}</tbody>
     </table></div>
   </div>`;
 }
 
 function filterTable(type){
-  const from=(document.getElementById('filterFrom')||{}).value||'';
-  const to=(document.getElementById('filterTo')||{}).value||'';
-  const head=(document.getElementById('filterHead')||{}).value||'';
-  const etype=(document.getElementById('filterType')||{}).value||'';
-  const status=(document.getElementById('filterStatus')||{}).value||'';
-  const search=((document.getElementById('filterSearch')||{}).value||'').toLowerCase();
+  const g=id=>(document.getElementById(id)||{}).value||'';
+  const from=g('fFrom'),to=g('fTo'),head=g('fHead'),etype=g('fType'),status=g('fStatus'),search=g('fSearch').toLowerCase();
   const d=getData();
-  const isCreator=currentUser.role==='creator';
-  const myName=currentUser.name;
-  let entries=isCreator?d[type].filter(e=>e.createdBy===myName||e.paidByUser===myName):d[type];
+  const cr=currentUser.role==='creator';const mn=currentUser.name;
+  let entries=cr?d[type].filter(e=>e.createdBy===mn||e.paidByUser===mn):d[type];
   entries=entries.filter(e=>{
-    if(from&&e.date<from) return false;
-    if(to&&e.date>to) return false;
-    if(head&&e.head!==head) return false;
-    if(etype&&e.type!==etype) return false;
-    if(status&&e.status!==status) return false;
-    if(search){const hay=[e.desc,e.vendor,e.srno,e.head,e.paidByUser,e.createdBy,String(e.amount)].join(' ').toLowerCase();if(!hay.includes(search)) return false;}
+    if(from&&e.date<from)return false;if(to&&e.date>to)return false;
+    if(head&&e.head!==head)return false;if(etype&&e.type!==etype)return false;
+    if(status&&e.status!==status)return false;
+    if(search){const hay=[e.desc,e.vendor,e.srno,e.head,e.paidByUser,e.createdBy,String(e.amount)].join(' ').toLowerCase();if(!hay.includes(search))return false;}
     return true;
   });
   const body=document.getElementById('tableBody');if(!body)return;
   if(!entries.length){body.innerHTML='<tr><td colspan="13" style="text-align:center;padding:20px;color:var(--text-muted)">No matching entries.</td></tr>';return;}
-  const q=getPendingQueue();
   body.innerHTML=entries.slice().sort((a,b)=>b.date>a.date?1:-1).map(e=>`
   <tr style="${e.status==='voided'?'opacity:.45':''}">
     <td style="font-size:10px;color:var(--text-muted)">${e.srno}</td><td>${e.date}</td>
     <td style="font-size:11px">${e.head}</td><td style="font-size:10px">${e.category}</td>
-    <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.desc}</td>
+    <td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.desc}</td>
     <td style="color:var(--primary-light);font-size:11px">${e.vendor||'—'}</td>
     <td style="font-size:11px;color:#6c3483;font-weight:500">${e.paidByUser||e.createdBy||'—'}</td>
     ${type==='bank'?`<td style="font-size:10px">${e.bankName||'—'}</td><td style="font-size:10px">${e.chequeRef||'—'}</td>`:''}
     <td><span class="badge badge-${e.type}">${e.type==='debit'?'DR':'CR'}</span></td>
     <td style="font-weight:700;color:${e.type==='debit'?'#c0392b':'#27ae60'}">₹${Number(e.amount).toLocaleString('en-IN')}</td>
     <td>${e.invoiceLink?`<a href="${e.invoiceLink}" target="_blank" class="badge badge-approved" style="text-decoration:none">📎</a>`:''}</td>
-    <td><span class="badge badge-${e.status}">${e.status==='voided'?'VOID':e.status.toUpperCase()}</span>${q.find(x=>x.id===e.id)?'<span style="font-size:9px;background:#e67e22;color:#fff;border-radius:8px;padding:2px 5px;margin-left:3px">⚡</span>':''}</td>
+    <td><span class="badge badge-${e.status}">${e.status==='voided'?'VOID':e.status.toUpperCase()}</span></td>
     <td>
-      ${(currentUser.role==='admin'||(currentUser.role==='creator'&&e.createdBy===currentUser.name))&&e.status==='pending'?`<button class="btn btn-outline btn-sm" onclick="editEntry('${type}','${e.id}')">Edit</button> `:''}
+      ${(currentUser.role==='admin'||(cr&&e.createdBy===currentUser.name))&&e.status==='pending'?`<button class="btn btn-outline btn-sm" onclick="editEntry('${type}','${e.id}')">Edit</button> `:''}
       ${e.status==='approved'&&(currentUser.role==='admin'||currentUser.role==='approver')?`<button class="btn-pay btn-sm" onclick="openPayModal('${type}','${e.id}')">Pay</button> `:''}
       ${currentUser.role==='admin'&&e.status!=='paid'&&e.status!=='voided'?`<button class="btn btn-sm" style="background:#fee;color:#c0392b;border:1px solid #f5c6cb" onclick="voidEntry('${type}','${e.id}')">✕</button>`:''}
     </td>
   </tr>`).join('');
 }
 
-// ══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════
 //  ENTRY FORM
-// ══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════
 function openNewEntry(type){
   editingId=null;
   document.getElementById('modalTitle').textContent=type==='cash'?'💵 New Cash Entry':'🏦 New Bank Entry';
   document.getElementById('modalBody').innerHTML=entryForm(type,null);
   document.getElementById('entryModal').classList.add('open');
 }
-
 function editEntry(type,id){
   editingId=id;
   const e=getData()[type].find(x=>x.id===id);if(!e)return;
@@ -1044,29 +897,15 @@ function editEntry(type,id){
 }
 
 function entryForm(type,e){
-  const isCreator=currentUser.role==='creator';
-  const isBank=type==='bank';
+  const cr=currentUser.role==='creator';
   const v=e||{};
-
-  // Who can this entry be "paid by"?
-  // Admin/Approver: anyone (they can record on behalf)
-  // Creator: only themselves
-  const paidByOptions=isCreator
+  const paidOpts=cr
     ?`<option value="${currentUser.name}" selected>${currentUser.name}</option>`
     :USERS.map(u=>`<option value="${u.name}" ${(v.paidByUser||currentUser.name)===u.name?'selected':''}>${u.name} (${u.role})</option>`).join('');
-
-  // Entry type guidance
-  const typeHint=isCreator
-    ?`<div style="background:#fff8e1;border-left:3px solid #f39c12;padding:8px 12px;border-radius:0 6px 6px 0;font-size:11px;color:#856404;margin-bottom:12px">
-        ℹ️ As Creator, you are recording bills you paid from cash allocated to you.<br>Select <b>Debit (Expense/Bill)</b> for expenses. <b>Credit</b> is for cash you received externally (e.g. collection).
-      </div>`
-    :`<div style="background:#eaf0fb;border-left:3px solid var(--primary);padding:8px 12px;border-radius:0 6px 6px 0;font-size:11px;color:#1a5276;margin-bottom:12px">
-        <b>Debit:</b> Cash going out (bills, expenses, bank deposit, cash transfer to user)<br>
-        <b>Credit:</b> Cash coming in (donations, fees, sales, accommodation, bank withdrawal, corpus)
-      </div>`;
-
   return`
-  ${typeHint}
+  <div style="background:${cr?'#fff8e1':'#eaf0fb'};border-left:3px solid ${cr?'#f39c12':'var(--primary)'};padding:8px 12px;border-radius:0 6px 6px 0;font-size:11px;color:${cr?'#856404':'#1a5276'};margin-bottom:14px">
+    ${cr?'ℹ️ Record bills you paid from cash allocated to you. Use <b>Debit</b> for expenses.':'<b>Debit</b> = Cash going out (bills/expenses). <b>Credit</b> = Cash coming in (donations, fees, sales, bank withdrawal).'}
+  </div>
   <div class="form-row col3">
     <div><label class="field-label">Date *</label><input type="date" id="f_date" value="${v.date||new Date().toISOString().split('T')[0]}"></div>
     <div><label class="field-label">Entry Type *</label>
@@ -1075,17 +914,15 @@ function entryForm(type,e){
         <option value="credit" ${v.type==='credit'?'selected':''}>💰 Credit (Cash Received)</option>
       </select>
     </div>
-    <div><label class="field-label">Paid By User *</label>
-      <select id="f_paidby">${paidByOptions}</select>
-    </div>
+    <div><label class="field-label">Paid By User *</label><select id="f_paidby">${paidOpts}</select></div>
   </div>
   <div class="form-row col2">
     <div><label class="field-label">Head *</label>
       <select id="f_head">
-        <optgroup label="Cash Inflows (for Credit entries)">
-          ${CASH_INFLOW_HEADS.map(h=>`<option ${v.head===h?'selected':''}>${h}</option>`).join('')}
+        <optgroup label="Cash Inflows (use with Credit)">
+          ${INFLOW_HEADS.map(h=>`<option ${v.head===h?'selected':''}>${h}</option>`).join('')}
         </optgroup>
-        <optgroup label="Expense Heads (for Debit entries)">
+        <optgroup label="Expense Heads (use with Debit)">
           ${EXPENSE_HEADS.map(h=>`<option ${v.head===h?'selected':''}>${h}</option>`).join('')}
         </optgroup>
       </select>
@@ -1095,20 +932,19 @@ function entryForm(type,e){
     </div>
   </div>
   <div class="form-row col2">
-    <div><label class="field-label">Description / Narration *</label><input type="text" id="f_desc" value="${v.desc||v.description||''}" placeholder="Purpose or narration..."></div>
+    <div><label class="field-label">Description *</label><input type="text" id="f_desc" value="${v.desc||v.description||''}" placeholder="Purpose or narration..."></div>
     <div><label class="field-label">Amount (₹) *</label><input type="number" id="f_amount" value="${v.amount||''}" placeholder="0.00"></div>
   </div>
   <div class="form-row">
     <div><label class="field-label">Paid To / Vendor / Received From *</label><input type="text" id="f_vendor" value="${v.vendor||''}" placeholder="Name of payee or source"></div>
   </div>
-  ${isBank?`
-  <div class="form-row col3">
+  ${type==='bank'?`<div class="form-row col3">
     <div><label class="field-label">Bank Name</label><input type="text" id="f_bank" value="${v.bankName||''}" placeholder="HDFC / SBI..."></div>
     <div><label class="field-label">Account No</label><input type="text" id="f_accno" value="${v.accNo||''}" placeholder="XXXX1234"></div>
     <div><label class="field-label">Cheque/NEFT/UTR Ref</label><input type="text" id="f_cheque" value="${v.chequeRef||''}" placeholder="Ref number"></div>
   </div>`:''}
   <div class="form-row col2">
-    <div><label class="field-label">Invoice / Bill Link (Google Drive)</label><input type="text" id="f_invoice" value="${v.invoiceLink||''}" placeholder="https://drive.google.com/..."></div>
+    <div><label class="field-label">Invoice Link (Google Drive)</label><input type="text" id="f_invoice" value="${v.invoiceLink||''}" placeholder="https://drive.google.com/..."></div>
     <div><label class="field-label">Remarks</label><textarea id="f_remarks" style="min-height:40px">${v.remarks||''}</textarea></div>
   </div>
   <div class="btn-row">
@@ -1118,35 +954,19 @@ function entryForm(type,e){
 }
 
 function saveEntry(type){
-  const date=document.getElementById('f_date').value;
-  const etype=document.getElementById('f_type').value;
-  const paidByUser=document.getElementById('f_paidby').value;
-  const head=document.getElementById('f_head').value;
-  const category=document.getElementById('f_category').value;
-  const amount=parseFloat(document.getElementById('f_amount').value);
-  const desc=document.getElementById('f_desc').value.trim();
-  const vendor=document.getElementById('f_vendor').value.trim();
-  const invoiceLink=document.getElementById('f_invoice').value.trim();
-  const remarks=document.getElementById('f_remarks').value.trim();
   const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
-
-  if(!date||!head||!amount||!desc||!vendor){alert('Please fill all required fields: Date, Head, Amount, Description, Vendor');return;}
-
-  // Warn if creator is recording a credit (inflow) — should normally be admin
-  if(currentUser.role==='creator'&&etype==='credit'){
-    if(!confirm('⚠️ You are recording a Cash CREDIT (money received). Normally Admin records inflows. Are you sure this is correct?')) return;
-  }
-
-  const d=getData();
-  const list=d[type];
-
+  const date=g('f_date'),etype=g('f_type'),paidByUser=g('f_paidby'),head=g('f_head'),
+        category=g('f_category'),amount=parseFloat(g('f_amount')),desc=g('f_desc'),vendor=g('f_vendor'),
+        invoiceLink=g('f_invoice'),remarks=g('f_remarks');
+  if(!date||!head||!amount||!desc||!vendor){alert('Please fill all required fields.');return;}
+  if(currentUser.role==='creator'&&etype==='credit'&&!confirm('⚠️ You are recording a Cash CREDIT. Normally Admin records inflows. Proceed?')) return;
+  const d=getData(),list=d[type];
   if(editingId){
     const idx=list.findIndex(e=>e.id===editingId);if(idx<0)return;
     list[idx]={...list[idx],date,type:etype,paidByUser,head,category,amount,desc,vendor,invoiceLink,remarks,
       updatedBy:currentUser.name,updatedAt:new Date().toISOString(),
       ...(type==='bank'?{bankName:g('f_bank'),accNo:g('f_accno'),chequeRef:g('f_cheque')}:{})};
-    saveData('ghj_'+type,list);
-    closeModal();showPage(type);showToast('✅ Entry updated — syncing...');
+    sd('ghj_'+type,list);closeModal();showPage(type);showToast('✅ Entry updated — syncing...');
     pushToSheet('updateEntry',{...list[idx],paytype:type});
   } else {
     const srno='GHJ/'+(type==='cash'?'C':'B')+'/'+String(list.length+1).padStart(4,'0');
@@ -1154,45 +974,33 @@ function saveEntry(type){
       desc,vendor,invoiceLink,screenshotLink:'',remarks,status:'pending',
       createdBy:currentUser.name,createdAt:new Date().toISOString(),approvedBy:'',paymentRef:'',
       ...(type==='bank'?{bankName:g('f_bank'),accNo:g('f_accno'),chequeRef:g('f_cheque')}:{})};
-    list.push(entry);
-    saveData('ghj_'+type,list);
+    list.push(entry);sd('ghj_'+type,list);
     closeModal();showPage(type);showToast('✅ Entry saved — syncing...');
     pushToSheet('saveEntry',entry);
   }
 }
 
-// ══════════════════════════════════════════════════════════
-//  APPROVALS
-// ══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════
+//  APPROVALS & PAYMENTS
+// ════════════════════════════════════════════════════════════════════
 function renderApprovals(){
   const d=getData();
   const canApprove=currentUser.role==='admin'||currentUser.role==='approver';
   const pending=[...d.cash.map(e=>({...e,paytype:'cash'})),...d.bank.map(e=>({...e,paytype:'bank'}))].filter(e=>e.status==='pending');
   return`
   <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:16px">✅ Pending Approvals (${pending.length})</div>
-  <div class="pipeline">
-    <div class="pipe-step done">1. Entry Created</div>
-    <div class="pipe-step active">2. Approval Review</div>
-    <div class="pipe-step">3. Payment Release</div>
-    <div class="pipe-step">4. Completed</div>
-  </div>
   <div class="card">
-    <div class="tbl-wrap"><table><thead><tr>
-      <th>Sr.No</th><th>Date</th><th>Mode</th><th>Head</th><th>Description</th><th>Vendor</th><th>Paid By</th><th>Amount</th><th>Invoice</th><th>Actions</th>
-    </tr></thead><tbody>
-    ${pending.map(e=>`<tr>
+    <div class="tbl-wrap"><table><thead><tr><th>Sr.No</th><th>Date</th><th>Mode</th><th>Head</th><th>Description</th><th>Vendor</th><th>Paid By</th><th>Amount</th><th>Invoice</th><th>Actions</th></tr></thead>
+    <tbody>${pending.map(e=>`<tr>
       <td style="font-size:10px">${e.srno}</td><td>${e.date}</td>
       <td><span class="badge badge-${e.paytype}">${e.paytype.toUpperCase()}</span></td>
-      <td>${e.head}</td>
-      <td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.desc}</td>
+      <td style="font-size:11px">${e.head}</td>
+      <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.desc}</td>
       <td style="font-size:11px">${e.vendor||'—'}</td>
       <td style="font-size:11px;color:#6c3483;font-weight:500">${e.paidByUser||e.createdBy||'—'}</td>
       <td style="font-weight:700">₹${Number(e.amount).toLocaleString('en-IN')}</td>
-      <td>${e.invoiceLink?`<a href="${e.invoiceLink}" target="_blank" style="color:var(--primary)">📎 View</a>`:'—'}</td>
-      <td>${canApprove?`
-        <button class="btn-approve" onclick="changeStatus('${e.paytype}','${e.id}','approved')">✓ Approve</button>
-        <button class="btn-reject" style="margin-left:4px" onclick="changeStatus('${e.paytype}','${e.id}','rejected')">✗ Reject</button>
-      `:'No permission'}</td>
+      <td>${e.invoiceLink?`<a href="${e.invoiceLink}" target="_blank" style="color:var(--primary)">📎</a>`:'—'}</td>
+      <td>${canApprove?`<button class="btn-approve" onclick="changeStatus('${e.paytype}','${e.id}','approved')">✓ Approve</button> <button class="btn-reject" onclick="changeStatus('${e.paytype}','${e.id}','rejected')">✗ Reject</button>`:'No permission'}</td>
     </tr>`).join('')||'<tr><td colspan="10" style="text-align:center;padding:30px;color:var(--text-muted)">No pending approvals 🎉</td></tr>'}
     </tbody></table></div>
   </div>`;
@@ -1201,33 +1009,27 @@ function renderApprovals(){
 function changeStatus(type,id,status){
   const d=getData(),list=d[type];
   const idx=list.findIndex(e=>e.id===id);if(idx<0)return;
-  list[idx].status=status;
-  list[idx].approvedBy=currentUser.name;
-  list[idx].approvedAt=new Date().toISOString();
-  saveData('ghj_'+type,list);
+  list[idx].status=status;list[idx].approvedBy=currentUser.name;list[idx].approvedAt=new Date().toISOString();
+  sd('ghj_'+type,list);
   pushToSheet('updateStatus',{...list[idx],paytype:type});
   showToast(status==='approved'?'✅ Approved!':'❌ Rejected.');
   showPage('approvals');
 }
 
 function voidEntry(type,id){
-  if(currentUser.role!=='admin'){showToast('Only Admin can void entries.');return;}
+  if(currentUser.role!=='admin'){showToast('Only Admin can void.');return;}
   const d=getData(),list=d[type];
-  const entry=list.find(e=>e.id===id);if(!entry)return;
-  if(entry.status==='paid'){showToast('Cannot void a paid entry. Create a reversal entry instead.');return;}
+  const e=list.find(x=>x.id===id);if(!e)return;
+  if(e.status==='paid'){showToast('Cannot void a paid entry.');return;}
   const reason=prompt('Reason for voiding (required):');
-  if(!reason||!reason.trim()){showToast('Void cancelled.');return;}
-  const idx=list.findIndex(e=>e.id===id);
-  list[idx].status='voided';list[idx].voidedBy=currentUser.name;
-  list[idx].voidedAt=new Date().toISOString();list[idx].voidReason=reason.trim();
-  saveData('ghj_'+type,list);
+  if(!reason||!reason.trim()){showToast('Cancelled.');return;}
+  const idx=list.findIndex(x=>x.id===id);
+  list[idx]={...list[idx],status:'voided',voidedBy:currentUser.name,voidedAt:new Date().toISOString(),voidReason:reason.trim()};
+  sd('ghj_'+type,list);
   pushToSheet('updateStatus',{...list[idx],paytype:type,approvedBy:'VOID: '+reason+' by '+currentUser.name});
   showToast('Entry voided.');showPage(currentPage);
 }
 
-// ══════════════════════════════════════════════════════════
-//  PAYMENTS
-// ══════════════════════════════════════════════════════════
 function renderPayments(){
   const d=getData();
   const approved=[...d.cash.map(e=>({...e,paytype:'cash'})),...d.bank.map(e=>({...e,paytype:'bank'}))].filter(e=>e.status==='approved');
@@ -1235,39 +1037,31 @@ function renderPayments(){
   const canPay=currentUser.role==='admin'||currentUser.role==='approver';
   return`
   <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:16px">💳 Payment Releases</div>
-  <div class="pipeline">
-    <div class="pipe-step done">1. Created</div><div class="pipe-step done">2. Approved</div>
-    <div class="pipe-step active">3. Payment Release</div><div class="pipe-step">4. Completed</div>
-  </div>
   <div class="card">
     <div class="card-title">Approved — Awaiting Payment (${approved.length})</div>
-    <div class="tbl-wrap"><table><thead><tr>
-      <th>Sr.No</th><th>Date</th><th>Mode</th><th>Head</th><th>Description</th><th>Vendor</th><th>Paid By</th><th>Amount</th><th>Approved By</th><th>Action</th>
-    </tr></thead><tbody>
-    ${approved.map(e=>`<tr>
+    <div class="tbl-wrap"><table><thead><tr><th>Sr.No</th><th>Date</th><th>Mode</th><th>Head</th><th>Description</th><th>Vendor</th><th>Paid By</th><th>Amount</th><th>Action</th></tr></thead>
+    <tbody>${approved.map(e=>`<tr>
       <td style="font-size:10px">${e.srno}</td><td>${e.date}</td>
       <td><span class="badge badge-${e.paytype}">${e.paytype.toUpperCase()}</span></td>
-      <td>${e.head}</td>
+      <td style="font-size:11px">${e.head}</td>
       <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.desc}</td>
       <td style="font-size:11px;color:var(--primary-light)">${e.vendor||'—'}</td>
       <td style="font-size:11px;color:#6c3483;font-weight:500">${e.paidByUser||e.createdBy||'—'}</td>
       <td style="font-weight:700;color:var(--success)">₹${Number(e.amount).toLocaleString('en-IN')}</td>
-      <td style="font-size:11px">${e.approvedBy||'—'}</td>
       <td>${canPay?`<button class="btn-pay" onclick="openPayModal('${e.paytype}','${e.id}')">💳 Release</button>`:'—'}</td>
-    </tr>`).join('')||'<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text-muted)">Nothing pending payment.</td></tr>'}
+    </tr>`).join('')||'<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text-muted)">Nothing pending payment.</td></tr>'}
     </tbody></table></div>
   </div>
   <div class="card" style="margin-top:16px">
-    <div class="card-title">✅ Recent Paid Entries (${paid.slice(-20).length})</div>
+    <div class="card-title">✅ Paid Entries</div>
     <div class="tbl-wrap"><table><thead><tr><th>Sr.No</th><th>Date</th><th>Mode</th><th>Description</th><th>Amount</th><th>Payment Ref</th><th>Screenshot</th></tr></thead>
     <tbody>${paid.slice().reverse().slice(0,20).map(e=>`<tr>
       <td style="font-size:10px">${e.srno}</td><td>${e.date}</td>
       <td><span class="badge badge-${e.paytype}">${e.paytype.toUpperCase()}</span></td>
-      <td>${e.desc}</td>
-      <td>₹${Number(e.amount).toLocaleString('en-IN')}</td>
+      <td>${e.desc}</td><td>₹${Number(e.amount).toLocaleString('en-IN')}</td>
       <td style="font-size:11px">${e.paymentRef||'—'}</td>
       <td>${e.screenshotLink?`<a href="${e.screenshotLink}" target="_blank">📷 View</a>`:'—'}</td>
-    </tr>`).join('')||'<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--text-muted)">No paid entries.</td></tr>'}
+    </tr>`).join('')||'<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--text-muted)">No paid entries yet.</td></tr>'}
     </tbody></table></div>
   </div>`;
 }
@@ -1285,11 +1079,11 @@ function openPayModal(type,id){
     <div><label class="field-label">Payment Ref / UTR *</label><input type="text" id="pay_ref" value="${e.paymentRef||''}" placeholder="UTR / Cheque No."></div>
   </div>
   <div class="form-row col2">
-    <div><label class="field-label">Payment Mode</label><input type="text" id="pay_mode" value="${e.bankName||''}" placeholder="NEFT / UPI / Cash..."></div>
-    <div><label class="field-label">Paid By</label><input type="text" id="pay_by" value="${e.paidByUser||currentUser.name}" placeholder="Name of payer"></div>
+    <div><label class="field-label">Payment Mode</label><input type="text" id="pay_mode" placeholder="NEFT / UPI / Cash..."></div>
+    <div><label class="field-label">Paid By</label><input type="text" id="pay_by" value="${e.paidByUser||currentUser.name}"></div>
   </div>
   <div class="form-row">
-    <div><label class="field-label">Payment Screenshot Link (Drive)</label><input type="text" id="pay_ss" value="${e.screenshotLink||''}" placeholder="https://drive.google.com/..."></div>
+    <div><label class="field-label">Payment Screenshot Link</label><input type="text" id="pay_ss" value="${e.screenshotLink||''}" placeholder="https://drive.google.com/..."></div>
   </div>
   <div class="btn-row">
     <button class="btn btn-cancel" onclick="closePayModal()">Cancel</button>
@@ -1299,80 +1093,58 @@ function openPayModal(type,id){
 }
 
 function confirmPayment(type,id){
+  const g=id2=>{const el=document.getElementById(id2);return el?el.value:'';};
   const d=getData(),list=d[type];
   const idx=list.findIndex(e=>e.id===id);if(idx<0)return;
-  list[idx].status='paid';
-  list[idx].paymentDate=document.getElementById('pay_date').value;
-  list[idx].paymentRef=document.getElementById('pay_ref').value;
-  list[idx].paymentMode=document.getElementById('pay_mode').value;
-  list[idx].screenshotLink=document.getElementById('pay_ss').value;
-  list[idx].paidBy=document.getElementById('pay_by').value;
-  list[idx].paidAt=new Date().toISOString();
-  saveData('ghj_'+type,list);
-  closePayModal();showToast('💳 Payment recorded — syncing...');
+  list[idx]={...list[idx],status:'paid',paymentDate:g('pay_date'),paymentRef:g('pay_ref'),
+    paymentMode:g('pay_mode'),screenshotLink:g('pay_ss'),paidBy:g('pay_by'),paidAt:new Date().toISOString()};
+  sd('ghj_'+type,list);closePayModal();
   pushToSheet('updateStatus',{...list[idx],paytype:type});
+  showToast('💳 Payment recorded — syncing...');
   showPage('payments');
 }
 
-// ══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════
 //  REPORTS / MIS
-// ══════════════════════════════════════════════════════════
-function getReportPeriodFilter(period){
-  const now=new Date(),y=now.getFullYear(),m=now.getMonth();
-  if(period==='this_month'){const f=new Date(y,m,1).toISOString().slice(0,10),t=new Date(y,m+1,0).toISOString().slice(0,10);return e=>e.date>=f&&e.date<=t;}
-  if(period==='prev_month'){const f=new Date(y,m-1,1).toISOString().slice(0,10),t=new Date(y,m,0).toISOString().slice(0,10);return e=>e.date>=f&&e.date<=t;}
-  if(period==='this_year'){const f=y+'-01-01',t=y+'-12-31';return e=>e.date>=f&&e.date<=t;}
-  if(period==='last_3m'){const f=new Date(y,m-2,1).toISOString().slice(0,10);return e=>e.date>=f;}
-  if(period==='last_6m'){const f=new Date(y,m-5,1).toISOString().slice(0,10);return e=>e.date>=f;}
-  return()=>true;
-}
-
+// ════════════════════════════════════════════════════════════════════
 function renderReports(){
-  const d=getData();
-  const allc=getCashAllocations();
-  const periodFn=getReportPeriodFilter(reportPeriod);
-  const periodLabel={all:'All Time',this_month:'This Month',prev_month:'Previous Month',this_year:'This Year',last_3m:'Last 3 Months',last_6m:'Last 6 Months'}[reportPeriod];
-
+  const d=getData(),allc=getAllocs();
+  const periodFn=getPeriodFn(reportPeriod);
+  const PLABEL={all:'All Time',this_month:'This Month',prev_month:'Previous Month',this_year:'This Year',last_3m:'Last 3 Months',last_6m:'Last 6 Months'}[reportPeriod]||'';
   const allRaw=[...d.cash.map(e=>({...e,paytype:'cash'})),...d.bank.map(e=>({...e,paytype:'bank'}))];
-  const modeFiltered=reportMode==='all'?allRaw:allRaw.filter(e=>e.paytype===reportMode);
-  const filtered=modeFiltered.filter(e=>e.status!=='voided'&&periodFn(e));
+  const mf=reportMode==='all'?allRaw:allRaw.filter(e=>e.paytype===reportMode);
+  const filtered=mf.filter(e=>e.status!=='voided'&&periodFn(e));
+  const debits=filtered.filter(e=>e.type==='debit');
+  const credits=filtered.filter(e=>e.type==='credit');
+  const totalDebit=debits.reduce((s,e)=>s+Number(e.amount),0);
+  const totalCredit=credits.reduce((s,e)=>s+Number(e.amount),0);
+  const h=computeHoldings();
 
-  // ── CASH INFLOWS (Credit, cash only) ─────────────────────
-  const cashCredits=d.cash.filter(e=>e.type==='credit'&&e.status!=='voided'&&periodFn(e));
+  // Inflow by head (cash credit only, period filtered)
   const inflowByHead={};
-  CASH_INFLOW_HEADS.forEach(h=>{inflowByHead[h]=cashCredits.filter(e=>e.head===h).reduce((s,e)=>s+Number(e.amount),0);});
+  INFLOW_HEADS.forEach(hd=>{inflowByHead[hd]=d.cash.filter(e=>e.head===hd&&e.type==='credit'&&e.status!=='voided'&&periodFn(e)).reduce((s,e)=>s+Number(e.amount),0);});
   const inflowEntries=Object.entries(inflowByHead).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
   const totalIn=inflowEntries.reduce((s,[,v])=>s+v,0);
 
-  // ── HOLDINGS (current, all-time not filtered) ─────────────
-  const h=computeCashHoldings();
+  // Expense by head
+  const expByHead={};
+  ALL_HEADS.forEach(hd=>{expByHead[hd]=debits.filter(e=>e.head===hd).reduce((s,e)=>s+Number(e.amount),0);});
+  const headEntries=Object.entries(expByHead).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  const maxHD=headEntries.length?headEntries[0][1]:1;
 
-  // ── EXPENSES (Debits) ────────────────────────────────────
-  const debits=filtered.filter(e=>e.type==='debit');
-  const totalDebit=debits.reduce((s,e)=>s+Number(e.amount),0);
-  const credits=filtered.filter(e=>e.type==='credit');
-  const totalCredit=credits.reduce((s,e)=>s+Number(e.amount),0);
-
-  // Debit by Head
-  const byHead={};
-  ALL_HEADS.forEach(hd=>{byHead[hd]=debits.filter(e=>e.head===hd).reduce((s,e)=>s+Number(e.amount),0);});
-  const headEntries=Object.entries(byHead).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  const maxH=headEntries.length?headEntries[0][1]:1;
-
-  // Holdings by user (filtered period allocations)
-  const periodAllocs=allc.filter(a=>a.status!=='cancelled'&&periodFn({date:a.date}));
-  const holdingByUser={};
-  USERS.forEach(u=>{
-    const rcvd=periodAllocs.filter(a=>a.toUser===u.name).reduce((s,a)=>s+Number(a.amount),0);
-    const spent=d.cash.filter(e=>e.type==='debit'&&e.status!=='voided'&&periodFn(e)&&(e.paidByUser===u.name||e.createdBy===u.name)).reduce((s,e)=>s+Number(e.amount),0);
-    holdingByUser[u.name]={rcvd,spent,balance:rcvd-spent,role:u.role};
-  });
+  // Expense by category
+  const expByCat={};
+  CATEGORIES.forEach(c=>{expByCat[c]=debits.filter(e=>e.category===c).reduce((s,e)=>s+Number(e.amount),0);});
+  const catEntries=Object.entries(expByCat).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  const maxCat=catEntries.length?catEntries[0][1]:1;
 
   return`
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
     <div style="font-size:20px;font-weight:700;color:var(--primary)">📈 Reports / MIS</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <button class="btn btn-outline btn-sm" onclick="downloadReportData()">⬇ CSV</button>
+      <button class="btn btn-save btn-sm" onclick="pushReportToSheet()" title="Save these report summaries to the Reports tab in Google Sheet">📊 Push to Sheet</button>
+      <button class="btn btn-outline btn-sm" onclick="downloadEntries('cash')">⬇ Cash CSV</button>
+      <button class="btn btn-outline btn-sm" onclick="downloadEntries('bank')">⬇ Bank CSV</button>
       <select onchange="reportMode=this.value;showPage('reports')" style="font-size:12px;padding:5px 8px;border:1.5px solid var(--border);border-radius:7px">
         <option value="all" ${reportMode==='all'?'selected':''}>Cash + Bank</option>
         <option value="cash" ${reportMode==='cash'?'selected':''}>Cash Only</option>
@@ -1386,281 +1158,350 @@ function renderReports(){
         <option value="this_year"  ${reportPeriod==='this_year'?'selected':''}>This Year</option>
         <option value="all"        ${reportPeriod==='all'?'selected':''}>All Time</option>
       </select>
+      <span style="font-size:11px;color:var(--text-muted)">${PLABEL}</span>
     </div>
   </div>
+  <div style="background:#eaf0fb;border-left:4px solid var(--primary);padding:10px 14px;border-radius:0 8px 8px 0;font-size:12px;margin-bottom:16px;color:#1a5276">
+    📊 Click <b>"Push to Sheet"</b> to save these report summaries to the <b>Reports</b> tab in your Google Sheet (auto-created if not present). Ledger data is available via "⬇ CSV" download.
+  </div>
 
-  <!-- ══ SECTION 1: CASH RECEIVED BY HEAD ══ -->
+  <!-- ══ 1. CASH RECEIVED THIS PERIOD ══ -->
   <div class="card" style="border:2px solid #27ae60;margin-bottom:16px">
-    <div class="card-title" style="font-size:15px;color:#27ae60">💰 Total Cash Received — By Head · ${periodLabel}</div>
-    <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">All cash that entered the system (from outside — donations, fees, sales, bank withdrawal, etc.)</div>
+    <div class="card-title" style="color:#27ae60">💰 Total Cash Received by Head · ${PLABEL}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
       <div>
         <table style="width:100%;font-size:12px;border-collapse:collapse">
-          <thead><tr style="border-bottom:1.5px solid var(--border)"><th style="text-align:left;padding:5px 4px">Head / Source</th><th style="text-align:right;padding:5px 4px">Amount</th><th style="text-align:right;padding:5px 4px">%</th></tr></thead>
+          <thead><tr style="border-bottom:1.5px solid var(--border)"><th style="text-align:left;padding:5px 4px">Source / Head</th><th style="text-align:right;padding:5px 4px">Amount</th><th style="text-align:right;padding:5px 4px">%</th></tr></thead>
           <tbody>
-          ${inflowEntries.map(([hd,amt])=>`
-          <tr style="border-bottom:.5px solid #f0f0f0">
-            <td style="padding:6px 4px">${hd}</td>
-            <td style="padding:6px 4px;text-align:right;font-weight:600;color:#27ae60">₹${amt.toLocaleString('en-IN')}</td>
-            <td style="padding:6px 4px;text-align:right;color:var(--primary)">${totalIn>0?(amt/totalIn*100).toFixed(1):0}%</td>
-          </tr>`).join('')||'<tr><td colspan="3" style="text-align:center;padding:16px;color:var(--text-muted)">No cash inflows in this period</td></tr>'}
+          ${inflowEntries.map(([hd,amt])=>`<tr style="border-bottom:.5px solid #f0f0f0"><td style="padding:6px 4px">${hd}</td><td style="padding:6px 4px;text-align:right;font-weight:600;color:#27ae60">₹${amt.toLocaleString('en-IN')}</td><td style="padding:6px 4px;text-align:right;color:var(--primary)">${totalIn>0?(amt/totalIn*100).toFixed(1):0}%</td></tr>`).join('')||'<tr><td colspan="3" style="text-align:center;padding:16px;color:var(--text-muted)">No inflows this period</td></tr>'}
           </tbody>
           <tfoot><tr style="border-top:2px solid var(--border)"><td style="padding:8px 4px"><b>TOTAL CASH IN</b></td><td style="padding:8px 4px;text-align:right;font-weight:700;font-size:14px;color:#27ae60">₹${totalIn.toLocaleString('en-IN')}</td><td style="padding:8px 4px;text-align:right"><b>100%</b></td></tr></tfoot>
         </table>
       </div>
       <div>
         ${inflowEntries.map(([hd,amt])=>`
-        <div style="margin-bottom:8px">
-          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">
-            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">${hd}</span>
-            <span style="color:#27ae60;font-weight:600">₹${amt.toLocaleString('en-IN')}</span>
-          </div>
-          <div style="background:#ecf0f1;border-radius:3px;height:8px">
-            <div style="background:#27ae60;height:8px;border-radius:3px;width:${totalIn>0?(amt/totalIn*100):0}%"></div>
-          </div>
-        </div>`).join('')||'<div style="text-align:center;padding:20px;color:var(--text-muted)">No data</div>'}
+        <div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">${hd}</span><span style="color:#27ae60;font-weight:600">₹${amt.toLocaleString('en-IN')}</span></div>
+          <div class="holding-bar"><div class="holding-bar-fill" style="width:${totalIn>0?(amt/totalIn*100):0}%"></div></div>
+        </div>`).join('')||'<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px">No data</div>'}
       </div>
     </div>
   </div>
 
-  <!-- ══ SECTION 2: CURRENT CASH HOLDINGS (REAL-TIME) ══ -->
+  <!-- ══ 2. CURRENT CASH HOLDINGS ══ -->
   <div class="card" style="border:2px solid #e67e22;margin-bottom:16px">
-    <div class="card-title" style="font-size:15px;color:#e67e22">👛 Current Cash Holdings — Who Holds What Right Now</div>
-    <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Based on ALL allocations and ALL bills (all-time, real-time calculation)</div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-bottom:16px">
-      ${Object.entries(h.holdings).map(([uName,v])=>`
-      <div style="border-radius:10px;padding:14px;border:2px solid ${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#bdc3c7'};background:${v.balance>0?'#f0fff4':v.balance<0?'#fff5f5':'#f8f9fa'}">
-        <div style="font-weight:700;font-size:13px">${uName} <span style="font-size:10px;font-weight:400;color:var(--text-muted)">(${v.role})</span></div>
-        <div style="font-size:24px;font-weight:700;margin:6px 0;color:${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#888'}">${v.balance<0?'−':''}₹${Math.abs(v.balance).toLocaleString('en-IN')}</div>
-        <div style="font-size:11px;color:var(--text-muted)">Rcvd: ₹${v.allocated.toLocaleString('en-IN')} · Spent: ₹${v.spent.toLocaleString('en-IN')}</div>
-        <div style="margin-top:6px;font-size:11px;font-weight:600;color:${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#888'}">${v.balance>0?'🟢 Holds cash':v.balance<0?'🔴 Deficit':'⚪ Settled'}</div>
+    <div class="card-title" style="color:#e67e22">👛 Current Cash Holdings — Who Holds What (Real-time)</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">Based on all-time allocations and all-time bill entries. Not period-filtered (always current).</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:16px">
+      ${Object.entries(h.holdings).map(([u,v])=>`
+      <div style="border-radius:10px;padding:12px;border:2px solid ${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#bdc3c7'};background:${v.balance>0?'#f0fff4':v.balance<0?'#fff5f5':'#f8f9fa'};text-align:center">
+        <div style="font-weight:700;font-size:12px">${u}</div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">${v.role}</div>
+        <div style="font-size:22px;font-weight:700;color:${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#888'}">${v.balance<0?'−':''}₹${Math.abs(v.balance).toLocaleString('en-IN')}</div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:4px">Rcvd ₹${v.allocated.toLocaleString('en-IN')} · Spent ₹${v.spent.toLocaleString('en-IN')}</div>
+        <div style="margin-top:6px;font-size:10px;font-weight:600;color:${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#888'}">${v.balance>0?'🟢 Holds cash':v.balance<0?'🔴 Deficit':'⚪ Settled'}</div>
       </div>`).join('')}
     </div>
-    <table style="width:100%;font-size:12px;border-collapse:collapse">
-      <thead><tr style="background:#f0f4f8"><th style="text-align:left;padding:7px 6px">User</th><th style="text-align:left;padding:7px 6px">Role</th><th style="text-align:right;padding:7px 6px">Total Received</th><th style="text-align:right;padding:7px 6px">Total Spent</th><th style="text-align:right;padding:7px 6px">Balance (Holding)</th><th style="text-align:left;padding:7px 6px">Status</th></tr></thead>
-      <tbody>
-      ${Object.entries(h.holdings).map(([uName,v])=>`
-      <tr style="border-bottom:.5px solid #f0f0f0">
-        <td style="padding:7px 6px;font-weight:600">${uName}</td>
-        <td style="padding:7px 6px;color:var(--text-muted)">${v.role}</td>
-        <td style="padding:7px 6px;text-align:right;color:#27ae60;font-weight:600">₹${v.allocated.toLocaleString('en-IN')}</td>
-        <td style="padding:7px 6px;text-align:right;color:#c0392b;font-weight:600">₹${v.spent.toLocaleString('en-IN')}</td>
-        <td style="padding:7px 6px;text-align:right;font-weight:700;font-size:14px;color:${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#888'}">${v.balance<0?'−':''}₹${Math.abs(v.balance).toLocaleString('en-IN')}</td>
-        <td style="padding:7px 6px"><span class="badge badge-${v.balance>0?'approved':v.balance<0?'rejected':'paid'}">${v.balance>0?'HOLDS CASH':v.balance<0?'DEFICIT':'SETTLED'}</span></td>
-      </tr>`).join('')}
-      </tbody>
-      <tfoot><tr style="border-top:2px solid var(--primary);background:#f0f4f8;font-weight:700">
-        <td colspan="2" style="padding:8px 6px">TOTAL</td>
-        <td style="padding:8px 6px;text-align:right;color:#27ae60">₹${h.totalCashIn.toLocaleString('en-IN')}</td>
-        <td style="padding:8px 6px;text-align:right;color:#c0392b">₹${(h.totalAllocatedToOthers+h.adminBills).toLocaleString('en-IN')}</td>
-        <td style="padding:8px 6px;text-align:right;color:${h.totalCashIn-(h.totalAllocatedToOthers+h.adminBills)>=0?'#27ae60':'#c0392b'}">₹${Math.abs(h.totalCashIn-(h.totalAllocatedToOthers+h.adminBills)).toLocaleString('en-IN')}</td>
-        <td></td>
-      </tr></tfoot>
-    </table>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:#f0f4f8;border-radius:8px;font-size:13px;font-weight:700">
+      <span>Total Cash In System</span>
+      <span style="color:#27ae60">₹${h.totalIn.toLocaleString('en-IN')}</span>
+    </div>
   </div>
 
-  <!-- ══ SECTION 3: EXPENSE SUMMARY ══ -->
+  <!-- ══ 3. EXPENSES BY HEAD ══ -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
     <div class="card">
-      <div class="card-title">📊 Expenses by Head · ${periodLabel}</div>
-      ${headEntries.map(([hd,amt])=>`
+      <div class="card-title">📊 Expenses by Head · ${PLABEL}</div>
+      ${headEntries.length===0?'<div style="text-align:center;padding:16px;color:var(--text-muted)">No expense data</div>':
+      headEntries.map(([hd,amt])=>`
       <div style="margin-bottom:8px">
         <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">
           <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">${hd}</span>
           <span style="color:#c0392b;font-weight:600">₹${amt.toLocaleString('en-IN')} <span style="color:var(--primary)">${totalDebit>0?(amt/totalDebit*100).toFixed(0):0}%</span></span>
         </div>
-        <div style="background:#ecf0f1;border-radius:3px;height:6px">
-          <div style="background:#c0392b;height:6px;border-radius:3px;width:${maxH>0?(amt/maxH*100):0}%"></div>
-        </div>
-      </div>`).join('')||'<div style="text-align:center;padding:16px;color:var(--text-muted)">No expense data</div>'}
+        <div style="background:#ecf0f1;border-radius:3px;height:6px"><div style="background:#c0392b;height:6px;border-radius:3px;width:${maxHD>0?(amt/maxHD*100):0}%"></div></div>
+      </div>`).join('')}
+      ${headEntries.length?`<div style="border-top:1px solid var(--border);padding-top:8px;display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-top:8px"><span>Total Expenses</span><span style="color:#c0392b">₹${totalDebit.toLocaleString('en-IN')}</span></div>`:''}
     </div>
+
+    <!-- ══ 4. EXPENSES BY CATEGORY ══ -->
     <div class="card">
-      <div class="card-title">📋 Summary · ${periodLabel}</div>
-      <div style="display:grid;gap:10px;font-size:13px">
-        <div style="display:flex;justify-content:space-between;padding:10px;background:#eafaf1;border-radius:8px">
-          <span>💰 Cash Received (Credit)</span><span style="font-weight:700;color:#27ae60">₹${totalCredit.toLocaleString('en-IN')}</span>
+      <div class="card-title">📋 Expenses by Category · ${PLABEL}</div>
+      ${catEntries.length===0?'<div style="text-align:center;padding:16px;color:var(--text-muted)">No category data</div>':
+      catEntries.map(([c,amt])=>`
+      <div style="margin-bottom:7px">
+        <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px">
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px" title="${c}">${c}</span>
+          <span style="color:#e67e22;font-weight:600">₹${amt.toLocaleString('en-IN')} <span style="color:var(--primary)">${totalDebit>0?(amt/totalDebit*100).toFixed(0):0}%</span></span>
         </div>
-        <div style="display:flex;justify-content:space-between;padding:10px;background:#fde8e8;border-radius:8px">
-          <span>💸 Cash Spent (Debit)</span><span style="font-weight:700;color:#c0392b">₹${totalDebit.toLocaleString('en-IN')}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;padding:10px;background:${(totalCredit-totalDebit)>=0?'#eafaf1':'#fde8e8'};border-radius:8px;border:1.5px solid ${(totalCredit-totalDebit)>=0?'#27ae60':'#c0392b'}">
-          <span><b>Net</b></span><span style="font-weight:700;color:${(totalCredit-totalDebit)>=0?'#27ae60':'#c0392b'};font-size:16px">${(totalCredit-totalDebit)>=0?'+':''}₹${(totalCredit-totalDebit).toLocaleString('en-IN')}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;padding:10px;background:#f8f9fa;border-radius:8px">
-          <span>Total Entries</span><span style="font-weight:700">${filtered.length}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;padding:10px;background:#f0e8ff;border-radius:8px">
-          <span>Cash Allocations (period)</span><span style="font-weight:700;color:#6c3483">₹${allc.filter(a=>a.status!=='cancelled'&&periodFn({date:a.date})).reduce((s,a)=>s+Number(a.amount),0).toLocaleString('en-IN')}</span>
-        </div>
-      </div>
+        <div style="background:#ecf0f1;border-radius:3px;height:5px"><div style="background:#e67e22;height:5px;border-radius:3px;width:${maxCat>0?(amt/maxCat*100):0}%"></div></div>
+      </div>`).join('')}
+      ${catEntries.length?`<div style="border-top:1px solid var(--border);padding-top:8px;display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-top:8px"><span>Total</span><span style="color:#e67e22">₹${totalDebit.toLocaleString('en-IN')}</span></div>`:''}
     </div>
   </div>
 
-  <!-- FULL LEDGER TABLE -->
+  <!-- SUMMARY -->
   <div class="card">
-    <div class="card-title">📄 Full Ledger · ${periodLabel}</div>
-    <div class="tbl-wrap">
-    <table><thead><tr><th>Sr.No</th><th>Date</th><th>Mode</th><th>Head</th><th>Description</th><th>Vendor</th><th>Paid By</th><th>Dr/Cr</th><th>Amount</th><th>Status</th></tr></thead>
-    <tbody>${modeFiltered.filter(e=>periodFn(e)).slice().sort((a,b)=>b.date>a.date?1:-1).map(e=>`<tr style="${e.status==='voided'?'opacity:.4':''}">
-      <td style="font-size:10px">${e.srno}</td><td>${e.date}</td>
-      <td><span class="badge badge-${e.paytype}">${e.paytype.toUpperCase()}</span></td>
-      <td style="font-size:11px">${e.head}</td>
-      <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.desc}</td>
-      <td style="font-size:11px;color:var(--primary-light)">${e.vendor||'—'}</td>
-      <td style="font-size:11px;color:#6c3483;font-weight:500">${e.paidByUser||e.createdBy||'—'}</td>
-      <td style="font-weight:700;color:${e.type==='debit'?'#c0392b':'#27ae60'}">${e.type==='debit'?'DR':'CR'}</td>
-      <td style="font-weight:600;color:${e.type==='debit'?'var(--danger)':'var(--success)'}">₹${Number(e.amount).toLocaleString('en-IN')}</td>
-      <td><span class="badge badge-${e.status}">${e.status==='voided'?'VOID':e.status.toUpperCase()}</span></td>
-    </tr>`).join('')||'<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text-muted)">No data for this period/mode.</td></tr>'}
-    </tbody></table></div>
+    <div class="card-title">📈 Summary · ${PLABEL} · ${reportMode==='all'?'Cash + Bank':reportMode.toUpperCase()}</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+      <div class="stat-card" style="border-left-color:#27ae60"><div class="stat-label">Cash Received</div><div class="stat-value" style="color:#27ae60">₹${totalCredit.toLocaleString('en-IN')}</div><div class="stat-sub">${credits.length} entries</div></div>
+      <div class="stat-card" style="border-left-color:#c0392b"><div class="stat-label">Bills / Expenses</div><div class="stat-value" style="color:#c0392b">₹${totalDebit.toLocaleString('en-IN')}</div><div class="stat-sub">${debits.length} entries</div></div>
+      <div class="stat-card" style="border-left-color:${(totalCredit-totalDebit)>=0?'#27ae60':'#c0392b'}"><div class="stat-label">Net</div><div class="stat-value" style="color:${(totalCredit-totalDebit)>=0?'#27ae60':'#c0392b'}">${(totalCredit-totalDebit)>=0?'+':''}₹${(totalCredit-totalDebit).toLocaleString('en-IN')}</div></div>
+      <div class="stat-card" style="border-left-color:#6c3483"><div class="stat-label">Allocations (period)</div><div class="stat-value" style="color:#6c3483">₹${allc.filter(a=>a.status!=='cancelled'&&periodFn({date:a.date})).reduce((s,a)=>s+Number(a.amount),0).toLocaleString('en-IN')}</div></div>
+    </div>
   </div>`;
 }
 
-function downloadReportData(){
-  const d=getData();
-  const periodFn=getReportPeriodFilter(reportPeriod);
-  const allRaw=[...d.cash.map(e=>({...e,paytype:'cash'})),...d.bank.map(e=>({...e,paytype:'bank'}))];
-  const filtered=(reportMode==='all'?allRaw:allRaw.filter(e=>e.paytype===reportMode)).filter(e=>periodFn(e));
-  downloadCSV(filtered.map(e=>({SrNo:e.srno,Date:e.date,Mode:e.paytype,Head:e.head,Category:e.category,DrCr:e.type==='debit'?'DR':'CR',Amount:e.amount,Description:e.desc,Vendor:e.vendor||'',PaidByUser:e.paidByUser||e.createdBy||'',Status:e.status})),'GHJ_report_'+reportPeriod);
-}
-
-// ══════════════════════════════════════════════════════════
-//  SETTINGS (minimal)
-// ══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════
+//  SETTINGS
+// ════════════════════════════════════════════════════════════════════
 function renderSettings(){
   return`
   <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:16px">⚙️ Settings</div>
-  <div class="card">
-    <div class="card-title">Google Apps Script URL</div>
-    <div class="form-row">
-      <div><label class="field-label">Apps Script URL</label><input type="text" id="apiUrl" value="${localStorage.getItem('ghj_api_url')||''}" placeholder="https://script.google.com/macros/s/.../exec"></div>
+
+  <!-- HOW TO CONFIGURE -->
+  <div class="card" style="border:2px solid #27ae60">
+    <div class="card-title" style="color:#27ae60">✅ How to Configure This App</div>
+    <div style="background:#eafaf1;border-radius:8px;padding:14px;font-size:12px;line-height:2;color:#1c2833">
+      <b>This app is configured by editing the HTML file directly — no Settings form needed.</b><br>
+      Open <code>GHJ Exp App.html</code> in any text editor (Notepad, VS Code, etc.) and find these 3 lines near the top:<br><br>
+      <div style="background:#1a2537;color:#7ec8e3;padding:12px 14px;border-radius:8px;font-family:monospace;font-size:12px;line-height:2">
+        const SCRIPT_URL = 'YOUR_APPS_SCRIPT_URL_HERE';<br>
+        const SHEET_ID   = 'YOUR_SHEET_ID_HERE';<br>
+        const APP_SECRET = 'YOUR_SECRET_CODE_HERE';
+      </div>
+      <br>
+      Replace each value with your own. Save the file. Done — all users get the update automatically.<br><br>
+      <b style="color:#27ae60">✅ Current status:</b>
+      ${SCRIPT_URL?'<span style="color:#27ae60">Apps Script URL is set ✓</span>':'<span style="color:#c0392b">⚠️ SCRIPT_URL is not set</span>'} &nbsp;|&nbsp;
+      ${SHEET_ID?'<span style="color:#27ae60">Sheet ID is set ✓</span>':'<span style="color:#c0392b">⚠️ SHEET_ID is not set</span>'} &nbsp;|&nbsp;
+      ${APP_SECRET?'<span style="color:#27ae60">Secret is set ✓</span>':'<span style="color:#e67e22">⚠️ APP_SECRET is empty (anyone can read your sheet)</span>'}
     </div>
-    <div class="form-row">
-      <div><label class="field-label">Google Sheet ID</label><input type="text" id="sheetId" value="${localStorage.getItem('ghj_sheet_id')||''}" placeholder="Sheet ID from URL"></div>
-    </div>
-    <div class="btn-row">
-      <button class="btn btn-save" onclick="saveSettings()">Save</button>
-      <button class="btn btn-outline" onclick="testConnection()">Test Connection</button>
+    <div class="btn-row" style="margin-top:10px;justify-content:flex-start">
+      <button class="btn btn-outline btn-sm" onclick="testConnection()">🧪 Test Connection</button>
+      <button class="btn btn-outline btn-sm" onclick="loadFromSheet()">🔄 Refresh from Sheet</button>
     </div>
     <div id="testResult" style="margin-top:10px;font-size:12px"></div>
   </div>
+
+  <!-- APPS SCRIPT CODE -->
   <div class="card">
-    <div class="card-title">👥 User Management</div>
+    <div class="card-title">📜 Complete Apps Script Code</div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:10px">Open Google Sheet → Extensions → Apps Script → DELETE all existing code → paste this → Save → Deploy → New deployment → Execute as: Me → Who has access: <b>Anyone</b></p>
+    <div style="background:#1a2537;color:#7ec8e3;padding:14px;border-radius:8px;font-family:monospace;font-size:11px;line-height:1.7;overflow-x:auto;white-space:pre">var SHEET_ID   = 'YOUR_SHEET_ID_HERE';  // ← change this
+var APP_SECRET = 'YOUR_SECRET_HERE';    // ← same as APP_SECRET in HTML
+
+function corsResp(data){
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doGet(e){
+  try{
+    if(APP_SECRET &amp;&amp; (!e||!e.parameter||e.parameter.secret!==APP_SECRET))
+      return corsResp({status:'error',error:'Unauthorized'});
+    var ss=SpreadsheetApp.openById(SHEET_ID);
+    var type=(e&amp;&amp;e.parameter&amp;&amp;e.parameter.type)||'cash';
+    var tabMap={cash:'CashEntries',bank:'BankEntries',users:'Users',allocations:'CashAllocations'};
+    var tab=ss.getSheetByName(tabMap[type]||'CashEntries');
+    if(!tab) return corsResp({status:'error',error:'Tab not found: '+type});
+    return corsResp(tab.getDataRange().getValues());
+  }catch(err){return corsResp({status:'error',error:err.message});}
+}
+
+function doPost(e){
+  try{
+    var p=JSON.parse(e.postData.contents);
+    if(APP_SECRET &amp;&amp; p._secret!==APP_SECRET)
+      return corsResp({status:'error',error:'Unauthorized'});
+    var ss=SpreadsheetApp.openById(SHEET_ID);
+
+    // ── REPORT SAVE ───────────────────────────────────────────
+    if(p.action==='saveReport'){
+      var rt=ss.getSheetByName('Reports');
+      if(!rt){
+        rt=ss.insertSheet('Reports');
+        rt.appendRow(['Generated At','Period','Generated By','Total Cash In',
+          'Total Debit','Total Credit','Inflow By Head','Expense By Head',
+          'Expense By Category','Holdings By User']);
+      }
+      rt.appendRow([p.generatedAt,p.period,p.generatedBy,p.totalCashIn,
+        p.totalDebit,p.totalCredit,p.inflowByHead,p.expByHead,
+        p.expByCat,p.holdingsByUser]);
+      return corsResp({status:'ok'});
+    }
+
+    // ── CASH ALLOCATION SAVE / UPDATE ─────────────────────────
+    if(p.action==='saveAllocation'||p.action==='updateAllocation'){
+      var at=ss.getSheetByName('CashAllocations');
+      if(!at){
+        at=ss.insertSheet('CashAllocations');
+        at.appendRow(['ID','Date','ToUser','FromUser','Amount','Purpose',
+          'Status','Remarks','CreatedAt','SettledAt']);
+      }
+      var aData=at.getDataRange().getValues();
+      var aIdx=-1;
+      for(var i=1;i&lt;aData.length;i++){if(String(aData[i][0])===String(p.id)){aIdx=i;break;}}
+      var aRow=[p.id,p.date,p.toUser,p.fromUser,p.amount,p.purpose,
+                p.status,p.remarks,p.createdAt,p.settledAt||''];
+      if(aIdx>=0) at.getRange(aIdx+1,1,1,aRow.length).setValues([aRow]);
+      else at.appendRow(aRow);
+      return corsResp({status:'ok'});
+    }
+
+    // ── ENTRY OPERATIONS ──────────────────────────────────────
+    var tabName=(p.paytype==='cash')?'CashEntries':'BankEntries';
+    var tab=ss.getSheetByName(tabName);
+    if(!tab){
+      tab=ss.insertSheet(tabName);
+      tab.appendRow(['ID','SrNo','Date','Head','Category','Type','Amount',
+        'Description','Vendor','InvoiceLink','Screenshot','Status','CreatedBy',
+        'ApprovedBy','PaymentRef','Remarks','BankName','AccountNo','ChequeRef',
+        'PayType','PaymentMode','PaidByUser']);
+    }
+    var rows=tab.getDataRange().getValues();
+
+    if(p.action==='updateStatus'||p.action==='updateEntry'){
+      for(var j=1;j&lt;rows.length;j++){
+        if(String(rows[j][0])===String(p.id)){
+          if(p.action==='updateStatus'){
+            tab.getRange(j+1,12).setValue(p.status||'');
+            tab.getRange(j+1,14).setValue(p.approvedBy||'');
+            tab.getRange(j+1,15).setValue(p.paymentRef||'');
+            if(p.screenshotLink) tab.getRange(j+1,11).setValue(p.screenshotLink);
+          } else {
+            tab.getRange(j+1,1,1,22).setValues([[p.id,p.srno,p.date,p.head,p.category,
+              p.type,p.amount,p.desc,p.vendor,p.invoiceLink,p.screenshotLink,
+              p.status,p.createdBy,p.approvedBy,p.paymentRef,p.remarks,
+              p.bankName,p.accNo,p.chequeRef,p.paytype,p.paymentMode,p.paidByUser]]);
+          }
+          return corsResp({status:'ok'});
+        }
+      }
+    }
+
+    // saveEntry — check duplicate first
+    for(var k=1;k&lt;rows.length;k++){
+      if(String(rows[k][0])===String(p.id))
+        return corsResp({status:'ok',note:'duplicate skipped'});
+    }
+    tab.appendRow([p.id,p.srno,p.date,p.head,p.category,p.type,p.amount,
+      p.desc,p.vendor,p.invoiceLink,p.screenshotLink,p.status||'pending',
+      p.createdBy,p.approvedBy||'',p.paymentRef||'',p.remarks||'',
+      p.bankName||'',p.accNo||'',p.chequeRef||'',p.paytype||'cash',
+      p.paymentMode||'',p.paidByUser||'']);
+    return corsResp({status:'ok'});
+  }catch(err){return corsResp({status:'error',error:err.message});}
+}</div>
+    <div style="background:#fff8e1;border:1.5px solid #ffc107;border-radius:8px;padding:10px 14px;margin-top:10px;font-size:12px;color:#856404">
+      <b>Sheet tabs this script uses:</b> CashEntries · BankEntries · Users · CashAllocations · Reports<br>
+      All tabs are <b>auto-created</b> on first use — you don't need to create them manually.
+    </div>
+  </div>
+
+  <!-- USERS -->
+  <div class="card">
+    <div class="card-title">👥 Users</div>
     <div style="background:#eaf0fb;padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:12px">
-      Users tab columns: <b>Name | Email | Password | Role</b><br>
-      Roles: <code>admin</code> · <code>approver</code> · <code>creator</code>
+      <b>Users tab columns:</b> Name | Email | Password | Role &nbsp;|&nbsp; <b>Roles:</b> admin · approver · creator
     </div>
-    <div style="display:flex;gap:8px;margin-bottom:10px">
-      <button class="btn btn-outline btn-sm" onclick="refreshUsersFromSheet()">🔄 Refresh from Sheet</button>
-    </div>
+    <div style="margin-bottom:10px"><button class="btn btn-outline btn-sm" onclick="refreshUsers()">🔄 Refresh Users from Sheet</button></div>
     <table style="width:100%;font-size:12px"><thead><tr><th>Name</th><th>Email</th><th>Role</th></tr></thead>
     <tbody>${USERS.map(u=>`<tr><td>${u.name}</td><td>${u.email}</td><td><span class="badge badge-approved">${u.role}</span></td></tr>`).join('')}</tbody></table>
   </div>`;
 }
 
-function saveSettings(){
-  localStorage.setItem('ghj_api_url',document.getElementById('apiUrl').value.trim());
-  localStorage.setItem('ghj_sheet_id',document.getElementById('sheetId').value.trim());
-  showToast('✅ Settings saved!');
-}
-
 async function testConnection(){
-  const url=(document.getElementById('apiUrl')||{}).value||localStorage.getItem('ghj_api_url');
-  if(!url){showToast('No URL entered.');return;}
   const r=document.getElementById('testResult');if(r)r.innerHTML='🔄 Testing...';
+  if(!SCRIPT_URL){if(r)r.innerHTML='<span style="color:#c0392b">❌ SCRIPT_URL is not set in the HTML file.</span>';return;}
   try{
-    const resp=await fetch(url+'?type=cash',{redirect:'follow'});
+    const resp=await fetch(SCRIPT_URL+'?type=cash&secret='+encodeURIComponent(APP_SECRET),{redirect:'follow'});
     const raw=await resp.text();
     if(!raw||raw.trimStart().startsWith('<')) throw new Error('Got HTML — set "Who has access = Anyone" in deployment');
     JSON.parse(raw);
-    if(r)r.innerHTML='<span style="color:var(--success)">✅ Connection working!</span>';
-    showToast('✅ Connected!');
+    if(r)r.innerHTML='<span style="color:#27ae60">✅ Connection working!</span>';
+    showToast('✅ Connected to Google Sheet!');
   }catch(e){
-    if(r)r.innerHTML='<span style="color:var(--danger)">❌ '+e.message+'</span>';
+    if(r)r.innerHTML='<span style="color:#c0392b">❌ '+e.message+'</span>';
     showToast('❌ Connection failed.');
   }
 }
 
-async function refreshUsersFromSheet(){
-  const url=localStorage.getItem('ghj_api_url');if(!url){showToast('No Apps Script URL saved.');return;}
+async function refreshUsers(){
+  if(!SCRIPT_URL){showToast('SCRIPT_URL not set in HTML file.');return;}
   showToast('🔄 Fetching users...');
   try{
-    const secret=APP_CONFIG.appSecret||'';
-    const resp=await fetch(url+'?type=users'+(secret?'&secret='+encodeURIComponent(secret):''),{redirect:'follow'});
+    const resp=await fetch(SCRIPT_URL+'?type=users&secret='+encodeURIComponent(APP_SECRET),{redirect:'follow'});
     const raw=await resp.text();
     if(!raw||raw.trimStart().startsWith('<')) throw new Error('HTML response');
     const rows=JSON.parse(raw);
     if(!Array.isArray(rows)||rows.length<2) throw new Error('Empty Users tab');
     const hdr=rows[0].map(h=>String(h).toLowerCase().trim());
-    const ni=hdr.indexOf('name'),ei=hdr.indexOf('email'),pi=['password','pwd','pass'].reduce((f,k)=>f>=0?f:hdr.indexOf(k),-1),ri=hdr.indexOf('role');
+    const ei=hdr.indexOf('email'),pi=['password','pwd','pass'].reduce((f,k)=>f>=0?f:hdr.indexOf(k),-1),ni=hdr.indexOf('name'),ri=hdr.indexOf('role');
     if(ei<0||pi<0) throw new Error('Email or Password column not found');
-    const users=rows.slice(1).filter(r=>r[ei]).map(r=>({name:ni>=0?String(r[ni]).trim():String(r[ei]).trim(),email:String(r[ei]).trim(),pwd:String(r[pi]).trim(),role:ri>=0?String(r[ri]).trim().toLowerCase():'creator'}));
-    USERS=users;localStorage.setItem('ghj_users',JSON.stringify(USERS));
+    const users=rows.slice(1).filter(r=>r[ei]).map(r=>({email:String(r[ei]).trim(),pwd:String(r[pi]).trim(),name:ni>=0?String(r[ni]).trim():String(r[ei]).trim(),role:ri>=0?String(r[ri]).trim().toLowerCase():'creator'}));
+    USERS=users;sd('ghj_users',USERS);
     showToast('✅ '+USERS.length+' users loaded!');showPage('settings');
   }catch(e){showToast('❌ '+e.message);}
 }
 
-// ══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════
 //  UTILITIES
-// ══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════
 function downloadCSV(data,filename){
-  if(!data||!data.length){showToast('No data to download.');return;}
+  if(!data||!data.length){showToast('No data.');return;}
   const keys=Object.keys(data[0]);
   const csv=[keys.join(','),...data.map(row=>keys.map(k=>{const v=String(row[k]===null||row[k]===undefined?'':row[k]);return v.includes(',')||v.includes('"')||v.includes('\n')?'"'+v.replace(/"/g,'""')+'"':v;}).join(','))].join('\n');
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');a.href=url;a.download=filename+'_'+new Date().toISOString().slice(0,10)+'.csv';
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');
+  a.href=url;a.download=filename+'_'+new Date().toISOString().slice(0,10)+'.csv';
   document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
   showToast('✅ Downloaded: '+a.download);
 }
 
 function downloadEntries(type){
   const d=getData();
-  const entries=(currentUser.role==='creator'?d[type].filter(e=>e.createdBy===currentUser.name||e.paidByUser===currentUser.name):d[type])
-    .map(e=>({SrNo:e.srno,Date:e.date,Head:e.head,Category:e.category,DrCr:e.type==='debit'?'DR':'CR',Amount:e.amount,Description:e.desc,Vendor:e.vendor||'',PaidByUser:e.paidByUser||'',CreatedBy:e.createdBy||'',Status:e.status}));
+  const cr=currentUser.role==='creator';
+  const mn=currentUser.name;
+  const entries=(cr?d[type].filter(e=>e.createdBy===mn||e.paidByUser===mn):d[type])
+    .map(e=>({SrNo:e.srno,Date:e.date,Head:e.head,Category:e.category,DrCr:e.type==='debit'?'DR':'CR',Amount:e.amount,Description:e.desc,Vendor:e.vendor||'',PaidByUser:e.paidByUser||'',CreatedBy:e.createdBy||'',Status:e.status,PaymentRef:e.paymentRef||'',ApprovedBy:e.approvedBy||'',InvoiceLink:e.invoiceLink||'',ScreenshotLink:e.screenshotLink||''}));
   downloadCSV(entries,'GHJ_'+type+'_entries');
 }
 
-function showToast(msg){
-  const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';
-  setTimeout(()=>t.style.display='none',3000);
-}
-
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',3500);}
 function closeModal(){document.getElementById('entryModal').classList.remove('open');}
 function closePayModal(){document.getElementById('payModal').classList.remove('open');}
 
-// ══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════
 //  DEMO DATA SEED
-// ══════════════════════════════════════════════════════════
-if(!localStorage.getItem('ghj_cash')){
-  const now=new Date().toISOString().split('T')[0];
-  const demo=[
-    {id:genId(),srno:'GHJ/C/0001',date:now,head:'Cash Donation',category:'Cash Donation',type:'credit',paytype:'cash',amount:50000,desc:'Monthly donation received from devotee',vendor:'Ramesh Gupta',status:'paid',createdBy:'Admin',paidByUser:'Admin',invoiceLink:'',screenshotLink:'',remarks:'',approvedBy:'Admin',paymentRef:''},
-    {id:genId(),srno:'GHJ/C/0002',date:now,head:'Cash Fees',category:'Cash Fees',type:'credit',paytype:'cash',amount:15000,desc:'Satsang registration fees April',vendor:'Devotees',status:'paid',createdBy:'Admin',paidByUser:'Admin',invoiceLink:'',screenshotLink:'',remarks:'',approvedBy:'Admin',paymentRef:'',paytype:'cash'},
-    {id:genId(),srno:'GHJ/C/0003',date:now,head:'Cash Stay Charges (Accommodation)',category:'Cash Stay / Accommodation',type:'credit',paytype:'cash',amount:8000,desc:'Guest house charges collected',vendor:'Various Guests',status:'paid',createdBy:'Admin',paidByUser:'Admin',invoiceLink:'',screenshotLink:'',remarks:'',approvedBy:'Admin',paymentRef:'',paytype:'cash'},
-    {id:genId(),srno:'GHJ/C/0004',date:now,head:'Groceries/Food Items',category:'Groceries/Food',type:'debit',paytype:'cash',amount:4500,desc:'Weekly grocery purchase for langat',vendor:'Sharma Kirana Store',status:'paid',createdBy:'Creator',paidByUser:'Creator',invoiceLink:'',screenshotLink:'',remarks:'',approvedBy:'Admin',paymentRef:'CASH-001',paytype:'cash'},
-    {id:genId(),srno:'GHJ/C/0005',date:now,head:'Admin',category:'Office Rent',type:'debit',paytype:'cash',amount:2000,desc:'Office stationery purchase',vendor:'Print World',status:'pending',createdBy:'Creator',paidByUser:'Creator',invoiceLink:'',screenshotLink:'',remarks:'',approvedBy:'',paymentRef:'',paytype:'cash'},
-  ];
-  saveData('ghj_cash',demo);
-}
-if(!localStorage.getItem('ghj_bank')){
-  const now=new Date().toISOString().split('T')[0];
-  const demo=[
-    {id:genId(),srno:'GHJ/B/0001',date:now,head:'Admin',category:'Salaries & Wages',type:'debit',paytype:'bank',amount:45000,desc:'Staff salary payment April',vendor:'Staff Payroll',bankName:'HDFC Bank',accNo:'XXXX4521',chequeRef:'NEFT-001',status:'paid',createdBy:'Admin',paidByUser:'Admin',invoiceLink:'',screenshotLink:'',remarks:'',approvedBy:'Admin',paymentRef:'UTR112233'},
-  ];
-  saveData('ghj_bank',demo);
-}
-if(!localStorage.getItem('ghj_alloc')){
-  const now=new Date().toISOString().split('T')[0];
-  const demo=[
-    {id:genId(),date:now,toUser:'Creator',fromUser:'Admin',amount:10000,purpose:'Weekly grocery & household purchases',status:'active',remarks:'',createdAt:new Date().toISOString()},
-    {id:genId(),date:now,toUser:'Creator2',fromUser:'Admin',amount:5000,purpose:'Event supplies for April satsang',status:'active',remarks:'',createdAt:new Date().toISOString()},
-  ];
-  saveCashAllocations(demo);
-}
-
-// Init
-(function(){updateSyncBadge();setTimeout(retrySyncQueue,2000);})();
+// ════════════════════════════════════════════════════════════════════
+(function seedDemo(){
+  if(!ld('ghj_cash').length){
+    const now=new Date().toISOString().split('T')[0];
+    sd('ghj_cash',[
+      {id:genId(),srno:'GHJ/C/0001',date:now,head:'Cash Donation',category:'Cash Donation',type:'credit',paytype:'cash',amount:50000,desc:'Monthly donation from devotee',vendor:'Ramesh Gupta',status:'paid',createdBy:'Admin',paidByUser:'Admin',invoiceLink:'',screenshotLink:'',remarks:'',approvedBy:'Admin',paymentRef:''},
+      {id:genId(),srno:'GHJ/C/0002',date:now,head:'Cash Fees',category:'Cash Fees',type:'credit',paytype:'cash',amount:15000,desc:'Satsang registration fees',vendor:'Devotees',status:'paid',createdBy:'Admin',paidByUser:'Admin',invoiceLink:'',screenshotLink:'',remarks:'',approvedBy:'Admin',paymentRef:''},
+      {id:genId(),srno:'GHJ/C/0003',date:now,head:'Cash Stay Charges (Accommodation)',category:'Accommodation Charges',type:'credit',paytype:'cash',amount:8000,desc:'Guest house charges',vendor:'Various Guests',status:'paid',createdBy:'Admin',paidByUser:'Admin',invoiceLink:'',screenshotLink:'',remarks:'',approvedBy:'Admin',paymentRef:''},
+      {id:genId(),srno:'GHJ/C/0004',date:now,head:'Groceries/Food Items',category:'Groceries/Food',type:'debit',paytype:'cash',amount:4500,desc:'Weekly grocery purchase for langar',vendor:'Sharma Kirana',status:'paid',createdBy:'Creator',paidByUser:'Creator',invoiceLink:'',screenshotLink:'',remarks:'',approvedBy:'Admin',paymentRef:'CASH-001'},
+      {id:genId(),srno:'GHJ/C/0005',date:now,head:'Admin & Office',category:'Printing/Stationery',type:'debit',paytype:'cash',amount:1200,desc:'Office stationery',vendor:'Print World',status:'pending',createdBy:'Creator',paidByUser:'Creator',invoiceLink:'',screenshotLink:'',remarks:'',approvedBy:'',paymentRef:''},
+    ]);
+  }
+  if(!ld('ghj_bank').length){
+    const now=new Date().toISOString().split('T')[0];
+    sd('ghj_bank',[
+      {id:genId(),srno:'GHJ/B/0001',date:now,head:'Admin & Office',category:'Salaries & Wages',type:'debit',paytype:'bank',amount:45000,desc:'Staff salary April',vendor:'Staff Payroll',bankName:'HDFC',accNo:'XXXX4521',chequeRef:'NEFT-001',status:'paid',createdBy:'Admin',paidByUser:'Admin',invoiceLink:'',screenshotLink:'',remarks:'',approvedBy:'Admin',paymentRef:'UTR112233'},
+    ]);
+  }
+  if(!ld('ghj_alloc').length){
+    const now=new Date().toISOString().split('T')[0];
+    sd('ghj_alloc',[
+      {id:genId(),date:now,toUser:'Creator',fromUser:'Admin',amount:10000,purpose:'Weekly grocery & household',status:'active',remarks:'',createdAt:new Date().toISOString(),settledAt:''},
+      {id:genId(),date:now,toUser:'Creator2',fromUser:'Admin',amount:5000,purpose:'Event supplies April',status:'active',remarks:'',createdAt:new Date().toISOString(),settledAt:''},
+    ]);
+  }
+  updateSyncBadge();
+  setTimeout(retrySyncQueue,2000);
+})();
 </script>
 </body>
 </html>
