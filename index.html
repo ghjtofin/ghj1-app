@@ -138,6 +138,7 @@
       <div class="header-title">GHJ <span>Exp</span> App</div>
     </div>
     <div class="header-right">
+      <div id="lastSyncDisplay" onclick="loadFromSheet()" title="Click to refresh from Sheet" style="font-size:10px;color:rgba(255,255,255,0.75);margin-right:8px;cursor:pointer;white-space:nowrap;background:rgba(0,0,0,0.15);padding:3px 8px;border-radius:10px"></div>
       <span id="syncBadge" style="font-size:11px;color:#fff;padding:3px 8px;border-radius:10px;display:none;cursor:pointer" onclick="retrySyncQueue()"></span>
       <div class="user-badge" id="userBadge">👤 User</div>
       <button class="btn-logout" onclick="doLogout()">Logout</button>
@@ -345,6 +346,7 @@ async function doLogin(){
     buildSidebar();
     showPage('dashboard');
     updateBadges();
+    updateSyncTimeDisplay();
     if(url) loadFromSheet();
     return;
   }
@@ -354,8 +356,23 @@ async function doLogin(){
 
 function doLogout(){
   currentUser=null;
+  // Clear session data — keep users and sync queue
+  // But clear cash/bank/alloc so fresh data loads from Sheet on next login
+  localStorage.removeItem('ghj_cash');
+  localStorage.removeItem('ghj_bank');
+  // NOTE: Do NOT clear ghj_alloc here — it will be refreshed from Sheet on next login
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('appShell').style.display='none';
+}
+
+function clearAllCacheAndReload(){
+  if(!confirm('Clear all locally cached data and reload?\nThis will remove cash, bank, alloc, and user data from browser.\nSheet data will reload fresh on next login.')) return;
+  const keysToKeep=['ghj_api_url','ghj_sheet_id','ghj_app_secret'];
+  Object.keys(localStorage).forEach(k=>{
+    if(!keysToKeep.includes(k)) localStorage.removeItem(k);
+  });
+  showToast('✅ Cache cleared! Reloading...');
+  setTimeout(()=>location.reload(),1500);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -388,7 +405,9 @@ async function pushToSheet(action,data){
 async function loadFromSheet(){
   const url=getScriptUrl(); if(!url) return;
   const secret=APP_CONFIG.appSecret||'';
+  const startTime=Date.now();
   try{
+    // Load Cash + Bank ledger entries
     for(const type of['cash','bank']){
       const resp=await fetch(url+'?type='+type+(secret?'&secret='+encodeURIComponent(secret):''),{redirect:'follow'});
       const raw=await resp.text();
@@ -415,9 +434,54 @@ async function loadFromSheet(){
       merged.push(...getPendingQueue().filter(q=>q.paytype===type));
       saveData('ghj_'+type,merged);
     }
-    showToast('✅ Data refreshed from Google Sheets');
+
+    // Load Cash Allocations from Sheet (CashMgmt tab)
+    try{
+      const aResp=await fetch(url+'?type=cashalloc'+(secret?'&secret='+encodeURIComponent(secret):''),{redirect:'follow'});
+      const aRaw=await aResp.text();
+      if(aRaw&&!aRaw.trimStart().startsWith('<')){
+        const aRows=JSON.parse(aRaw);
+        if(Array.isArray(aRows)&&aRows.length>1){
+          const ah=aRows[0].map(h=>String(h).toLowerCase().trim());
+          const ai=k=>ah.indexOf(k);
+          const allocs=aRows.slice(1).filter(r=>r[ai('id')]||r[0]).map(r=>({
+            id:String(r[ai('id')]||r[0]||''),
+            date:String(r[ai('date')]||r[1]||''),
+            toUser:String(r[ai('touser')]||r[2]||''),
+            fromUser:String(r[ai('fromuser')]||r[3]||''),
+            amount:parseFloat(r[ai('amount')]||r[4]||0),
+            purpose:String(r[ai('purpose')]||r[5]||''),
+            status:String(r[ai('status')]||r[6]||'active'),
+            remarks:String(r[ai('remarks')]||r[7]||''),
+            createdAt:String(r[ai('createdat')]||r[8]||'')
+          }));
+          if(allocs.length>0){
+            saveCashAllocations(allocs);
+            console.log('Loaded '+allocs.length+' allocations from Sheet');
+          }
+        }
+      }
+    }catch(ae){console.warn('Alloc load failed:',ae.message);}
+
+    // Record last sync timestamp
+    const syncTime=new Date().toISOString();
+    localStorage.setItem('ghj_last_sheet_sync',syncTime);
+    updateSyncTimeDisplay();
+
+    const elapsed=((Date.now()-startTime)/1000).toFixed(1);
+    showToast('✅ Synced from Sheet in '+elapsed+'s');
     showPage(currentPage);
   }catch(e){showToast('⚠️ Refresh failed: '+e.message);}
+}
+
+function updateSyncTimeDisplay(){
+  const ts=localStorage.getItem('ghj_last_sheet_sync');
+  const el=document.getElementById('lastSyncDisplay');
+  if(!el) return;
+  if(!ts){ el.textContent=''; return; }
+  const d=new Date(ts);
+  const pad=n=>String(n).padStart(2,'0');
+  el.textContent='Last sync: '+d.toLocaleDateString('en-IN')+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
 }
 
 // Sync queue
@@ -781,6 +845,22 @@ function renderCashAlloc(){
   </div>`;
 }
 
+async function saveAllocationToSheet(rec){
+  const url=getScriptUrl(); if(!url) return;
+  const secret=APP_CONFIG.appSecret||'';
+  try{
+    const payload={action:'saveAllocation',_secret:secret,...rec};
+    const resp=await fetch(url,{method:'POST',redirect:'follow',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+    const raw=await resp.text();
+    if(raw&&!raw.trimStart().startsWith('<')){
+      const r=JSON.parse(raw);
+      if(r.status==='ok'){showToast('✅ Allocation synced to Sheet!'); updateSyncTimeDisplay();}
+      else throw new Error(r.error||'Sync failed');
+    }
+  }catch(e){showToast('⚠️ Saved locally — sheet sync failed: '+e.message);}
+}
+
 function issueAllocation(){
   const toUser=document.getElementById('al_to').value;
   const amount=parseFloat(document.getElementById('al_amount').value);
@@ -792,14 +872,17 @@ function issueAllocation(){
   const h=computeCashHoldings();
   const adminBal=h.holdings['Admin']?.balance||0;
   if(amount>adminBal){
-    if(!confirm(`⚠️ Admin only holds ₹${adminBal.toLocaleString('en-IN')} cash.\nAllocating ₹${amount.toLocaleString('en-IN')} will create a deficit.\nProceed anyway?`)) return;
+    if(!confirm('⚠️ Admin only holds ₹'+adminBal.toLocaleString('en-IN')+' cash.\nAllocating ₹'+amount.toLocaleString('en-IN')+' will create a deficit.\nProceed anyway?')) return;
   }
 
   const allc=getCashAllocations();
   const rec={id:genId(),date,toUser,fromUser:currentUser.name,amount,purpose,status:'active',remarks,createdAt:new Date().toISOString()};
   allc.push(rec);
   saveCashAllocations(allc);
-  showToast(`✅ ₹${amount.toLocaleString('en-IN')} allocated to ${toUser}`);
+  // Clear the stale alloc cache flag so next load gets fresh data
+  localStorage.removeItem('ghj_alloc_stale');
+  showToast('✅ ₹'+amount.toLocaleString('en-IN')+' allocated to '+toUser);
+  saveAllocationToSheet(rec);
   showPage('cashalloc');
 }
 
@@ -807,12 +890,13 @@ function settleAllocation(id){
   const allc=getCashAllocations();
   const idx=allc.findIndex(a=>a.id===id);
   if(idx<0) return;
-  const remarks=prompt(`Settle allocation to ${allc[idx].toUser}\nAmount: ₹${allc[idx].amount}\nPurpose: ${allc[idx].purpose}\n\nSettlement remarks:`)||'';
+  const remarks=prompt('Settle allocation to '+allc[idx].toUser+'\nAmount: ₹'+allc[idx].amount+'\nPurpose: '+allc[idx].purpose+'\n\nSettlement remarks:')||'';
   allc[idx].status='settled';
   allc[idx].settledAt=new Date().toISOString();
   allc[idx].remarks=(allc[idx].remarks?allc[idx].remarks+' | ':'')+'Settled: '+remarks;
   saveCashAllocations(allc);
-  showToast('✅ Allocation settled.');
+  saveAllocationToSheet(allc[idx]);
+  showToast('✅ Allocation settled & synced.');
   showPage('cashalloc');
 }
 
@@ -823,6 +907,7 @@ function cancelAllocation(id){
   if(idx<0) return;
   allc[idx].status='cancelled';
   saveCashAllocations(allc);
+  saveAllocationToSheet(allc[idx]);
   showToast('Allocation cancelled.');
   showPage('cashalloc');
 }
@@ -1531,6 +1616,102 @@ function renderSettings(){
   return`
   <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:16px">⚙️ Settings</div>
   <div class="card">
+    <div class="card-title">📋 Apps Script — Copy & Deploy This Code</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">
+      Go to your Google Sheet → Extensions → Apps Script → paste this entire code → Save → Deploy as New Version
+    </div>
+    <textarea readonly onclick="this.select()" style="width:100%;height:260px;font-family:monospace;font-size:10px;border:1px solid var(--border);border-radius:6px;padding:8px;background:#f8f9fa;resize:vertical">
+var SHEET_ID   = 'YOUR_GOOGLE_SHEET_ID_HERE';
+var APP_SECRET = 'Peax@Dida166';
+
+function corsResponse(data){
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e){
+  try{
+    if(!e||!e.postData||!e.postData.contents) return corsResponse({status:'error',error:'No body'});
+    var p=JSON.parse(e.postData.contents);
+    if(APP_SECRET&&p._secret!==APP_SECRET) return corsResponse({status:'error',error:'Unauthorized'});
+    var ss=SpreadsheetApp.openById(SHEET_ID);
+
+    // ── Save Cash/Bank entry ─────────────────────────────────────────────
+    if(p.action==='saveEntry'||p.action==='updateEntry'){
+      var tabName=p.paytype==='bank'?'BankEntries':'CashEntries';
+      var tab=ss.getSheetByName(tabName)||ss.insertSheet(tabName);
+      if(tab.getLastRow()===0) tab.appendRow(['ID','SrNo','Date','Head','Category','Type','Amount','Description','Vendor','InvoiceLink','Screenshot','Status','CreatedBy','ApprovedBy','PaymentRef','Remarks','BankName','AccountNo','ChequeRef','PayType','PaymentMode','PaidByUser']);
+      var rows=tab.getDataRange().getValues();
+      var found=-1;
+      for(var i=1;i<rows.length;i++){if(String(rows[i][0])===String(p.id)){found=i;break;}}
+      var row=[p.id,p.srno,p.date,p.head,p.category,p.type,p.amount,p.desc,p.vendor,p.invoiceLink,p.screenshotLink,p.status,p.createdBy,p.approvedBy,p.paymentRef,p.remarks,p.bankName,p.accNo,p.chequeRef,p.paytype,p.paymentMode||'',p.paidByUser||''];
+      if(found>=1) tab.getRange(found+1,1,1,row.length).setValues([row]);
+      else tab.appendRow(row);
+      return corsResponse({status:'ok'});
+    }
+
+    // ── Save Cash Allocation ─────────────────────────────────────────────
+    if(p.action==='saveAllocation'){
+      var atab=ss.getSheetByName('CashMgmt')||ss.insertSheet('CashMgmt');
+      if(atab.getLastRow()===0) atab.appendRow(['ID','Date','ToUser','FromUser','Amount','Purpose','Status','Remarks','CreatedAt','SettledAt']);
+      var arows=atab.getDataRange().getValues();
+      var afound=-1;
+      for(var j=1;j<arows.length;j++){if(String(arows[j][0])===String(p.id)){afound=j;break;}}
+      var arow=[p.id,p.date,p.toUser,p.fromUser,p.amount,p.purpose,p.status,p.remarks||'',p.createdAt||'',p.settledAt||''];
+      if(afound>=1) atab.getRange(afound+1,1,1,arow.length).setValues([arow]);
+      else atab.appendRow(arow);
+      return corsResponse({status:'ok'});
+    }
+
+    // ── Update entry status ──────────────────────────────────────────────
+    if(p.action==='updateStatus'){
+      var stab=ss.getSheetByName(p.paytype==='bank'?'BankEntries':'CashEntries');
+      if(!stab) return corsResponse({status:'error',error:'Tab not found'});
+      var srows=stab.getDataRange().getValues();
+      for(var k=1;k<srows.length;k++){
+        if(String(srows[k][0])===String(p.id)){
+          if(p.status) stab.getRange(k+1,12).setValue(p.status);
+          if(p.approvedBy) stab.getRange(k+1,14).setValue(p.approvedBy);
+          if(p.paymentRef) stab.getRange(k+1,15).setValue(p.paymentRef);
+          if(p.screenshotLink) stab.getRange(k+1,11).setValue(p.screenshotLink);
+          return corsResponse({status:'ok'});
+        }
+      }
+      return corsResponse({status:'error',error:'Row not found'});
+    }
+
+    return corsResponse({status:'error',error:'Unknown action: '+p.action});
+  }catch(err){return corsResponse({status:'error',error:err.message});}
+}
+
+function doGet(e){
+  try{
+    var secret=e&&e.parameter&&e.parameter.secret?e.parameter.secret:'';
+    if(APP_SECRET&&secret!==APP_SECRET) return corsResponse({status:'error',error:'Unauthorized'});
+    var type=e&&e.parameter&&e.parameter.type?e.parameter.type:'cash';
+    var ss=SpreadsheetApp.openById(SHEET_ID);
+
+    if(type==='cashalloc'){
+      var ct=ss.getSheetByName('CashMgmt');
+      if(!ct||ct.getLastRow()<2) return corsResponse([]);
+      return corsResponse(ct.getDataRange().getValues());
+    }
+    if(type==='users'){
+      var ut=ss.getSheetByName('Users');
+      if(!ut||ut.getLastRow()<2) return corsResponse([]);
+      return corsResponse(ut.getDataRange().getValues());
+    }
+    var tabName=type==='bank'?'BankEntries':'CashEntries';
+    var tab=ss.getSheetByName(tabName);
+    if(!tab||tab.getLastRow()<2) return corsResponse([]);
+    return corsResponse(tab.getDataRange().getValues());
+  }catch(err){return corsResponse({status:'error',error:err.message});}
+}
+    </textarea>
+    <div style="font-size:11px;color:#c0392b;margin-top:6px">
+      ⚠️ Change <b>YOUR_GOOGLE_SHEET_ID_HERE</b> to your actual Sheet ID. Keep APP_SECRET the same as your APP_CONFIG.appSecret in this HTML file.
+    </div>
+  </div>
+  <div class="card">
     <div class="card-title">Google Apps Script URL</div>
     <div class="form-row">
       <div><label class="field-label">Apps Script URL</label><input type="text" id="apiUrl" value="${localStorage.getItem('ghj_api_url')||''}" placeholder="https://script.google.com/macros/s/.../exec"></div>
@@ -1552,6 +1733,8 @@ function renderSettings(){
     </div>
     <div style="display:flex;gap:8px;margin-bottom:10px">
       <button class="btn btn-outline btn-sm" onclick="refreshUsersFromSheet()">🔄 Refresh from Sheet</button>
+      <button class="btn btn-outline btn-sm" onclick="loadFromSheet()" style="background:#eafaf1;color:#27ae60;border-color:#27ae60">🔄 Sync All Data Now</button>
+      <button class="btn btn-outline btn-sm" onclick="clearAllCacheAndReload()" style="background:#fee;color:#c0392b;border-color:#f5c6cb">🗑 Clear Cache & Reload</button>
     </div>
     <table style="width:100%;font-size:12px"><thead><tr><th>Name</th><th>Email</th><th>Role</th></tr></thead>
     <tbody>${USERS.map(u=>`<tr><td>${u.name}</td><td>${u.email}</td><td><span class="badge badge-approved">${u.role}</span></td></tr>`).join('')}</tbody></table>
@@ -1660,7 +1843,12 @@ if(!localStorage.getItem('ghj_alloc')){
 }
 
 // Init
-(function(){updateSyncBadge();setTimeout(retrySyncQueue,2000);})();
+(function(){
+  updateSyncBadge();
+  setTimeout(retrySyncQueue, 2000);
+  // Show last sync time immediately from localStorage
+  setTimeout(updateSyncTimeDisplay, 100);
+})();
 </script>
 </body>
 </html>
