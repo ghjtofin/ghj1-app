@@ -363,21 +363,12 @@ async function loadFromSheet(){
 }
 
 async function retrySyncQueue(){
-  const url=getUrl(); if(!url||!getQ().length) return;
-  showToast('🔄 Retrying sync...'); let n=0;
-  for(const e of[...getQ()]){
-    if(e._syncing) continue; // skip in-flight
-    try{
-      const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(e)});
-      const raw=await r.text();
-      if(raw&&!raw.trimStart().startsWith('<')){
-        const res=JSON.parse(raw);
-        if(res.status==='ok'){ remQ(e.ID); n++; }
-      }
-    }catch{}
-  }
-  if(n) showToast('✅ '+n+' item(s) synced!');
+  if(!getQ().length){ showToast('Nothing in queue.'); return; }
+  showToast('🔄 Retrying sync...');
+  await flushQueue();
 }
+
+// kept as alias for sidebar/button onclick compatibility
 
 // ════════════════════════════════════════════
 //  AUTH
@@ -1399,7 +1390,7 @@ if(!localStorage.getItem('ghj_btx')){
   ]);
 }
 
-// Init — updateUB only, no auto-retry on load to prevent duplicate sheet writes
+// Init
 (()=>{ updateUB(); })();
 </script>
 </body>
