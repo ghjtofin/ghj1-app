@@ -1294,102 +1294,99 @@ function filterTable(type){
 // currentStub holds the Sheet-registered stub for the entry being created
 let currentStub = null;
 
-async function openNewEntry(type){
-  editingId    = null;
-  currentStub  = null;
+function openNewEntry(type){
+  editingId   = null;
+  currentStub = null;
 
+  // ── STEP 1: Open modal INSTANTLY with form + "Getting Entry ID" banner ──────
   const modal   = document.getElementById('entryModal');
   const titleEl = document.getElementById('modalTitle');
   const bodyEl  = document.getElementById('modalBody');
+  if (!modal || !bodyEl) { alert('Modal element not found'); return; }
+
   titleEl.textContent = type==='cash' ? '💵 New Cash Entry' : '🏦 New Bank Entry';
 
-  // ── STEP 1: Build local stub IMMEDIATELY so form opens with no delay ────────
+  // Generate a temporary local ID immediately
+  const localTs   = new Date().toISOString();
   const localId   = 'GHJ-L-' + Date.now();
   const localSrno = 'GHJ/' + (type==='cash'?'C':'B') + '/' +
-                    String((getData()[type]||[]).length + 1).padStart(4,'0');
-  const localTs   = new Date().toISOString();
+                    String(((getData()||{})[type]||[]).length + 1).padStart(4,'0');
   currentStub = { id:localId, srno:localSrno, createdAt:localTs, isLocal:true };
 
-  // ── STEP 2: Render form immediately with local stub ─────────────────────────
+  // Build the form HTML with the stub ID pre-filled
+  let formHtml = '';
   try {
-    bodyEl.innerHTML = entryForm(type, {
-      id:             localId,
-      srno:           localSrno,
-      createdAt:      localTs,
-      createdBy:      currentUser.name,
+    formHtml = entryForm(type, {
+      id: localId, srno: localSrno, createdAt: localTs,
+      createdBy: currentUser ? currentUser.name : '',
       _isNewWithStub: true
     });
-  } catch(formErr) {
-    console.error('entryForm error:', formErr);
-    bodyEl.innerHTML = '<div style="padding:24px;color:#c0392b;font-size:13px;line-height:2">'
-      + '<b>⚠️ Form error:</b> ' + formErr.message
-      + '<br><br><small>Open browser console (F12) for details.</small>'
-      + '<br><br><button onclick="closeModal()" style="padding:8px 18px;background:#fee;border:1px solid #c0392b;border-radius:6px;cursor:pointer">Close</button>'
-      + '</div>';
+  } catch(err) {
+    formHtml = '<div style="padding:20px;color:#c0392b">Form error: ' + err.message + '</div>';
   }
+
+  bodyEl.innerHTML = formHtml;
   modal.classList.add('open');
 
-  // Set stub info banner to "local" state
-  const updateBanner = (isLocal, sheetId, sheetSrno) => {
-    const el = document.getElementById('stub_info');
-    if (!el) return;
-    if (isLocal) {
-      el.innerHTML = '⚠️ <b>Local ID (offline)</b> — Sheet not reached yet. Registering in background…';
-      el.style.background   = '#fff8e1';
-      el.style.borderColor  = '#f39c12';
-      el.style.color        = '#856404';
-    } else {
-      el.innerHTML =
-        '✅ <b>Registered in Sheet</b> — entry anchored &nbsp;|&nbsp; ' +
-        'ID: <code style="background:rgba(0,0,0,0.08);padding:1px 5px;border-radius:3px">'
-        + sheetId + '</code> &nbsp; SrNo: <b>' + sheetSrno + '</b>';
-      el.style.background   = '#eafaf1';
-      el.style.borderColor  = '#27ae60';
-      el.style.color        = '#1e8449';
-      // Also silently update the hidden fields in the open form
-      const fId   = document.getElementById('f_entry_id');
-      const fSrno = document.getElementById('f_entry_srno');
-      const fTs   = document.getElementById('f_entry_ts');
-      if (fId)   fId.value   = sheetId;
-      if (fSrno) fSrno.value = sheetSrno;
-    }
-  };
-  updateBanner(true);
+  // ── STEP 2: Fetch real ID from Sheet in background (non-blocking) ────────────
+  _fetchStubFromSheet(type, localTs);
+}
 
-  // ── STEP 3: Try Sheet stub in background — 4 second timeout ─────────────────
-  const url = getScriptUrl();
-  if (!url) return; // no URL configured — stay with local stub
+// Separate async function so openNewEntry stays synchronous
+async function _fetchStubFromSheet(type, localTs) {
+  const url    = getScriptUrl();
+  const banner = document.getElementById('stub_info');
+  if (!url) {
+    if (banner) {
+      banner.style.background  = '#fff8e1';
+      banner.style.borderColor = '#e67e22';
+      banner.innerHTML = '⚠️ No Sheet URL configured. Entry saved locally.';
+    }
+    return;
+  }
 
   const secret = APP_CONFIG.appSecret || localStorage.getItem('ghj_app_secret') || '';
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 4000); // 4s timeout
     const resp = await fetch(url, {
-      method:  'POST',
-      redirect:'follow',
-      signal:  controller.signal,
+      method: 'POST', redirect: 'follow',
       headers: {'Content-Type':'text/plain;charset=utf-8'},
       body: JSON.stringify({
-        action:    'createStub',
-        _secret:   secret,
-        paytype:   type,
-        createdBy: currentUser.name,
+        action: 'createStub', _secret: secret,
+        paytype: type, createdBy: currentUser ? currentUser.name : '',
         createdAt: localTs
       })
     });
-    clearTimeout(timer);
     const raw = await resp.text();
-    if (raw && !raw.trimStart().startsWith('<')) {
-      const r = JSON.parse(raw);
-      if (r.status === 'ok' && r.id) {
-        // ✅ Sheet responded — upgrade stub to sheet-registered
-        currentStub = { id:r.id, srno:r.srno, createdAt:r.timestamp||localTs, isLocal:false };
-        updateBanner(false, r.id, r.srno);
+    if (!raw || raw.trimStart().startsWith('<')) throw new Error('Invalid response');
+    const r = JSON.parse(raw);
+    if (r.status === 'ok' && r.id) {
+      // ✅ Got real Sheet ID — upgrade currentStub
+      currentStub = { id: r.id, srno: r.srno, createdAt: r.timestamp || localTs, isLocal: false };
+      // Update hidden fields in the still-open form
+      const fId   = document.getElementById('f_entry_id');
+      const fSrno = document.getElementById('f_entry_srno');
+      const fTs   = document.getElementById('f_entry_ts');
+      if (fId)   fId.value   = r.id;
+      if (fSrno) fSrno.value = r.srno;
+      if (fTs)   fTs.value   = r.timestamp || localTs;
+      // Update banner to green
+      if (banner) {
+        banner.style.background  = '#eafaf1';
+        banner.style.borderColor = '#27ae60';
+        banner.style.color       = '#1e8449';
+        banner.innerHTML = '✅ <b>Entry ID received from Sheet</b> — '
+          + 'ID: <code style="background:rgba(0,0,0,0.08);padding:1px 6px;border-radius:3px;font-size:11px">' + r.id + '</code>'
+          + ' &nbsp;|&nbsp; SrNo: <b>' + r.srno + '</b>'
+          + ' &nbsp;|&nbsp; ' + new Date(r.timestamp||localTs).toLocaleString('en-IN');
       }
     }
   } catch(err) {
-    // Timed out or network error — stay with local stub, will sync on save
-    console.warn('Background stub failed:', err.message);
+    console.warn('Sheet stub failed (using local ID):', err.message);
+    if (banner) {
+      banner.style.background  = '#fff8e1';
+      banner.style.borderColor = '#e67e22';
+      banner.innerHTML = '⚠️ <b>Sheet unreachable</b> — using local ID. Will sync on save.';
+    }
   }
 }
 
@@ -1444,12 +1441,15 @@ function entryForm(type,e){
 
   // Stub info banner + hidden anchor fields (only for new entries with stub)
   const stubInfoHtml = v._isNewWithStub ? `
-  <div id="stub_info" style="border-left:4px solid #f39c12;padding:8px 12px;border-radius:0 6px 6px 0;font-size:11px;margin-bottom:12px;line-height:1.8;background:#fff8e1;color:#856404">
-    ⚠️ <b>Local ID</b> — registering in Sheet in background…
+  <div id="stub_info" style="border-left:4px solid #3498db;padding:10px 14px;border-radius:0 8px 8px 0;font-size:12px;margin-bottom:14px;line-height:1.9;background:#eaf4fd;color:#1a5276;display:flex;align-items:center;gap:10px">
+    <span style="font-size:20px;animation:spin 1s linear infinite;display:inline-block" id="stub_spinner">⏳</span>
+    <span id="stub_info_text"><b>Getting Entry ID from Database…</b><br>
+    <span style="font-size:11px;color:#5d8aa8">Connecting to Google Sheet · your form is ready to fill</span></span>
   </div>
   <input type="hidden" id="f_entry_id"   value="${v.id||''}">
   <input type="hidden" id="f_entry_srno" value="${v.srno||''}">
   <input type="hidden" id="f_entry_ts"   value="${v.createdAt||''}">
+  <style>@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
   ` : '';
 
   return`
@@ -1679,11 +1679,17 @@ function saveEntry(type){
     // If stub was local (offline), add to sync queue
     if(isLocal){
       addToSyncQueue(entry);
-      showToast('⚠️ Saved locally (offline). Will sync when connection returns.');
+      showToast('⚠️ Saved locally — will sync to Sheet when connection returns.', 4000);
     } else {
-      // Stub was registered — now update that row with full data
-      showToast('✅ Entry saved — updating Sheet...');
-      pushToSheet('updateEntry', entry);
+      // Stub was Sheet-registered — update that row with full data
+      const savedTime = new Date().toLocaleString('en-IN');
+      showToast('✅ Saved & syncing to Sheet — ID: ' + entryId + ' · ' + savedTime, 5000);
+      pushToSheet('updateEntry', entry).then(()=>{
+        showToast('✅ Entry confirmed in Sheet — ' + entry.srno + ' · ' + savedTime, 4000);
+      }).catch(()=>{
+        addToSyncQueue(entry);
+        showToast('⚠️ Sheet sync failed — added to retry queue.', 4000);
+      });
     }
   }
 }
@@ -2504,9 +2510,13 @@ function downloadEntries(type){
   downloadCSV(entries,'GHJ_'+type+'_entries');
 }
 
-function showToast(msg){
-  const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';
-  setTimeout(()=>t.style.display='none',3000);
+function showToast(msg, duration){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.style.display='block';
+  t.style.maxWidth='480px';
+  t.style.whiteSpace='pre-wrap';
+  setTimeout(()=>t.style.display='none', duration||3000);
 }
 
 function closeModal(){document.getElementById('entryModal').classList.remove('open');}
