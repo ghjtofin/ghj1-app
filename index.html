@@ -301,7 +301,14 @@ function computeCashHoldings() {
   USERS.forEach(u => initPerson(u.name));
 
   cash.forEach(e => {
-    const holder = e.paidByUser || e.createdBy || 'Admin';
+    // paidByUser = who physically holds the cash for this entry
+    // For Income: login user who collected it (paidByUser set on save)
+    // For Expense: who paid from their cash
+    // For Transfer: the sender (receiver is in transferTo)
+    // Fallback to createdBy, then to Admin
+    const holder = (e.paidByUser && e.paidByUser.trim())
+      ? e.paidByUser.trim()
+      : (e.createdBy && e.createdBy.trim() ? e.createdBy.trim() : 'Admin');
     const amt    = Number(e.amount) || 0;
     // EntryType values from Excel: Income(Inflow) | Transfer | Expense(Outflow)
     const txn = e.txnType || (e.type === 'credit' ? 'Income(Inflow)' : 'Expense(Outflow)');
@@ -1494,18 +1501,31 @@ function entryForm(type,e){
       </select>
     </div>
   </div>`:''}
-  <div class="form-row col3">
+  <div class="form-row col2">
     <div><label class="field-label">Date *</label><input type="date" id="f_date" value="${v.date||new Date().toISOString().split('T')[0]}"></div>
-    <div><label class="field-label">Dr/Cr</label>
-      <select id="f_type">
-        <option value="debit" ${v.type==='debit'||!v.type?'selected':''}>💸 Debit (Out)</option>
-        <option value="credit" ${v.type==='credit'?'selected':''}>💰 Credit (In)</option>
+    <div><label class="field-label">Dr/Cr (auto-set by Transaction Type)</label>
+      <select id="f_type" style="background:#f8f9fa;color:var(--text-muted)">
+        <option value="debit"  ${v.type==='debit' ||!v.type?'selected':''}>💸 Debit — Cash Going Out</option>
+        <option value="credit" ${v.type==='credit'        ?'selected':''}>💰 Credit — Cash Coming In</option>
       </select>
     </div>
-    <div><label class="field-label">Paid By User *</label>
-      <select id="f_paidby">${paidByOptions}</select>
-    </div>
   </div>
+  ${isCash?`
+  <div style="background:#f0f4f8;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px;display:flex;align-items:center;gap:10px">
+    <span>👤 <b>Cash Holder (this entry):</b></span>
+    <span id="cash_holder_display" style="font-weight:700;color:var(--primary);font-size:13px">${
+      curTxnType==='Income(Inflow)' ? currentUser.name + ' (You — Login User)'
+      : curTxnType==='Transfer' ? currentUser.name + ' → (select recipient below)'
+      : (v.paidByUser||currentUser.name) + ' (paying the expense)'
+    }</span>
+    <input type="hidden" id="f_paidby" value="${v.paidByUser||currentUser.name}">
+    ${(currentUser.role==='admin'||currentUser.role==='approver')&&curTxnType==='Expense(Outflow)'?`
+    <span style="font-size:11px;color:var(--text-muted);margin-left:4px">· Change payer:</span>
+    <select onchange="document.getElementById('f_paidby').value=this.value;document.getElementById('cash_holder_display').textContent=this.options[this.selectedIndex].text+' (paying)'" style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:5px">
+      ${USERS.map(u=>'<option value="'+u.name+'"'+(( v.paidByUser||currentUser.name)===u.name?' selected':'')+'>'+u.name+'</option>').join('')}
+    </select>`:''}
+  </div>
+  `:''}
   <div class="form-row col2">
     <div><label class="field-label">Head *</label>
       <select id="f_head">
@@ -1608,10 +1628,26 @@ function onHeadChange(){
 
 
 function saveEntry(type){
-  const date       = document.getElementById('f_date').value;
-  const etype      = document.getElementById('f_type').value;
-  const paidByUser = document.getElementById('f_paidby').value;
-  const head       = document.getElementById('f_head').value;
+  const date   = document.getElementById('f_date').value;
+  const etype  = document.getElementById('f_type').value;
+  const head   = document.getElementById('f_head').value;
+
+  // Determine who holds this cash:
+  // Income(Inflow) → always login user (they received it)
+  // Transfer       → login user (sender); receiver is in transferTo
+  // Expense        → whoever the paidby field says (admin may set on behalf)
+  // Bank entries   → createdBy (no cash holder concept)
+  const txnTypeEl  = document.getElementById('f_txntype');
+  const txnType    = txnTypeEl ? txnTypeEl.value : (etype==='credit'?'Income(Inflow)':'Expense(Outflow)');
+  const paidByEl   = document.getElementById('f_paidby');
+  let   paidByUser = paidByEl ? paidByEl.value : currentUser.name;
+
+  // RULE: Income always credited to login user's account
+  if (txnType === 'Income(Inflow)') paidByUser = currentUser.name;
+  // RULE: Transfer sender is always login user
+  if (txnType === 'Transfer')       paidByUser = currentUser.name;
+  // RULE: If paidByUser is blank for any reason, default to login user
+  if (!paidByUser) paidByUser = currentUser.name;
   const category   = document.getElementById('f_category').value;
   const amount     = parseFloat(document.getElementById('f_amount').value);
   const desc       = document.getElementById('f_desc').value.trim();
@@ -1620,22 +1656,19 @@ function saveEntry(type){
   const remarks    = document.getElementById('f_remarks').value.trim();
   const g = id => { const el=document.getElementById(id); return el?el.value.trim():''; };
 
-  // txnType only for cash entries
-  const txnTypeEl = document.getElementById('f_txntype');
-  const txnType   = txnTypeEl ? txnTypeEl.value : (etype==='credit'?'RECEIPT':'EXPENSE');
   const transferTo= g('f_transfer_to');
 
-  if(!date||!head||!amount||!desc){alert('Please fill all required fields: Date, Head, Amount, Description');return;}
-  if(!vendor && txnType!=='TRANSFER'){alert('Please fill Vendor / Paid To / Received From');return;}
-  if(txnType==='TRANSFER' && !transferTo){alert('Please select the Transfer To person.');return;}
+  if(!date||!head||!amount||!desc){alert('Please fill: Date, Head, Amount, Description');return;}
+  if(!vendor && txnType!=='Transfer'){alert('Please fill Vendor / Paid To / Received From');return;}
+  if(txnType==='Transfer' && !transferTo){alert('Please select the Transfer To person.');return;}
 
   // ── Rule 5.4: Expense/Transfer cannot exceed cash in hand ─────────────────
-  if(type==='cash' && !editingId && (txnType==='EXPENSE'||txnType==='TRANSFER')) {
+  if(type==='cash' && !editingId && (txnType==='Expense(Outflow)'||txnType==='Transfer')) {
     const h = computeCashHoldings();
     const holder = paidByUser || currentUser.name;
     const balance = (h.holdings[holder]||{}).balance || 0;
     if(amount > balance) {
-      const action = txnType==='TRANSFER'?'Transfer':'Expense';
+      const action = txnType==='Transfer'?'Transfer':'Expense';
       if(!confirm('⚠️ Rule 5.4 Violation!\n'
         +holder+' only has ₹'+balance.toLocaleString('en-IN')+' cash in hand.\n'
         +'This '+action+' of ₹'+amount.toLocaleString('en-IN')+' exceeds available balance.\n\n'
