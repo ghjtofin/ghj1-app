@@ -1311,13 +1311,22 @@ async function openNewEntry(type){
   currentStub = { id:localId, srno:localSrno, createdAt:localTs, isLocal:true };
 
   // ── STEP 2: Render form immediately with local stub ─────────────────────────
-  bodyEl.innerHTML = entryForm(type, {
-    id:             localId,
-    srno:           localSrno,
-    createdAt:      localTs,
-    createdBy:      currentUser.name,
-    _isNewWithStub: true
-  });
+  try {
+    bodyEl.innerHTML = entryForm(type, {
+      id:             localId,
+      srno:           localSrno,
+      createdAt:      localTs,
+      createdBy:      currentUser.name,
+      _isNewWithStub: true
+    });
+  } catch(formErr) {
+    console.error('entryForm error:', formErr);
+    bodyEl.innerHTML = '<div style="padding:24px;color:#c0392b;font-size:13px;line-height:2">'
+      + '<b>⚠️ Form error:</b> ' + formErr.message
+      + '<br><br><small>Open browser console (F12) for details.</small>'
+      + '<br><br><button onclick="closeModal()" style="padding:8px 18px;background:#fee;border:1px solid #c0392b;border-radius:6px;cursor:pointer">Close</button>'
+      + '</div>';
+  }
   modal.classList.add('open');
 
   // Set stub info banner to "local" state
@@ -1415,14 +1424,28 @@ function entryForm(type,e){
         <b>Credit:</b> Cash coming in (donations, fees, sales, accommodation, bank withdrawal, corpus)
       </div>`;
 
-  // Current cash balance for the person (for validation hint)
-  const myBal = isCash ? (computeCashHoldings().holdings[currentUser.name]||{}).balance || 0 : 0;
-  const curTxnType = v.txnType || 'RECEIPT';
+  // Current cash balance — wrap in try/catch so form never crashes
+  let myBal = 0;
+  try { myBal = isCash ? (computeCashHoldings().holdings[currentUser.name]||{}).balance || 0 : 0; } catch(e){}
 
-  // Stub info banner + hidden anchor fields
-  const stubInfoHtml = v.id ? `
+  // Normalise txnType — default to Income(Inflow) for new entries
+  const curTxnType = v.txnType && v.txnType !== 'RECEIPT' && v.txnType !== 'EXPENSE' && v.txnType !== 'TRANSFER'
+    ? v.txnType
+    : (v.txnType === 'RECEIPT' ? 'Income(Inflow)' :
+       v.txnType === 'EXPENSE' ? 'Expense(Outflow)' :
+       v.txnType === 'TRANSFER' ? 'Transfer' : 'Income(Inflow)');
+
+  const txnHints = {
+    'Income(Inflow)':   {rule:'Income(Inflow) — From = External source',  desc:'Cash received: donation, sale, bank withdrawal, fees, etc.'},
+    'Transfer':         {rule:'Transfer — Between people only',            desc:'Admin gives cash to user. Cannot exceed cash in hand.'},
+    'Expense(Outflow)': {rule:'Expense(Outflow) — To = Vendor/Payee',      desc:'Cash paid to vendor. Cannot exceed cash in hand.'}
+  };
+  const txnHint = txnHints[curTxnType] || txnHints['Income(Inflow)'];
+
+  // Stub info banner + hidden anchor fields (only for new entries with stub)
+  const stubInfoHtml = v._isNewWithStub ? `
   <div id="stub_info" style="border-left:4px solid #f39c12;padding:8px 12px;border-radius:0 6px 6px 0;font-size:11px;margin-bottom:12px;line-height:1.8;background:#fff8e1;color:#856404">
-    ⚠️ <b>Local ID (offline)</b> — Sheet not reached yet. Registering in background…
+    ⚠️ <b>Local ID</b> — registering in Sheet in background…
   </div>
   <input type="hidden" id="f_entry_id"   value="${v.id||''}">
   <input type="hidden" id="f_entry_srno" value="${v.srno||''}">
@@ -1433,30 +1456,22 @@ function entryForm(type,e){
   ${stubInfoHtml}
   ${typeHint}
   ${isCash?`
-  <div class="form-row" style="margin-bottom:10px">
+  <div class="form-row" style="margin-bottom:10px;gap:10px">
     <div style="flex:1.5">
       <label class="field-label">💱 Transaction Type *</label>
-      <select id="f_txntype" onchange="onTxnTypeChange('${type}')" style="font-size:13px;font-weight:600;border:2px solid var(--primary);background:#f8fbff">
-        <option value="Income(Inflow)"  ${(curTxnType==='Income(Inflow)'||curTxnType==='RECEIPT')?'selected':''}>💰 RECEIPT — Cash received from external source</option>
-        <option value="Transfer" ${curTxnType==='Transfer'?'selected':''}>🔄 TRANSFER — Give cash to another person</option>
-        <option value="Expense(Outflow)"  ${curTxnType==='Expense(Outflow)'?'selected':''}>💸 EXPENSE — Pay vendor / expense</option>
+      <select id="f_txntype" onchange="onTxnTypeChange('${type}')" style="font-size:13px;font-weight:600;border:2px solid var(--primary);background:#f8fbff;width:100%;padding:8px">
+        <option value="Income(Inflow)"  ${'Income(Inflow)'===curTxnType?'selected':''}>💰 Income (Inflow) — Cash received from external</option>
+        <option value="Transfer"        ${'Transfer'===curTxnType?'selected':''}>🔄 Transfer — Give cash to another person</option>
+        <option value="Expense(Outflow)"${'Expense(Outflow)'===curTxnType?'selected':''}>💸 Expense (Outflow) — Pay vendor / expense</option>
       </select>
     </div>
     <div style="flex:1;background:#f0f4ff;border-radius:8px;padding:10px 12px;font-size:11px;color:#1a5276;line-height:1.9">
-      <span id="txntype_rule" style="font-weight:700;display:block">${
-        curTxnType==='RECEIPT'?'Rule 5.1: From = External source':
-        curTxnType==='TRANSFER'?'Rule 5.2: Between people only':
-        'Rule 5.3: To = Vendor/Payee'
-      }</span>
-      <span id="txntype_desc">${
-        curTxnType==='RECEIPT'?'Donation, sale, bank withdrawal, fees...':
-        curTxnType==='TRANSFER'?'Admin→Creator, Admin→Approver etc.':
-        'Grocery, rent, utilities, program expenses...'
-      }</span>
+      <span style="font-weight:700;display:block">${txnHint.rule}</span>
+      <span>${txnHint.desc}</span>
       <span style="display:block;margin-top:4px;color:var(--primary);font-weight:600">Your cash balance: ₹${myBal.toLocaleString('en-IN')}</span>
     </div>
   </div>
-  <div class="form-row" id="transfer_to_row" style="display:${curTxnType==='TRANSFER'?'flex':'none'}">
+  <div class="form-row" id="transfer_to_row" style="display:${'Transfer'===curTxnType?'flex':'none'}">
     <div style="flex:1"><label class="field-label">🔄 Transfer To (Person) *</label>
       <select id="f_transfer_to" style="width:100%;padding:9px;border:1.5px solid var(--primary);border-radius:8px">
         <option value="">Select recipient...</option>
@@ -1510,7 +1525,7 @@ function entryForm(type,e){
   </div>
   <div class="btn-row">
     <button class="btn btn-cancel" onclick="closeModal()">Cancel</button>
-    <button class="btn btn-save" onclick="saveEntry('${type}')">Save Entry</button>
+    <button class="btn btn-save" onclick="saveEntry('${type}')">${editingId?'Update Entry':'Save Entry'}</button>
   </div>`;
 }
 
