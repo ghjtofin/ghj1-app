@@ -251,6 +251,7 @@ let USERS = JSON.parse(localStorage.getItem('ghj_users')||'null') || DEFAULT_USE
 let currentUser = null;
 let currentPage = 'dashboard';
 let editingId   = null;
+let currentStub = null;  // holds Sheet-registered stub for entry being created
 let reportPeriod= 'this_month';
 let reportMode  = 'cash';
 
@@ -1291,44 +1292,58 @@ function filterTable(type){
 // ══════════════════════════════════════════════════════════
 //  ENTRY FORM
 // ══════════════════════════════════════════════════════════
-// currentStub holds the Sheet-registered stub for the entry being created
-let currentStub = null;
-
 function openNewEntry(type){
+  // Reset state
   editingId   = null;
   currentStub = null;
 
-  // ── STEP 1: Open modal INSTANTLY with form + "Getting Entry ID" banner ──────
-  const modal   = document.getElementById('entryModal');
-  const titleEl = document.getElementById('modalTitle');
-  const bodyEl  = document.getElementById('modalBody');
-  if (!modal || !bodyEl) { alert('Modal element not found'); return; }
+  // Get modal elements — fail loudly if missing
+  var modal   = document.getElementById('entryModal');
+  var titleEl = document.getElementById('modalTitle');
+  var bodyEl  = document.getElementById('modalBody');
 
-  titleEl.textContent = type==='cash' ? '💵 New Cash Entry' : '🏦 New Bank Entry';
+  if (!modal)   { console.error('entryModal not found'); return; }
+  if (!bodyEl)  { console.error('modalBody not found');  return; }
+  if (!titleEl) { console.error('modalTitle not found'); return; }
 
-  // Generate a temporary local ID immediately
-  const localTs   = new Date().toISOString();
-  const localId   = 'GHJ-L-' + Date.now();
-  const localSrno = 'GHJ/' + (type==='cash'?'C':'B') + '/' +
-                    String(((getData()||{})[type]||[]).length + 1).padStart(4,'0');
-  currentStub = { id:localId, srno:localSrno, createdAt:localTs, isLocal:true };
+  // Set title
+  titleEl.textContent = (type === 'cash') ? '💵 New Cash Entry' : '🏦 New Bank Entry';
 
-  // Build the form HTML with the stub ID pre-filled
-  let formHtml = '';
+  // Build a local stub immediately — no network call needed
+  var now     = new Date();
+  var localTs = now.toISOString();
+  var localId = 'GHJ-L-' + now.getTime();
+  var existingCount = 0;
+  try { existingCount = (getData()[type] || []).length; } catch(e) {}
+  var localSrno = 'GHJ/' + (type === 'cash' ? 'C' : 'B') + '/' +
+                  ('000' + (existingCount + 1)).slice(-4);
+
+  currentStub = { id: localId, srno: localSrno, createdAt: localTs, isLocal: true };
+
+  // Render the form — wrapped so ANY error shows a message instead of silence
+  var formHtml;
   try {
     formHtml = entryForm(type, {
-      id: localId, srno: localSrno, createdAt: localTs,
-      createdBy: currentUser ? currentUser.name : '',
+      id:             localId,
+      srno:           localSrno,
+      createdAt:      localTs,
+      createdBy:      currentUser ? currentUser.name : '',
       _isNewWithStub: true
     });
   } catch(err) {
-    formHtml = '<div style="padding:20px;color:#c0392b">Form error: ' + err.message + '</div>';
+    console.error('entryForm crashed:', err);
+    formHtml = '<div style="padding:20px 24px;color:#c0392b;font-size:13px;line-height:2">'
+      + '<b>⚠️ Form could not load</b><br>'
+      + '<code style="font-size:11px;background:#fee;padding:4px 8px;border-radius:4px">' + err.message + '</code>'
+      + '<br><br><button onclick="closeModal()" style="padding:8px 18px;border:1px solid #c0392b;background:#fee;border-radius:6px;cursor:pointer">Close</button>'
+      + '</div>';
   }
 
+  // Set content and open — these two lines are the critical path
   bodyEl.innerHTML = formHtml;
   modal.classList.add('open');
 
-  // ── STEP 2: Fetch real ID from Sheet in background (non-blocking) ────────────
+  // Kick off background Sheet registration (fully async, never blocks)
   _fetchStubFromSheet(type, localTs);
 }
 
