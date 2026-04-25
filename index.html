@@ -1295,85 +1295,92 @@ function filterTable(type){
 let currentStub = null;
 
 async function openNewEntry(type){
-  editingId = null;
-  currentStub = null;
+  editingId    = null;
+  currentStub  = null;
 
-  const modal     = document.getElementById('entryModal');
-  const titleEl   = document.getElementById('modalTitle');
-  const bodyEl    = document.getElementById('modalBody');
-  const label     = type==='cash' ? '💵 New Cash Entry' : '🏦 New Bank Entry';
-  titleEl.textContent = label;
+  const modal   = document.getElementById('entryModal');
+  const titleEl = document.getElementById('modalTitle');
+  const bodyEl  = document.getElementById('modalBody');
+  titleEl.textContent = type==='cash' ? '💵 New Cash Entry' : '🏦 New Bank Entry';
 
-  // Show loading spinner immediately so modal opens fast
-  bodyEl.innerHTML = `
-    <div style="text-align:center;padding:40px 20px">
-      <div style="font-size:36px;margin-bottom:16px">⏳</div>
-      <div style="font-size:14px;font-weight:600;color:var(--primary);margin-bottom:6px">Registering entry in Google Sheet…</div>
-      <div style="font-size:12px;color:var(--text-muted)">ID, timestamp and your name are being created first.<br>The form will appear in a moment.</div>
-      <div style="margin-top:20px;font-size:11px;color:#e67e22" id="stub_status"></div>
-    </div>`;
+  // ── STEP 1: Build local stub IMMEDIATELY so form opens with no delay ────────
+  const localId   = 'GHJ-L-' + Date.now();
+  const localSrno = 'GHJ/' + (type==='cash'?'C':'B') + '/' +
+                    String((getData()[type]||[]).length + 1).padStart(4,'0');
+  const localTs   = new Date().toISOString();
+  currentStub = { id:localId, srno:localSrno, createdAt:localTs, isLocal:true };
+
+  // ── STEP 2: Render form immediately with local stub ─────────────────────────
+  bodyEl.innerHTML = entryForm(type, {
+    id:             localId,
+    srno:           localSrno,
+    createdAt:      localTs,
+    createdBy:      currentUser.name,
+    _isNewWithStub: true
+  });
   modal.classList.add('open');
 
-  // Try to create the stub row in Sheet — get back auto ID + timestamp
-  const url = getScriptUrl();
-  const secret = APP_CONFIG.appSecret || localStorage.getItem('ghj_app_secret') || '';
-  let stub = null;
-
-  if (url) {
-    try {
-      const resp = await fetch(url, {
-        method: 'POST', redirect: 'follow',
-        headers: {'Content-Type':'text/plain;charset=utf-8'},
-        body: JSON.stringify({
-          action: 'createStub',
-          _secret: secret,
-          paytype: type,
-          createdBy: currentUser.name,
-          createdAt: new Date().toISOString()
-        })
-      });
-      const raw = await resp.text();
-      if (raw && !raw.trimStart().startsWith('<')) {
-        const r = JSON.parse(raw);
-        if (r.status === 'ok' && r.id) {
-          stub = { id: r.id, srno: r.srno, createdAt: r.timestamp || new Date().toISOString() };
-        }
-      }
-    } catch(err) {
-      console.warn('Stub creation failed, using local ID:', err.message);
+  // Set stub info banner to "local" state
+  const updateBanner = (isLocal, sheetId, sheetSrno) => {
+    const el = document.getElementById('stub_info');
+    if (!el) return;
+    if (isLocal) {
+      el.innerHTML = '⚠️ <b>Local ID (offline)</b> — Sheet not reached yet. Registering in background…';
+      el.style.background   = '#fff8e1';
+      el.style.borderColor  = '#f39c12';
+      el.style.color        = '#856404';
+    } else {
+      el.innerHTML =
+        '✅ <b>Registered in Sheet</b> — entry anchored &nbsp;|&nbsp; ' +
+        'ID: <code style="background:rgba(0,0,0,0.08);padding:1px 5px;border-radius:3px">'
+        + sheetId + '</code> &nbsp; SrNo: <b>' + sheetSrno + '</b>';
+      el.style.background   = '#eafaf1';
+      el.style.borderColor  = '#27ae60';
+      el.style.color        = '#1e8449';
+      // Also silently update the hidden fields in the open form
+      const fId   = document.getElementById('f_entry_id');
+      const fSrno = document.getElementById('f_entry_srno');
+      const fTs   = document.getElementById('f_entry_ts');
+      if (fId)   fId.value   = sheetId;
+      if (fSrno) fSrno.value = sheetSrno;
     }
-  }
+  };
+  updateBanner(true);
 
-  // If Sheet unreachable — generate a local stub (will sync on save)
-  if (!stub) {
-    const localId  = 'GHJ-LOCAL-' + Date.now();
-    const localSrno = 'GHJ/' + (type==='cash'?'C':'B') + '/' +
-                      String((getData()[type]||[]).length + 1).padStart(4,'0');
-    stub = { id: localId, srno: localSrno, createdAt: new Date().toISOString(), isLocal: true };
-    const statusEl = document.getElementById('stub_status');
-    if (statusEl) statusEl.textContent = '⚠️ Sheet unreachable — working offline. Entry will sync on save.';
-    await new Promise(r => setTimeout(r, 800)); // brief pause so user sees the message
-  }
+  // ── STEP 3: Try Sheet stub in background — 4 second timeout ─────────────────
+  const url = getScriptUrl();
+  if (!url) return; // no URL configured — stay with local stub
 
-  currentStub = stub;
-
-  // Open the form pre-loaded with the stub data
-  bodyEl.innerHTML = entryForm(type, {
-    id:        stub.id,
-    srno:      stub.srno,
-    createdAt: stub.createdAt,
-    createdBy: currentUser.name,
-    _isNewWithStub: true   // flag so saveEntry knows to use stub data
-  });
-
-  // Show the stub info at the top of the form
-  const stubInfo = document.getElementById('stub_info');
-  if (stubInfo) {
-    stubInfo.innerHTML = stub.isLocal
-      ? '⚠️ <b>Local ID</b> (offline) — will sync to Sheet on save'
-      : '✅ <b>Registered in Sheet</b> — your entry is already anchored';
-    stubInfo.style.background = stub.isLocal ? '#fff8e1' : '#eafaf1';
-    stubInfo.style.borderColor = stub.isLocal ? '#f39c12' : '#27ae60';
+  const secret = APP_CONFIG.appSecret || localStorage.getItem('ghj_app_secret') || '';
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000); // 4s timeout
+    const resp = await fetch(url, {
+      method:  'POST',
+      redirect:'follow',
+      signal:  controller.signal,
+      headers: {'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({
+        action:    'createStub',
+        _secret:   secret,
+        paytype:   type,
+        createdBy: currentUser.name,
+        createdAt: localTs
+      })
+    });
+    clearTimeout(timer);
+    const raw = await resp.text();
+    if (raw && !raw.trimStart().startsWith('<')) {
+      const r = JSON.parse(raw);
+      if (r.status === 'ok' && r.id) {
+        // ✅ Sheet responded — upgrade stub to sheet-registered
+        currentStub = { id:r.id, srno:r.srno, createdAt:r.timestamp||localTs, isLocal:false };
+        updateBanner(false, r.id, r.srno);
+      }
+    }
+  } catch(err) {
+    // Timed out or network error — stay with local stub, will sync on save
+    console.warn('Background stub failed:', err.message);
   }
 }
 
@@ -1412,22 +1419,18 @@ function entryForm(type,e){
   const myBal = isCash ? (computeCashHoldings().holdings[currentUser.name]||{}).balance || 0 : 0;
   const curTxnType = v.txnType || 'RECEIPT';
 
-  // Show stub ID info at top of form
-  const stubInfoHtml = `
-  <div id="stub_info" style="border-left:4px solid #27ae60;padding:8px 12px;border-radius:0 6px 6px 0;font-size:11px;margin-bottom:12px;line-height:1.8;background:#eafaf1">
-    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
-      <div>
-        <b>Entry ID:</b> <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px">${v.id||'—'}</code> &nbsp;
-        <b>Sr.No:</b> <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px">${v.srno||'—'}</code>
-      </div>
-      <div style="font-size:10px;color:var(--text-muted)">
-        Created: ${v.createdBy||currentUser.name} · ${v.createdAt?new Date(v.createdAt).toLocaleString('en-IN'):'now'}
-      </div>
-    </div>
-  </div>`;
+  // Stub info banner + hidden anchor fields
+  const stubInfoHtml = v.id ? `
+  <div id="stub_info" style="border-left:4px solid #f39c12;padding:8px 12px;border-radius:0 6px 6px 0;font-size:11px;margin-bottom:12px;line-height:1.8;background:#fff8e1;color:#856404">
+    ⚠️ <b>Local ID (offline)</b> — Sheet not reached yet. Registering in background…
+  </div>
+  <input type="hidden" id="f_entry_id"   value="${v.id||''}">
+  <input type="hidden" id="f_entry_srno" value="${v.srno||''}">
+  <input type="hidden" id="f_entry_ts"   value="${v.createdAt||''}">
+  ` : '';
 
   return`
-  ${v.id ? stubInfoHtml : ''}
+  ${stubInfoHtml}
   ${typeHint}
   ${isCash?`
   <div class="form-row" style="margin-bottom:10px">
@@ -1623,12 +1626,17 @@ function saveEntry(type){
     closeModal();showPage(type);showToast('✅ Entry updated — syncing...');
     pushToSheet('updateEntry',{...list[idx],paytype:type});
   } else {
-    // Use the stub ID/SrNo from Sheet if available, otherwise generate locally
-    const stub = currentStub || {};
-    const entryId   = stub.id        || ('GHJ-LOCAL-' + Date.now());
-    const entrySrno = stub.srno      || ('GHJ/'+(type==='cash'?'C':'B')+'/'+String(list.length+1).padStart(4,'0'));
-    const entryTs   = stub.createdAt || new Date().toISOString();
-    const isLocal   = !stub.id || (stub.id||'').startsWith('GHJ-LOCAL-');
+    // Read from hidden fields first (may have been upgraded by background stub)
+    // Hidden fields are the most up-to-date source — they get updated if Sheet responded
+    const fId   = document.getElementById('f_entry_id');
+    const fSrno = document.getElementById('f_entry_srno');
+    const fTs   = document.getElementById('f_entry_ts');
+    const stub  = currentStub || {};
+
+    const entryId   = (fId   && fId.value)   ? fId.value   : stub.id   || ('GHJ-L-' + Date.now());
+    const entrySrno = (fSrno && fSrno.value)  ? fSrno.value : stub.srno || ('GHJ/'+(type==='cash'?'C':'B')+'/'+String(list.length+1).padStart(4,'0'));
+    const entryTs   = (fTs   && fTs.value)    ? fTs.value   : stub.createdAt || new Date().toISOString();
+    const isLocal   = entryId.startsWith('GHJ-L-') || entryId.startsWith('GHJ-LOCAL-');
 
     const entry={
       id:entryId, srno:entrySrno, date, type:etype, txnType, transferTo,
