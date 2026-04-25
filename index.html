@@ -177,9 +177,9 @@
 //  CONFIGURATION — edit these in the HTML file
 // ══════════════════════════════════════════════════════════
 const APP_CONFIG = {
-  scriptUrl: 'https://script.google.com/macros/s/AKfycbxA1uceVvFuJlvyYRFYZ8xX4RwaokCIW49fU5IMCkvCIAgexIG7q4kTcUxBDPnzn2JI/exec',
+  scriptUrl: 'https://script.google.com/macros/s/AKfycbxJaR_JeS-PakbDHOMySAy5LOk7wcV4teGocCM0JcRLzyUo2ORMOQQJHqDnAUsvzXJ0/exec',
   sheetId:   '1JL8flLniqzH-9E36dnOZorCzHerjMO6BKxeQ0efkznk',
-  secret:    '6279@GSEKLX278905721',
+  appSecret: '6279@GSEKLX278905721',
 };
 
 // Apply config
@@ -194,31 +194,51 @@ const APP_CONFIG = {
 // ══════════════════════════════════════════════════════════
 
 // CASH INFLOW HEADS — these bring cash INTO the system (from outside world)
-const CASH_INFLOW_HEADS = [
-  'Cash Donation','Cash Fees','Cash Sale','Cash Stay Charges (Accommodation)',
-  'Cash Fooding Charges','Cash Miscellaneous Receipts','Bank Withdrawal to Cash',
-  'Corpus Fund','Capital Contribution','Cash Receipts'
+// ── Income Heads (Col A of Head sheet) ───────────────────────────
+const INCOME_HEADS = [
+  'Bank Withdrawal','Capital Contribution','Cash Donation','Cash Fees',
+  'Cash Miscellaneous Receipts','Cash Receipts','Cash Sale',
+  'Cash Stay Charges (Accommodation)','Corpus Fund','Patty Cash Transfer'
 ];
+const CASH_INFLOW_HEADS = INCOME_HEADS; // alias
 
-// CASH OUTFLOW / EXPENSE HEADS
+// ── Expense Heads (Col B of Head sheet) ──────────────────────────
 const EXPENSE_HEADS = [
-  'Groceries/Food Items','Admin','Operational Expenses','Repair & Maintenance',
-  'Program/Event/Welfare','Purchase','Inventories','Petty Cash Transfer',
-  'Bank Deposit','Salaries & Wages','Travel & Transportation',
-  'Marketing & Events','Government Fees/Taxes','Miscellaneous Expense'
+  'Admin','Bank Deposit','Government Fees/Taxes','Groceries/Food Items',
+  'Inventories','Marketing & Events','Miscellaneous Expense',
+  'Operational Expenses','Petty Cash Transfer','Program/Event/Welfare',
+  'Purchase','Repair & Maintenance','Salaries & Wages',
+  'Travel & Transportation'
 ];
 
-const ALL_HEADS = [...CASH_INFLOW_HEADS, ...EXPENSE_HEADS];
+const ALL_HEADS = [...INCOME_HEADS, ...EXPENSE_HEADS];
 
-const CATEGORIES = [
-  'Cash Donation','Cash Fees','Cash Sale','Cash Stay / Accommodation','Cash Fooding Charges',
-  'Bank Withdrawal','Capital / Corpus Fund','Salaries & Wages','Office Rent',
-  'Electricity/Water/Gas','Groceries/Food','Printing/Stationery','Courier & Shipping',
-  'Insurance Premium','Banking Charges','Travel & Transportation','Marketing & Events',
-  'Maintenance & Repair','Purchase of Equipment','Program Supplies',
-  'Govt Fees/Taxes','Cash Transfer to User','Cash Received from User',
-  'Bank Deposit from Cash','Miscellaneous'
+// ── Income Categories (Col C of Head sheet) ──────────────────────
+const INCOME_CATEGORIES = [
+  'Cash Receipts','Bank Withdrawal','Cash Debit','Cash Deposit To Bank',
+  'Cash Stay Charges (Accommodation)','Cash Withdrawal',
+  'Donation','Fees','Patty Cash Transfer'
 ];
+
+// ── Expense Categories (Col D of Head sheet) ─────────────────────
+const EXPENSE_CATEGORIES = [
+  'Accounting & Audit Fees','Accumulation of Funds','Banking Charges',
+  'Buidling Rent','Construction Costs','Corpus Fund',
+  'Courier & Shipping Services','Electricity/Water/Gas Payments',
+  'Govt Fees/Taxes','Groceries/Food','House Hold/Keeping Items',
+  'AMC/Insurance Premium','Interest on Borrowed Capital',
+  'IT & ITES Services','Langar/Bhandara','Legal & Professional Services',
+  'Maintenance & Repair','Marketing & Events','Miscellaneous',
+  'Operating Expenses','Printing/Stationery','Program Supplies',
+  'Purchase of Land/Building','Purchase of Machinery/Equipment',
+  'Repayment of Loans','Salaries & Wages','Social Work Activities',
+  'Staff/Volunteers Accommodation','Staff/Volunteers Welfare',
+  'Travel & Transportation'
+];
+
+// Combined for backward compat
+const CATEGORIES = [...INCOME_CATEGORIES, ...EXPENSE_CATEGORIES];
+
 
 const DEFAULT_USERS = [
   {email:'admin@ghj.org',    pwd:'admin123',  name:'Admin',    role:'admin'},
@@ -282,21 +302,20 @@ function computeCashHoldings() {
   cash.forEach(e => {
     const holder = e.paidByUser || e.createdBy || 'Admin';
     const amt    = Number(e.amount) || 0;
-    const txn    = e.txnType || (e.type === 'credit' ? 'RECEIPT' : 'EXPENSE'); // backward compat
+    // EntryType values from Excel: Income(Inflow) | Transfer | Expense(Outflow)
+    const txn = e.txnType || (e.type === 'credit' ? 'Income(Inflow)' : 'Expense(Outflow)');
 
     initPerson(holder);
 
-    if (txn === 'RECEIPT') {
-      // External cash coming in → credited to holder
-      balances[holder].receipts  += amt;
-      balances[holder].balance   += amt;
-    } else if (txn === 'EXPENSE') {
-      // Cash paid to vendor → debited from holder
-      balances[holder].expenses  += amt;
-      balances[holder].balance   -= amt;
-    } else if (txn === 'TRANSFER') {
-      // Cash moved from holder to transferTo person
-      const receiver = e.transferTo || '';
+    if (txn === 'Income(Inflow)' || txn === 'RECEIPT') {
+      balances[holder].receipts += amt;
+      balances[holder].balance  += amt;
+    } else if (txn === 'Expense(Outflow)' || txn === 'EXPENSE') {
+      balances[holder].expenses += amt;
+      balances[holder].balance  -= amt;
+    } else if (txn === 'Transfer' || txn === 'TRANSFER') {
+      // vendor field = ReceivedBy/VendorName = the person receiving the transfer
+      const receiver = e.transferTo || e.vendor || '';
       initPerson(receiver);
       balances[holder].transferOut += amt;
       balances[holder].balance     -= amt;
@@ -433,43 +452,38 @@ function getScriptUrl(){ return APP_CONFIG.scriptUrl||localStorage.getItem('ghj_
 
 async function pushToSheet(action,data){
   const url=getScriptUrl();
-  const secret=APP_CONFIG.appSecret||'';
+  const secret=APP_CONFIG.appSecret||localStorage.getItem('ghj_app_secret')||'';
   const payload={
     action, _secret:secret,
-    // ── identity ──────────────────────────────────────────────
-    id:          data.id||'',
-    srno:        data.srno||'',
-    date:        data.date||'',
-    paytype:     data.paytype||'cash',
-    // ── cash-specific ─────────────────────────────────────────
-    txnType:     data.txnType||'',        // RECEIPT / TRANSFER / EXPENSE
-    transferTo:  data.transferTo||'',     // recipient for TRANSFER
-    paidByUser:  data.paidByUser||'',     // who physically held the cash
-    // ── classification ────────────────────────────────────────
-    head:        data.head||'',
-    category:    data.category||'',
-    type:        data.type||'debit',      // debit / credit
-    amount:      Number(data.amount)||0,
-    // ── description ───────────────────────────────────────────
-    desc:        data.desc||data.description||'',
-    vendor:      data.vendor||'',
-    invoiceLink: data.invoiceLink||'',
-    screenshotLink: data.screenshotLink||'',
-    remarks:     data.remarks||'',
-    // ── workflow ──────────────────────────────────────────────
-    status:      data.status||'pending',
-    createdBy:   data.createdBy||'',
-    createdAt:   data.createdAt||'',
-    approvedBy:  data.approvedBy||'',
-    paymentRef:  data.paymentRef||'',
-    updatedBy:   data.updatedBy||'',
-    updatedAt:   data.updatedAt||'',
-    // ── bank-specific ─────────────────────────────────────────
-    bankName:    data.bankName||'',
-    accNo:       data.accNo||'',
-    chequeRef:   data.chequeRef||'',
-    paymentMode: data.paymentMode||'',
-    paidBy:      data.paidBy||''
+    // Maps exactly to Google Sheet column names
+    // ── CashEntries columns ────────────────────────────────────
+    id:            data.id||'',           // A: ID (Auto)
+    createdAt:     data.createdAt||new Date().toISOString(), // B: TimeStamp (Auto)
+    createdBy:     data.createdBy||'',    // C: CreatedBy (login user)
+    txnType:       data.txnType||'',      // D: EntryType: Income(Inflow)/Transfer/Expense(Outflow)
+    srno:          data.srno||'',         // E: SrNo
+    date:          data.date||'',         // F: Date
+    head:          data.head||'',         // G: Head
+    category:      data.category||'',     // H: Category
+    vendor:        data.vendor||'',       // I: ReceivedBy/VendorName
+    amount:        Number(data.amount)||0,// J: Amount
+    desc:          data.desc||'',         // K: Description
+    invoiceLink:   data.invoiceLink||'',  // L: InvoiceLink
+    screenshotLink:data.screenshotLink||'',// M: ScreenShot
+    status:        data.status||'pending',// N: Status
+    approvedBy:    data.approvedBy||'',   // O: ApprovedBy
+    paymentRef:    data.paymentRef||'',   // P: PaymentRef
+    remarks:       data.remarks||'',      // Q: Remarks
+    // R: Type = 'cash' (auto-set on server)
+    paytype:       data.paytype||'cash',
+    type:          data.type||'debit',    // debit/credit (for bank entries)
+    // ── BankEntries extra columns ──────────────────────────────
+    bankName:      data.bankName||'',     // Q: BankName
+    accNo:         data.accNo||'',        // R: AccountNo
+    chequeRef:     data.chequeRef||'',    // S: ChequeRef
+    // ── Transfer destination ───────────────────────────────────
+    transferTo:    data.transferTo||'',
+    paidByUser:    data.paidByUser||''
   };
   if(!url){addToQueue(payload);return;}
   try{
@@ -494,21 +508,74 @@ async function loadFromSheet(){
       if(!raw||raw.trimStart().startsWith('<')) continue;
       const rows=JSON.parse(raw);
       if(!Array.isArray(rows)||rows.length<2) continue;
-      const hdr=rows[0].map(h=>String(h).toLowerCase().trim());
-      const idx=h=>hdr.indexOf(h);
-      const entries=rows.slice(1).filter(r=>r[idx('id')]||r[0]).map(r=>({
-        id:String(r[idx('id')]||r[0]||''),srno:String(r[idx('srno')]||r[1]||''),
-        date:String(r[idx('date')]||r[2]||''),head:String(r[idx('head')]||r[3]||''),
-        category:String(r[idx('category')]||r[4]||''),type:String(r[idx('type')]||r[5]||'debit'),
-        amount:parseFloat(r[idx('amount')]||r[6]||0),desc:String(r[idx('description')]||r[7]||''),
-        vendor:String(r[idx('vendor')]||r[8]||''),invoiceLink:String(r[idx('invoicelink')]||r[9]||''),
-        screenshotLink:String(r[idx('screenshot')]||r[10]||''),status:String(r[idx('status')]||r[11]||'pending'),
-        createdBy:String(r[idx('createdby')]||r[12]||''),approvedBy:String(r[idx('approvedby')]||r[13]||''),
-        paymentRef:String(r[idx('paymentref')]||r[14]||''),remarks:String(r[idx('remarks')]||r[15]||''),
-        bankName:String(r[idx('bankname')]||r[16]||''),accNo:String(r[idx('accountno')]||r[17]||''),
-        chequeRef:String(r[idx('chequeref')]||r[18]||''),paytype:type,
-        paidByUser:String(r[idx('paidbyuser')]||r[21]||'')
-      }));
+
+      // Normalise header: lowercase, strip spaces/special chars for key matching
+      const hdr=rows[0].map(h=>String(h||'').toLowerCase().replace(/[^a-z0-9]/g,''));
+      const col=k=>hdr.indexOf(k);
+      const s=(r,k,fb)=>String((col(k)>=0?r[col(k)]:r[fb])||'');
+
+      let entries;
+      if(type==='cash'){
+        // CashEntries columns from Excel:
+        // A:idauto B:timestampauto C:createdby D:entrytype E:srno F:date
+        // G:head H:category I:receivedbyvndorname J:amount K:description
+        // L:invoicelink M:screenshot N:status O:approvedby P:paymentref Q:remarks R:type
+        entries=rows.slice(1).filter(r=>r[0]&&String(r[0]).startsWith('GHJ')).map(r=>{
+          const entryType=s(r,'entrytype',3);
+          const isInflow = entryType==='Income(Inflow)';
+          const isTransfer = entryType==='Transfer';
+          return {
+            id:          s(r,'idauto',0),
+            createdAt:   s(r,'timestampauto',1),
+            createdBy:   s(r,'createdby',2),
+            txnType:     entryType,                           // Income(Inflow)/Transfer/Expense(Outflow)
+            srno:        s(r,'srno',4),
+            date:        s(r,'date',5),
+            head:        s(r,'head',6),
+            category:    s(r,'category',7),
+            vendor:      s(r,'receivedbyvndorname',8),        // ReceivedBy / VendorName
+            amount:      parseFloat(r[col('amount')>=0?col('amount'):9]||0),
+            desc:        s(r,'description',10),
+            invoiceLink: s(r,'invoicelink',11),
+            screenshotLink:s(r,'screenshot',12),
+            status:      s(r,'status',13)||'pending',
+            approvedBy:  s(r,'approvedby',14),
+            paymentRef:  s(r,'paymentref',15),
+            remarks:     s(r,'remarks',16),
+            type:        isInflow ? 'credit' : 'debit',       // derive from EntryType
+            paytype:     'cash',
+            paidByUser:  s(r,'createdby',2),                  // CreatedBy = who holds cash
+            transferTo:  isTransfer ? s(r,'receivedbyvndorname',8) : ''
+          };
+        });
+      } else {
+        // BankEntries columns from Excel:
+        // A:id B:srno C:date D:head E:category F:type G:amount H:description
+        // I:vendor J:invoicelink K:screenshot L:status M:createdby N:approvedby
+        // O:paymentref P:remarks Q:bankname R:accountno S:chequeref T:paytype
+        entries=rows.slice(1).filter(r=>r[0]&&String(r[0]).startsWith('GHJ')).map(r=>({
+          id:           s(r,'id',0),
+          srno:         s(r,'srno',1),
+          date:         s(r,'date',2),
+          head:         s(r,'head',3),
+          category:     s(r,'category',4),
+          type:         s(r,'type',5)||'debit',
+          amount:       parseFloat(r[col('amount')>=0?col('amount'):6]||0),
+          desc:         s(r,'description',7),
+          vendor:       s(r,'vendor',8),
+          invoiceLink:  s(r,'invoicelink',9),
+          screenshotLink:s(r,'screenshot',10),
+          status:       s(r,'status',11)||'pending',
+          createdBy:    s(r,'createdby',12),
+          approvedBy:   s(r,'approvedby',13),
+          paymentRef:   s(r,'paymentref',14),
+          remarks:      s(r,'remarks',15),
+          bankName:     s(r,'bankname',16),
+          accNo:        s(r,'accountno',17),
+          chequeRef:    s(r,'chequeref',18),
+          paytype:      'bank'
+        }));
+      }
       const queuedIds=new Set(getPendingQueue().map(q=>q.id));
       const merged=entries.filter(e=>!queuedIds.has(e.id));
       merged.push(...getPendingQueue().filter(q=>q.paytype===type));
@@ -574,12 +641,25 @@ function updateSyncBadge(){
   if(q.length>0){b.textContent=q.length+' unsynced';b.style.display='inline-block';b.style.background='#e67e22';}
   else{b.style.display='none';}
 }
+async // Add entry to sync queue with full data
+function addToSyncQueue(entry) {
+  const q = getPendingQueue();
+  // Remove duplicate if exists
+  const idx = q.findIndex(x => x.id === entry.id);
+  if (idx >= 0) q.splice(idx, 1);
+  q.push(entry);
+  localStorage.setItem('ghj_sync_queue', JSON.stringify(q));
+  updateSyncBadge();
+}
+
 async function retrySyncQueue(){
   const url=getScriptUrl();if(!url||!getPendingQueue().length)return;
+  const secret=APP_CONFIG.appSecret||localStorage.getItem('ghj_app_secret')||'';
   showToast('🔄 Retrying sync...');let n=0;
   for(const e of[...getPendingQueue()]){
     try{
-      const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(e)});
+      const payload={...e,_secret:secret};
+      const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
       const raw=await r.text();
       if(raw&&!raw.trimStart().startsWith('<')){const res=JSON.parse(raw);if(res.status==='ok'){removeFromQueue(e.id);n++;}}
     }catch{}
@@ -1211,11 +1291,90 @@ function filterTable(type){
 // ══════════════════════════════════════════════════════════
 //  ENTRY FORM
 // ══════════════════════════════════════════════════════════
-function openNewEntry(type){
-  editingId=null;
-  document.getElementById('modalTitle').textContent=type==='cash'?'💵 New Cash Entry':'🏦 New Bank Entry';
-  document.getElementById('modalBody').innerHTML=entryForm(type,null);
-  document.getElementById('entryModal').classList.add('open');
+// currentStub holds the Sheet-registered stub for the entry being created
+let currentStub = null;
+
+async function openNewEntry(type){
+  editingId = null;
+  currentStub = null;
+
+  const modal     = document.getElementById('entryModal');
+  const titleEl   = document.getElementById('modalTitle');
+  const bodyEl    = document.getElementById('modalBody');
+  const label     = type==='cash' ? '💵 New Cash Entry' : '🏦 New Bank Entry';
+  titleEl.textContent = label;
+
+  // Show loading spinner immediately so modal opens fast
+  bodyEl.innerHTML = `
+    <div style="text-align:center;padding:40px 20px">
+      <div style="font-size:36px;margin-bottom:16px">⏳</div>
+      <div style="font-size:14px;font-weight:600;color:var(--primary);margin-bottom:6px">Registering entry in Google Sheet…</div>
+      <div style="font-size:12px;color:var(--text-muted)">ID, timestamp and your name are being created first.<br>The form will appear in a moment.</div>
+      <div style="margin-top:20px;font-size:11px;color:#e67e22" id="stub_status"></div>
+    </div>`;
+  modal.classList.add('open');
+
+  // Try to create the stub row in Sheet — get back auto ID + timestamp
+  const url = getScriptUrl();
+  const secret = APP_CONFIG.appSecret || localStorage.getItem('ghj_app_secret') || '';
+  let stub = null;
+
+  if (url) {
+    try {
+      const resp = await fetch(url, {
+        method: 'POST', redirect: 'follow',
+        headers: {'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({
+          action: 'createStub',
+          _secret: secret,
+          paytype: type,
+          createdBy: currentUser.name,
+          createdAt: new Date().toISOString()
+        })
+      });
+      const raw = await resp.text();
+      if (raw && !raw.trimStart().startsWith('<')) {
+        const r = JSON.parse(raw);
+        if (r.status === 'ok' && r.id) {
+          stub = { id: r.id, srno: r.srno, createdAt: r.timestamp || new Date().toISOString() };
+        }
+      }
+    } catch(err) {
+      console.warn('Stub creation failed, using local ID:', err.message);
+    }
+  }
+
+  // If Sheet unreachable — generate a local stub (will sync on save)
+  if (!stub) {
+    const localId  = 'GHJ-LOCAL-' + Date.now();
+    const localSrno = 'GHJ/' + (type==='cash'?'C':'B') + '/' +
+                      String((getData()[type]||[]).length + 1).padStart(4,'0');
+    stub = { id: localId, srno: localSrno, createdAt: new Date().toISOString(), isLocal: true };
+    const statusEl = document.getElementById('stub_status');
+    if (statusEl) statusEl.textContent = '⚠️ Sheet unreachable — working offline. Entry will sync on save.';
+    await new Promise(r => setTimeout(r, 800)); // brief pause so user sees the message
+  }
+
+  currentStub = stub;
+
+  // Open the form pre-loaded with the stub data
+  bodyEl.innerHTML = entryForm(type, {
+    id:        stub.id,
+    srno:      stub.srno,
+    createdAt: stub.createdAt,
+    createdBy: currentUser.name,
+    _isNewWithStub: true   // flag so saveEntry knows to use stub data
+  });
+
+  // Show the stub info at the top of the form
+  const stubInfo = document.getElementById('stub_info');
+  if (stubInfo) {
+    stubInfo.innerHTML = stub.isLocal
+      ? '⚠️ <b>Local ID</b> (offline) — will sync to Sheet on save'
+      : '✅ <b>Registered in Sheet</b> — your entry is already anchored';
+    stubInfo.style.background = stub.isLocal ? '#fff8e1' : '#eafaf1';
+    stubInfo.style.borderColor = stub.isLocal ? '#f39c12' : '#27ae60';
+  }
 }
 
 function editEntry(type,id){
@@ -1228,7 +1387,8 @@ function editEntry(type,id){
 
 function entryForm(type,e){
   const isCreator=currentUser.role==='creator';
-  const isBank=type==='bank';
+  const isBank =type==='bank';
+  const isCash =type==='cash';
   const v=e||{};
 
   // Who can this entry be "paid by"?
@@ -1252,16 +1412,31 @@ function entryForm(type,e){
   const myBal = isCash ? (computeCashHoldings().holdings[currentUser.name]||{}).balance || 0 : 0;
   const curTxnType = v.txnType || 'RECEIPT';
 
+  // Show stub ID info at top of form
+  const stubInfoHtml = `
+  <div id="stub_info" style="border-left:4px solid #27ae60;padding:8px 12px;border-radius:0 6px 6px 0;font-size:11px;margin-bottom:12px;line-height:1.8;background:#eafaf1">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+      <div>
+        <b>Entry ID:</b> <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px">${v.id||'—'}</code> &nbsp;
+        <b>Sr.No:</b> <code style="background:rgba(0,0,0,0.06);padding:1px 5px;border-radius:3px">${v.srno||'—'}</code>
+      </div>
+      <div style="font-size:10px;color:var(--text-muted)">
+        Created: ${v.createdBy||currentUser.name} · ${v.createdAt?new Date(v.createdAt).toLocaleString('en-IN'):'now'}
+      </div>
+    </div>
+  </div>`;
+
   return`
+  ${v.id ? stubInfoHtml : ''}
   ${typeHint}
   ${isCash?`
   <div class="form-row" style="margin-bottom:10px">
     <div style="flex:1.5">
       <label class="field-label">💱 Transaction Type *</label>
       <select id="f_txntype" onchange="onTxnTypeChange('${type}')" style="font-size:13px;font-weight:600;border:2px solid var(--primary);background:#f8fbff">
-        <option value="RECEIPT"  ${curTxnType==='RECEIPT' ?'selected':''}>💰 RECEIPT — Cash received from external source</option>
-        <option value="TRANSFER" ${curTxnType==='TRANSFER'?'selected':''}>🔄 TRANSFER — Give cash to another person</option>
-        <option value="EXPENSE"  ${curTxnType==='EXPENSE' ?'selected':''}>💸 EXPENSE — Pay vendor / expense</option>
+        <option value="Income(Inflow)"  ${(curTxnType==='Income(Inflow)'||curTxnType==='RECEIPT')?'selected':''}>💰 RECEIPT — Cash received from external source</option>
+        <option value="Transfer" ${curTxnType==='Transfer'?'selected':''}>🔄 TRANSFER — Give cash to another person</option>
+        <option value="Expense(Outflow)"  ${curTxnType==='Expense(Outflow)'?'selected':''}>💸 EXPENSE — Pay vendor / expense</option>
       </select>
     </div>
     <div style="flex:1;background:#f0f4ff;border-radius:8px;padding:10px 12px;font-size:11px;color:#1a5276;line-height:1.9">
@@ -1342,29 +1517,44 @@ function onTxnTypeChange(type) {
   const txnType = el.value;
   const typeEl  = document.getElementById('f_type');
   const headEl  = document.getElementById('f_head');
+  const catEl   = document.getElementById('f_category');
   const hint    = document.getElementById('txntype_rule');
   const desc    = document.getElementById('txntype_desc');
   const transferRow = document.getElementById('transfer_to_row');
+  const vendorLabel = document.getElementById('vendor_label');
 
-  if (txnType === 'RECEIPT') {
-    if (typeEl) typeEl.value = 'credit';
-    if (headEl && EXPENSE_HEADS.includes(headEl.value)) headEl.value = CASH_INFLOW_HEADS[0];
+  if (txnType === 'Income(Inflow)') {
+    if (typeEl)  typeEl.value = 'credit';
+    if (headEl && !INCOME_HEADS.includes(headEl.value)) headEl.value = INCOME_HEADS[0];
     if (transferRow) transferRow.style.display = 'none';
-    if (hint) hint.textContent = 'Rule 5.1: RECEIPT — From = External source';
-    if (desc) desc.textContent = 'Cash in from donation, sale, bank withdrawal, fees. Admin holds by default.';
-  } else if (txnType === 'TRANSFER') {
-    if (typeEl) typeEl.value = 'debit';
-    if (headEl) headEl.value = 'Petty Cash Transfer';
+    if (hint) hint.textContent = 'Income(Inflow) — Rule: From = External source';
+    if (desc) desc.textContent = 'Cash received: donation, sale, bank withdrawal, fees, etc.';
+    if (vendorLabel) vendorLabel.textContent = 'Received From / Source *';
+  } else if (txnType === 'Transfer') {
+    if (typeEl)  typeEl.value = 'debit';
+    if (headEl)  headEl.value = 'Patty Cash Transfer';
     if (transferRow) transferRow.style.display = '';
-    if (hint) hint.textContent = 'Rule 5.2: TRANSFER — Between people only';
-    if (desc) desc.textContent = 'Cash moving from one person to another. Cannot exceed your cash in hand.';
-  } else if (txnType === 'EXPENSE') {
-    if (typeEl) typeEl.value = 'debit';
-    if (headEl && CASH_INFLOW_HEADS.includes(headEl.value)) headEl.value = EXPENSE_HEADS[0];
+    if (hint) hint.textContent = 'Transfer — Rule: Between people only';
+    if (desc) desc.textContent = 'Cash given to another user. Cannot exceed your cash in hand.';
+    if (vendorLabel) vendorLabel.textContent = 'Transfer To (Person) *';
+  } else if (txnType === 'Expense(Outflow)') {
+    if (typeEl)  typeEl.value = 'debit';
+    if (headEl && !EXPENSE_HEADS.includes(headEl.value)) headEl.value = EXPENSE_HEADS[0];
     if (transferRow) transferRow.style.display = 'none';
-    if (hint) hint.textContent = 'Rule 5.3: EXPENSE — To = Vendor/Payee';
-    if (desc) desc.textContent = 'Cash paid to vendor. Cannot exceed your cash in hand.';
+    if (hint) hint.textContent = 'Expense(Outflow) — Rule: To = Vendor/Payee';
+    if (desc) desc.textContent = 'Cash paid to vendor. Cannot exceed cash in hand.';
+    if (vendorLabel) vendorLabel.textContent = 'Vendor / Paid To *';
   }
+  // Refresh category options
+  refreshCategoryOptions(txnType);
+}
+
+function refreshCategoryOptions(txnType) {
+  const catEl = document.getElementById('f_category');
+  if (!catEl) return;
+  const isIncome = txnType === 'Income(Inflow)';
+  const cats = isIncome ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  catEl.innerHTML = cats.map(c => '<option>' + c + '</option>').join('');
 }
 
 function onTypeChange(type){
@@ -1433,15 +1623,45 @@ function saveEntry(type){
     closeModal();showPage(type);showToast('✅ Entry updated — syncing...');
     pushToSheet('updateEntry',{...list[idx],paytype:type});
   } else {
-    const srno='GHJ/'+(type==='cash'?'C':'B')+'/'+String(list.length+1).padStart(4,'0');
-    const entry={id:genId(),srno,date,type:etype,txnType,transferTo,paytype:type,paidByUser,
-      head,category,amount,desc,vendor,invoiceLink,screenshotLink:'',remarks,status:'pending',
-      createdBy:currentUser.name,createdAt:new Date().toISOString(),approvedBy:'',paymentRef:'',
-      ...(type==='bank'?{bankName:g('f_bank'),accNo:g('f_accno'),chequeRef:g('f_cheque')}:{})};
+    // Use the stub ID/SrNo from Sheet if available, otherwise generate locally
+    const stub = currentStub || {};
+    const entryId   = stub.id        || ('GHJ-LOCAL-' + Date.now());
+    const entrySrno = stub.srno      || ('GHJ/'+(type==='cash'?'C':'B')+'/'+String(list.length+1).padStart(4,'0'));
+    const entryTs   = stub.createdAt || new Date().toISOString();
+    const isLocal   = !stub.id || (stub.id||'').startsWith('GHJ-LOCAL-');
+
+    const entry={
+      id:entryId, srno:entrySrno, date, type:etype, txnType, transferTo,
+      paytype:type, paidByUser, head, category, amount, desc, vendor,
+      invoiceLink, screenshotLink:'', remarks,
+      status:'pending',
+      createdBy: currentUser.name,
+      createdAt: entryTs,
+      approvedBy:'', paymentRef:'',
+      _stubLocal: isLocal,   // flag for sync queue
+      ...(type==='bank'?{bankName:g('f_bank'),accNo:g('f_accno'),chequeRef:g('f_cheque')}:{})
+    };
+
+    // Remove existing entry with same ID if it was a stub placeholder
+    const existingIdx = list.findIndex(e=>e.id===entryId);
+    if(existingIdx>=0) list.splice(existingIdx,1);
     list.push(entry);
-    saveData('ghj_'+type,list);
-    closeModal();showPage(type);showToast('✅ Entry saved — syncing...');
-    pushToSheet('saveEntry',entry);
+    saveData('ghj_'+type, list);
+
+    currentStub = null; // clear after use
+
+    closeModal();
+    showPage(type);
+
+    // If stub was local (offline), add to sync queue
+    if(isLocal){
+      addToSyncQueue(entry);
+      showToast('⚠️ Saved locally (offline). Will sync when connection returns.');
+    } else {
+      // Stub was registered — now update that row with full data
+      showToast('✅ Entry saved — updating Sheet...');
+      pushToSheet('updateEntry', entry);
+    }
   }
 }
 
@@ -1819,41 +2039,73 @@ function renderSettings(){
     <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px">
       Go to your Google Sheet → Extensions → Apps Script → paste this entire code → Save → Deploy as New Version
     </div>
-    <textarea readonly onclick="this.select()" style="width:100%;height:480px;font-family:monospace;font-size:10px;border:1px solid var(--border);border-radius:6px;padding:8px;background:#f8f9fa;resize:vertical">
-// ════════════════════════════════════════════════════════════════
-//  GHJ Expense App — Google Apps Script  (paste entire file)
-//  Sheet tabs created automatically on first use.
-//  Change SHEET_ID and APP_SECRET below, then Deploy as New Version.
-// ════════════════════════════════════════════════════════════════
+    <textarea readonly onclick="this.select()" style="width:100%;height:520px;font-family:monospace;font-size:10px;border:1px solid var(--border);border-radius:6px;padding:8px;background:#f8f9fa;resize:vertical">
+// ════════════════════════════════════════════════════════════════════════
+//  GHJ Expense App — Google Apps Script
+//  1. Go to your Google Sheet → Extensions → Apps Script
+//  2. Delete all existing code, paste this entire file
+//  3. Change SHEET_ID and APP_SECRET below
+//  4. Save → Deploy → New Deployment → Web App
+//     Execute as: Me  |  Who has access: Anyone
+//  5. Copy the Web App URL → paste in app Settings page
+// ════════════════════════════════════════════════════════════════════════
 
-var SHEET_ID   = 'YOUR_GOOGLE_SHEET_ID_HERE';  // ← paste your Sheet ID
-var APP_SECRET = 'Peax@Dida166';               // ← must match APP_CONFIG.appSecret in HTML
+var SHEET_ID   = 'YOUR_GOOGLE_SHEET_ID_HERE';  // ← Your Google Sheet ID
+var APP_SECRET = 'Peax@Dida166';               // ← Same as APP_CONFIG.appSecret in HTML
 
-// ── Google Sheet Structure ────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════
+//  SHEET STRUCTURE — DO NOT CHANGE COLUMN ORDER
+// ════════════════════════════════════════════════════════════════════════
 //
-//  Tab: CashEntries   (all physical cash transactions)
-//  Col: A:ID  B:SrNo  C:Date  D:TxnType  E:Head  F:Category
-//       G:Type(debit/credit)  H:Amount  I:Description  J:Vendor
-//       K:PaidByUser  L:TransferTo  M:InvoiceLink  N:ScreenshotLink
-//       O:Status  P:CreatedBy  Q:ApprovedBy  R:PaymentRef  S:Remarks
-//       T:CreatedAt  U:UpdatedBy  V:UpdatedAt
+//  Tab: CashEntries
+//  A: ID(Auto)          B: TimeStamp(Auto)    C: CreatedBy
+//  D: EntryType         E: SrNo               F: Date
+//  G: Head              H: Category           I: ReceivedBy/VendorName
+//  J: Amount            K: Description        L: InvoiceLink
+//  M: ScreenShot        N: Status             O: ApprovedBy
+//  P: PaymentRef        Q: Remarks            R: Type
 //
-//  Tab: BankEntries   (all bank account transactions)
-//  Col: A:ID  B:SrNo  C:Date  D:Head  E:Category
-//       F:Type(debit/credit)  G:Amount  H:Description  I:Vendor
-//       J:BankName  K:AccountNo  L:ChequeRef  M:InvoiceLink  N:ScreenshotLink
-//       O:Status  P:CreatedBy  Q:ApprovedBy  R:PaymentRef  S:Remarks
-//       T:CreatedAt  U:UpdatedBy  V:UpdatedAt
+//  Tab: BankEntries
+//  A: ID                B: SrNo               C: Date
+//  D: Head              E: Category           F: Type(debit/credit)
+//  G: Amount            H: Description        I: Vendor
+//  J: InvoiceLink       K: ScreenShot         L: Status
+//  M: CreatedBy         N: ApprovedBy         O: PaymentRef
+//  P: Remarks           Q: BankName           R: AccountNo
+//  S: ChequeRef         T: PayType
 //
-//  Tab: CashMgmt      (cash allocation register)
-//  Col: A:ID  B:Date  C:ToUser  D:FromUser  E:Amount  F:Purpose
-//       G:Status  H:Remarks  I:CreatedAt  J:SettledAt
+//  Tab: CashMgmt  (summary — auto-computed, not appended)
+//  Row 1: Headers: [User, Opening, Income(Inflow), Transfer, Expense(Outflow), Net Balance]
+//  Rows 2+: one row per user — values computed from CashEntries
 //
-//  Tab: Users         (user accounts)
-//  Col: A:Name  B:Email  C:Password  D:Role
+//  Tab: Users
+//  A: Name              B: Email              C: Password           D: Role
 //
-// ─────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════════════
 
+var CASH_HEADERS = [
+  'ID (Auto)','TimeStamp (Auto)','CreatedBy',
+  'EntryType','SrNo','Date','Head','Category',
+  'ReceivedBy/VendorName','Amount','Description',
+  'InvoiceLink','ScreenShot','Status',
+  'ApprovedBy','PaymentRef','Remarks','Type'
+];
+
+var BANK_HEADERS = [
+  'ID','SrNo','Date','Head','Category',
+  'Type','Amount','Description','Vendor',
+  'InvoiceLink','ScreenShot','Status',
+  'CreatedBy','ApprovedBy','PaymentRef','Remarks',
+  'BankName','AccountNo','ChequeRef','PayType'
+];
+
+var CASHMGMT_HEADERS = [
+  'LoginUserName','Opening','Income(Inflow)','Transfer','Expense(Outflow)','Net Balance'
+];
+
+var USER_HEADERS = ['Name','Email','Password','Role'];
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 function corsResponse(data) {
   return ContentService
     .createTextOutput(JSON.stringify(data))
@@ -1865,45 +2117,72 @@ function getOrCreateTab(ss, name, headers) {
   if (!tab) {
     tab = ss.insertSheet(name);
     tab.appendRow(headers);
-    tab.getRange(1, 1, 1, headers.length)
-       .setFontWeight('bold')
-       .setBackground('#1a3a5c')
-       .setFontColor('#ffffff');
+    var hdrRange = tab.getRange(1, 1, 1, headers.length);
+    hdrRange.setFontWeight('bold')
+            .setBackground('#1a3a5c')
+            .setFontColor('#ffffff');
     tab.setFrozenRows(1);
   }
   return tab;
 }
 
-// ── CASH ENTRIES HEADERS ──────────────────────────────────────────
-var CASH_HEADERS = [
-  'ID','SrNo','Date','TxnType','Head','Category',
-  'Type','Amount','Description','Vendor',
-  'PaidByUser','TransferTo','InvoiceLink','ScreenshotLink',
-  'Status','CreatedBy','ApprovedBy','PaymentRef','Remarks',
-  'CreatedAt','UpdatedBy','UpdatedAt'
-];
+// ── Rebuild CashMgmt summary from CashEntries ─────────────────────────────────
+function rebuildCashMgmt(ss) {
+  var ctab = ss.getSheetByName('CashEntries');
+  if (!ctab || ctab.getLastRow() < 2) return;
 
-// ── BANK ENTRIES HEADERS ──────────────────────────────────────────
-var BANK_HEADERS = [
-  'ID','SrNo','Date','Head','Category',
-  'Type','Amount','Description','Vendor',
-  'BankName','AccountNo','ChequeRef','InvoiceLink','ScreenshotLink',
-  'Status','CreatedBy','ApprovedBy','PaymentRef','Remarks',
-  'CreatedAt','UpdatedBy','UpdatedAt'
-];
+  var rows = ctab.getDataRange().getValues();
+  var hdr  = rows[0].map(function(h){ return String(h).trim(); });
+  var col  = function(name){ return hdr.indexOf(name); };
 
-// ── CASH MGMT (ALLOCATIONS) HEADERS ──────────────────────────────
-var ALLOC_HEADERS = [
-  'ID','Date','ToUser','FromUser','Amount','Purpose',
-  'Status','Remarks','CreatedAt','SettledAt'
-];
+  // Per-user summary
+  var summary = {}; // { userName: { income:0, transfer_in:0, transfer_out:0, expense:0 } }
+  var init = function(u){ if(!summary[u]) summary[u]={income:0,transfer_in:0,transfer_out:0,expense:0}; };
 
-// ── USERS HEADERS ─────────────────────────────────────────────────
-var USER_HEADERS = ['Name','Email','Password','Role'];
+  for (var i = 1; i < rows.length; i++) {
+    var r      = rows[i];
+    var holder = String(r[col('CreatedBy')]  || '').trim();
+    var etype  = String(r[col('EntryType')]  || '').trim();
+    var amt    = parseFloat(r[col('Amount')] || 0);
+    var vendor = String(r[col('ReceivedBy/VendorName')] || '').trim();
 
-// ═══════════════════════════════════════════════════════════════════
-//  doPost — handles all write operations
-// ═══════════════════════════════════════════════════════════════════
+    if (!holder || !amt) continue;
+    init(holder);
+
+    if (etype === 'Income(Inflow)') {
+      summary[holder].income += amt;
+    } else if (etype === 'Transfer') {
+      // Transfer OUT from holder, Transfer IN to vendor (recipient)
+      summary[holder].transfer_out += amt;
+      init(vendor);
+      summary[vendor].transfer_in += amt;
+    } else if (etype === 'Expense(Outflow)') {
+      summary[holder].expense += amt;
+    }
+  }
+
+  // Write to CashMgmt tab — clear and rewrite
+  var mtab = getOrCreateTab(ss, 'CashMgmt', ['Total Cash Holding Status','Opening','Income(Inflow)','Transfer','Expense(Outflow)','Net Balance']);
+  // Clear data rows (keep header)
+  if (mtab.getLastRow() > 1) {
+    mtab.getRange(2, 1, mtab.getLastRow() - 1, 6).clearContent();
+  }
+
+  // Write Admin section header
+  mtab.appendRow(['Admin Cash Summary','Opening','Income(Inflow)','Transfer Out','Expense(Outflow)','Net Balance']);
+
+  // Write per-user rows
+  mtab.appendRow(['LoginUserName','Opening','Income(Inflow) Received','Transfer In','Expense(Outflow)','Closing Balance']);
+  Object.keys(summary).forEach(function(u) {
+    var s = summary[u];
+    var net = 0 + s.income + s.transfer_in - s.transfer_out - s.expense;
+    mtab.appendRow([u, 0, s.income, s.transfer_in, s.expense, net]);
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  doPost — write operations
+// ════════════════════════════════════════════════════════════════════════
 function doPost(e) {
   try {
     if (!e || !e.postData || !e.postData.contents)
@@ -1911,140 +2190,164 @@ function doPost(e) {
 
     var p;
     try { p = JSON.parse(e.postData.contents); }
-    catch(ex) { return corsResponse({status:'error', error:'Invalid JSON: '+ex.message}); }
+    catch(ex) { return corsResponse({status:'error', error:'Bad JSON: '+ex.message}); }
 
-    // Security check
     if (APP_SECRET && p._secret !== APP_SECRET)
       return corsResponse({status:'error', error:'Unauthorized'});
 
     var ss = SpreadsheetApp.openById(SHEET_ID);
 
-    // ── 1. Save / Update Cash Entry ───────────────────────────────
+    // ── CREATE row stub first (the "auto-ID" pattern) ────────────────
+    // Client calls action='createStub' FIRST to get a pre-registered row.
+    // Then fills in the form and calls saveEntry to update that row.
+    if (p.action === 'createStub') {
+      var isBankEntry = (p.paytype === 'bank');
+      var stubTab = isBankEntry
+        ? getOrCreateTab(ss, 'BankEntries', BANK_HEADERS)
+        : getOrCreateTab(ss, 'CashEntries', CASH_HEADERS);
+
+      var ts   = new Date().toISOString();
+      var uid  = 'GHJ-' + Date.now() + '-' + Math.floor(Math.random()*9999);
+      // SrNo = count of existing data rows + 1
+      var rowCount = Math.max(stubTab.getLastRow() - 1, 0); // minus header
+      var srno = 'GHJ/' + (isBankEntry?'B':'C') + '/' + ('000' + (rowCount+1)).slice(-4);
+
+      if (isBankEntry) {
+        // BankEntries: A:ID B:SrNo C:Date D:Head E:Category F:Type G:Amount
+        //              H:Description I:Vendor J:InvoiceLink K:ScreenShot
+        //              L:Status M:CreatedBy ... (rest blank)
+        var stubRowB = [uid, srno, '', '', '', 'debit', 0, '', '', '', '', 'stub',
+                        p.createdBy||'', '', '', '', '', '', '', 'bank'];
+        while(stubRowB.length < BANK_HEADERS.length) stubRowB.push('');
+        stubTab.appendRow(stubRowB);
+      } else {
+        // CashEntries: A:ID(Auto) B:TimeStamp(Auto) C:CreatedBy D:EntryType
+        //              E:SrNo F:Date G:Head H:Category I:ReceivedBy/VendorName
+        //              J:Amount K:Description L:InvoiceLink M:ScreenShot
+        //              N:Status O:ApprovedBy P:PaymentRef Q:Remarks R:Type
+        var stubRowC = [uid, ts, p.createdBy||'', '', srno, '', '', '', '',
+                        0, '', '', '', 'stub', '', '', '', 'cash'];
+        while(stubRowC.length < CASH_HEADERS.length) stubRowC.push('');
+        stubTab.appendRow(stubRowC);
+      }
+
+      // Format the new stub row
+      var newRowNum = stubTab.getLastRow();
+      stubTab.getRange(newRowNum, 1).setBackground('#fff8e1'); // yellow = stub
+
+      return corsResponse({status:'ok', id:uid, srno:srno, timestamp:ts});
+    }
+
+    // ── Save/Update Cash Entry ───────────────────────────────────────
     if (p.action === 'saveEntry' || p.action === 'updateEntry') {
 
       if (p.paytype === 'bank') {
-        // ── BANK ENTRY ────────────────────────────────────────────
         var btab = getOrCreateTab(ss, 'BankEntries', BANK_HEADERS);
         var brows = btab.getDataRange().getValues();
         var bfound = -1;
         for (var bi = 1; bi < brows.length; bi++) {
           if (String(brows[bi][0]) === String(p.id)) { bfound = bi; break; }
         }
+        // BankEntries: A:ID B:SrNo C:Date D:Head E:Category F:Type G:Amount
+        //              H:Description I:Vendor J:InvoiceLink K:ScreenShot L:Status
+        //              M:CreatedBy N:ApprovedBy O:PaymentRef P:Remarks
+        //              Q:BankName R:AccountNo S:ChequeRef T:PayType
         var brow = [
-          p.id||'',            // A: ID
-          p.srno||'',          // B: SrNo
-          p.date||'',          // C: Date
-          p.head||'',          // D: Head
-          p.category||'',      // E: Category
-          p.type||'debit',     // F: Type (debit/credit)
-          Number(p.amount)||0, // G: Amount
-          p.desc||'',          // H: Description
-          p.vendor||'',        // I: Vendor
-          p.bankName||'',      // J: BankName
-          p.accNo||'',         // K: AccountNo
-          p.chequeRef||'',     // L: ChequeRef
-          p.invoiceLink||'',   // M: InvoiceLink
-          p.screenshotLink||'',// N: ScreenshotLink
-          p.status||'pending', // O: Status
-          p.createdBy||'',     // P: CreatedBy
-          p.approvedBy||'',    // Q: ApprovedBy
-          p.paymentRef||'',    // R: PaymentRef
-          p.remarks||'',       // S: Remarks
-          p.createdAt||'',     // T: CreatedAt
-          p.updatedBy||'',     // U: UpdatedBy
-          p.updatedAt||''      // V: UpdatedAt
+          p.id||'',              // A: ID
+          p.srno||'',            // B: SrNo
+          p.date||'',            // C: Date
+          p.head||'',            // D: Head
+          p.category||'',        // E: Category
+          p.type||'debit',       // F: Type
+          Number(p.amount)||0,   // G: Amount
+          p.desc||'',            // H: Description
+          p.vendor||'',          // I: Vendor
+          p.invoiceLink||'',     // J: InvoiceLink
+          p.screenshotLink||'',  // K: ScreenShot
+          p.status||'pending',   // L: Status
+          p.createdBy||'',       // M: CreatedBy
+          p.approvedBy||'',      // N: ApprovedBy
+          p.paymentRef||'',      // O: PaymentRef
+          p.remarks||'',         // P: Remarks
+          p.bankName||'',        // Q: BankName
+          p.accNo||'',           // R: AccountNo
+          p.chequeRef||'',       // S: ChequeRef
+          p.paytype||'bank'      // T: PayType
         ];
         if (bfound >= 1) btab.getRange(bfound+1,1,1,brow.length).setValues([brow]);
         else btab.appendRow(brow);
 
       } else {
-        // ── CASH ENTRY ────────────────────────────────────────────
         var ctab = getOrCreateTab(ss, 'CashEntries', CASH_HEADERS);
         var crows = ctab.getDataRange().getValues();
         var cfound = -1;
         for (var ci = 1; ci < crows.length; ci++) {
           if (String(crows[ci][0]) === String(p.id)) { cfound = ci; break; }
         }
+        // CashEntries: A:ID(Auto) B:TimeStamp(Auto) C:CreatedBy D:EntryType
+        //              E:SrNo F:Date G:Head H:Category I:ReceivedBy/VendorName
+        //              J:Amount K:Description L:InvoiceLink M:ScreenShot
+        //              N:Status O:ApprovedBy P:PaymentRef Q:Remarks R:Type
         var crow = [
-          p.id||'',            // A: ID
-          p.srno||'',          // B: SrNo
-          p.date||'',          // C: Date
-          p.txnType||'',       // D: TxnType (RECEIPT/TRANSFER/EXPENSE)
-          p.head||'',          // E: Head
-          p.category||'',      // F: Category
-          p.type||'debit',     // G: Type (debit/credit)
-          Number(p.amount)||0, // H: Amount
-          p.desc||'',          // I: Description
-          p.vendor||'',        // J: Vendor
-          p.paidByUser||'',    // K: PaidByUser (who held the cash)
-          p.transferTo||'',    // L: TransferTo (for TRANSFER txns)
-          p.invoiceLink||'',   // M: InvoiceLink
-          p.screenshotLink||'',// N: ScreenshotLink
-          p.status||'pending', // O: Status
-          p.createdBy||'',     // P: CreatedBy
-          p.approvedBy||'',    // Q: ApprovedBy
-          p.paymentRef||'',    // R: PaymentRef
-          p.remarks||'',       // S: Remarks
-          p.createdAt||'',     // T: CreatedAt
-          p.updatedBy||'',     // U: UpdatedBy
-          p.updatedAt||''      // V: UpdatedAt
+          p.id||'',              // A: ID (Auto)
+          p.createdAt||new Date().toISOString(), // B: TimeStamp (Auto)
+          p.createdBy||'',       // C: CreatedBy (login user)
+          p.txnType||'',         // D: EntryType (Income(Inflow)/Transfer/Expense(Outflow))
+          p.srno||'',            // E: SrNo
+          p.date||'',            // F: Date
+          p.head||'',            // G: Head
+          p.category||'',        // H: Category
+          p.vendor||'',          // I: ReceivedBy/VendorName
+          Number(p.amount)||0,   // J: Amount
+          p.desc||'',            // K: Description
+          p.invoiceLink||'',     // L: InvoiceLink
+          p.screenshotLink||'',  // M: ScreenShot
+          p.status||'pending',   // N: Status
+          p.approvedBy||'',      // O: ApprovedBy
+          p.paymentRef||'',      // P: PaymentRef
+          p.remarks||'',         // Q: Remarks
+          'cash'                 // R: Type
         ];
-        if (cfound >= 1) ctab.getRange(cfound+1,1,1,crow.length).setValues([crow]);
-        else ctab.appendRow(crow);
+        if (cfound >= 1) {
+          ctab.getRange(cfound+1,1,1,crow.length).setValues([crow]);
+          // Clear stub yellow background now that row is filled
+          ctab.getRange(cfound+1,1,1,crow.length).setBackground(null);
+        } else {
+          ctab.appendRow(crow);
+        }
+
+        // Rebuild CashMgmt summary after every cash write
+        rebuildCashMgmt(ss);
       }
       return corsResponse({status:'ok'});
     }
 
-    // ── 2. Update Status only ─────────────────────────────────────
+    // ── Update Status only ───────────────────────────────────────────
     if (p.action === 'updateStatus') {
       var tabName = p.paytype==='bank' ? 'BankEntries' : 'CashEntries';
       var stab = ss.getSheetByName(tabName);
-      if (!stab) return corsResponse({status:'error', error:'Tab not found: '+tabName});
+      if (!stab) return corsResponse({status:'error', error:'Tab not found'});
       var srows = stab.getDataRange().getValues();
       for (var si = 1; si < srows.length; si++) {
         if (String(srows[si][0]) === String(p.id)) {
           if (p.paytype === 'bank') {
-            // Bank: Status=O(15), ApprovedBy=Q(17), PaymentRef=R(18), Screenshot=N(14)
-            if (p.status)        stab.getRange(si+1,15).setValue(p.status);
-            if (p.approvedBy)    stab.getRange(si+1,17).setValue(p.approvedBy);
-            if (p.paymentRef)    stab.getRange(si+1,18).setValue(p.paymentRef);
-            if (p.screenshotLink)stab.getRange(si+1,14).setValue(p.screenshotLink);
+            // Bank: Status=L(12), ApprovedBy=N(14), PaymentRef=O(15), Screenshot=K(11)
+            if (p.status)         stab.getRange(si+1,12).setValue(p.status);
+            if (p.approvedBy)     stab.getRange(si+1,14).setValue(p.approvedBy);
+            if (p.paymentRef)     stab.getRange(si+1,15).setValue(p.paymentRef);
+            if (p.screenshotLink) stab.getRange(si+1,11).setValue(p.screenshotLink);
           } else {
-            // Cash: Status=O(15), ApprovedBy=Q(17), PaymentRef=R(18), Screenshot=N(14)
-            if (p.status)        stab.getRange(si+1,15).setValue(p.status);
-            if (p.approvedBy)    stab.getRange(si+1,17).setValue(p.approvedBy);
-            if (p.paymentRef)    stab.getRange(si+1,18).setValue(p.paymentRef);
-            if (p.screenshotLink)stab.getRange(si+1,14).setValue(p.screenshotLink);
+            // Cash: Status=N(14), ApprovedBy=O(15), PaymentRef=P(16), Screenshot=M(13)
+            if (p.status)         stab.getRange(si+1,14).setValue(p.status);
+            if (p.approvedBy)     stab.getRange(si+1,15).setValue(p.approvedBy);
+            if (p.paymentRef)     stab.getRange(si+1,16).setValue(p.paymentRef);
+            if (p.screenshotLink) stab.getRange(si+1,13).setValue(p.screenshotLink);
           }
+          if (p.paytype !== 'bank') rebuildCashMgmt(ss);
           return corsResponse({status:'ok'});
         }
       }
-      return corsResponse({status:'error', error:'ID not found: '+p.id});
-    }
-
-    // ── 3. Save / Update Cash Allocation ─────────────────────────
-    if (p.action === 'saveAllocation') {
-      var atab = getOrCreateTab(ss, 'CashMgmt', ALLOC_HEADERS);
-      var arows = atab.getDataRange().getValues();
-      var afound = -1;
-      for (var ai = 1; ai < arows.length; ai++) {
-        if (String(arows[ai][0]) === String(p.id)) { afound = ai; break; }
-      }
-      var arow = [
-        p.id||'',         // A: ID
-        p.date||'',       // B: Date
-        p.toUser||'',     // C: ToUser
-        p.fromUser||'',   // D: FromUser
-        Number(p.amount)||0, // E: Amount
-        p.purpose||'',    // F: Purpose
-        p.status||'active',  // G: Status
-        p.remarks||'',    // H: Remarks
-        p.createdAt||'',  // I: CreatedAt
-        p.settledAt||''   // J: SettledAt
-      ];
-      if (afound >= 1) atab.getRange(afound+1,1,1,arow.length).setValues([arow]);
-      else atab.appendRow(arow);
-      return corsResponse({status:'ok'});
+      return corsResponse({status:'error', error:'ID not found'});
     }
 
     return corsResponse({status:'error', error:'Unknown action: '+p.action});
@@ -2054,9 +2357,9 @@ function doPost(e) {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-//  doGet — handles all read operations
-// ═══════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════
+//  doGet — read operations
+// ════════════════════════════════════════════════════════════════════════
 function doGet(e) {
   try {
     var secret = (e && e.parameter && e.parameter.secret) ? e.parameter.secret : '';
@@ -2065,28 +2368,16 @@ function doGet(e) {
 
     var type = (e && e.parameter && e.parameter.type) ? e.parameter.type : 'cash';
     var ss   = SpreadsheetApp.openById(SHEET_ID);
+    var tab;
 
-    if (type === 'cash') {
-      var tab = ss.getSheetByName('CashEntries');
-      if (!tab || tab.getLastRow() < 2) return corsResponse([]);
-      return corsResponse(tab.getDataRange().getValues());
-    }
-    if (type === 'bank') {
-      var tab2 = ss.getSheetByName('BankEntries');
-      if (!tab2 || tab2.getLastRow() < 2) return corsResponse([]);
-      return corsResponse(tab2.getDataRange().getValues());
-    }
-    if (type === 'cashalloc') {
-      var tab3 = ss.getSheetByName('CashMgmt');
-      if (!tab3 || tab3.getLastRow() < 2) return corsResponse([]);
-      return corsResponse(tab3.getDataRange().getValues());
-    }
-    if (type === 'users') {
-      var tab4 = ss.getSheetByName('Users');
-      if (!tab4 || tab4.getLastRow() < 2) return corsResponse([]);
-      return corsResponse(tab4.getDataRange().getValues());
-    }
-    return corsResponse({status:'error', error:'Unknown type: '+type});
+    if      (type === 'cash')      tab = ss.getSheetByName('CashEntries');
+    else if (type === 'bank')      tab = ss.getSheetByName('BankEntries');
+    else if (type === 'cashalloc') tab = ss.getSheetByName('CashMgmt');
+    else if (type === 'users')     tab = ss.getSheetByName('Users');
+    else return corsResponse({status:'error', error:'Unknown type: '+type});
+
+    if (!tab || tab.getLastRow() < 2) return corsResponse([]);
+    return corsResponse(tab.getDataRange().getValues());
 
   } catch(err) {
     return corsResponse({status:'error', error:err.message});
