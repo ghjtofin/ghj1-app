@@ -1220,7 +1220,7 @@ function renderLedger(type){
     </td>
     <td>
       ${(currentUser.role==='admin'||(currentUser.role==='creator'&&(e.createdBy===myName)))&&e.status==='pending'?`<button class="btn btn-outline btn-sm" onclick="editEntry('${type}','${e.id}')">Edit</button> `:''}
-      ${e.status==='approved'&&(currentUser.role==='admin'||currentUser.role==='approver')?`<button class="btn-pay btn-sm" onclick="openPayModal('${type}','${e.id}')">Pay</button> `:''}
+      ${e.status==='approved'&&(currentUser.role==='admin'||currentUser.role==='approver')&&needsPaymentRelease(e)?`<button class="btn-pay btn-sm" onclick="openPayModal('${type}','${e.id}')">💳 Pay</button> `:''}
       ${currentUser.role==='admin'&&e.status!=='paid'&&e.status!=='voided'?`<button class="btn btn-sm" style="background:#fee;color:#c0392b;border:1px solid #f5c6cb" onclick="voidEntry('${type}','${e.id}')">✕ Void</button>`:''}
     </td>
   </tr>`).join('');
@@ -1290,7 +1290,7 @@ function filterTable(type){
     <td><span class="badge badge-${e.status}">${e.status==='voided'?'VOID':e.status.toUpperCase()}</span>${q.find(x=>x.id===e.id)?'<span style="font-size:9px;background:#e67e22;color:#fff;border-radius:8px;padding:2px 5px;margin-left:3px">⚡</span>':''}</td>
     <td>
       ${(currentUser.role==='admin'||(currentUser.role==='creator'&&e.createdBy===currentUser.name))&&e.status==='pending'?`<button class="btn btn-outline btn-sm" onclick="editEntry('${type}','${e.id}')">Edit</button> `:''}
-      ${e.status==='approved'&&(currentUser.role==='admin'||currentUser.role==='approver')?`<button class="btn-pay btn-sm" onclick="openPayModal('${type}','${e.id}')">Pay</button> `:''}
+      ${e.status==='approved'&&(currentUser.role==='admin'||currentUser.role==='approver')&&needsPaymentRelease(e)?`<button class="btn-pay btn-sm" onclick="openPayModal('${type}','${e.id}')">💳 Pay</button> `:''}
       ${currentUser.role==='admin'&&e.status!=='paid'&&e.status!=='voided'?`<button class="btn btn-sm" style="background:#fee;color:#c0392b;border:1px solid #f5c6cb" onclick="voidEntry('${type}','${e.id}')">✕</button>`:''}
     </td>
   </tr>`).join('');
@@ -1779,15 +1779,56 @@ function renderApprovals(){
   </div>`;
 }
 
+// ── Payment release logic ─────────────────────────────────────────────────────
+// Only EXPENSE (Outflow) cash entries and ALL bank entries need payment release.
+// INCOME entries: money already received — approve just confirms the receipt.
+// TRANSFER entries: cash already physically handed over — approve just confirms.
+function needsPaymentRelease(e) {
+  if (!e) return false;
+  if (e.paytype === 'bank') return true;
+  const txn = e.txnType || '';
+  if (txn === 'Income(Inflow)')   return false;
+  if (txn === 'Transfer')         return false;
+  if (txn === 'Expense(Outflow)') return true;
+  return e.type === 'debit'; // fallback
+}
+
 function changeStatus(type,id,status){
   const d=getData(),list=d[type];
   const idx=list.findIndex(e=>e.id===id);if(idx<0)return;
-  list[idx].status=status;
-  list[idx].approvedBy=currentUser.name;
-  list[idx].approvedAt=new Date().toISOString();
-  saveData('ghj_'+type,list);
-  pushToSheet('updateStatus',{...list[idx],paytype:type});
-  showToast(status==='approved'?'✅ Approved!':'❌ Rejected.');
+  const entry=list[idx];
+
+  if(status==='approved'){
+    // Income and Transfer: auto-mark as paid on approval — no payment release needed
+    if(!needsPaymentRelease(entry)){
+      list[idx].status='paid';
+      list[idx].approvedBy=currentUser.name;
+      list[idx].approvedAt=new Date().toISOString();
+      list[idx].paymentRef='Confirmed on approval';
+      list[idx].paidAt=new Date().toISOString();
+      saveData('ghj_'+type,list);
+      pushToSheet('updateStatus',{...list[idx],paytype:type});
+      const msg = (entry.txnType==='Income(Inflow)')
+        ? '✅ Receipt confirmed! Income recorded in '+  (entry.paidByUser||'your')+' account.'
+        : '✅ Transfer confirmed! No payment release needed.';
+      showToast(msg, 4000);
+    } else {
+      // Expense / Bank: goes to Payment Releases next
+      list[idx].status='approved';
+      list[idx].approvedBy=currentUser.name;
+      list[idx].approvedAt=new Date().toISOString();
+      saveData('ghj_'+type,list);
+      pushToSheet('updateStatus',{...list[idx],paytype:type});
+      showToast('✅ Approved! Go to Payment Releases to pay the vendor.', 4000);
+    }
+  } else {
+    list[idx].status='rejected';
+    list[idx].approvedBy=currentUser.name;
+    list[idx].approvedAt=new Date().toISOString();
+    saveData('ghj_'+type,list);
+    pushToSheet('updateStatus',{...list[idx],paytype:type});
+    showToast('❌ Entry rejected.');
+  }
   showPage('approvals');
 }
 
@@ -1811,8 +1852,8 @@ function voidEntry(type,id){
 // ══════════════════════════════════════════════════════════
 function renderPayments(){
   const d=getData();
-  const approved=[...d.cash.map(e=>({...e,paytype:'cash'})),...d.bank.map(e=>({...e,paytype:'bank'}))].filter(e=>e.status==='approved');
-  const paid=[...d.cash.map(e=>({...e,paytype:'cash'})),...d.bank.map(e=>({...e,paytype:'bank'}))].filter(e=>e.status==='paid');
+  const approved=[...d.cash.map(e=>({...e,paytype:'cash'})),...d.bank.map(e=>({...e,paytype:'bank'}))].filter(e=>e.status==='approved'&&needsPaymentRelease(e));
+  const paid=[...d.cash.map(e=>({...e,paytype:'cash'})),...d.bank.map(e=>({...e,paytype:'bank'}))].filter(e=>e.status==='paid'&&needsPaymentRelease(e));
   const canPay=currentUser.role==='admin'||currentUser.role==='approver';
   return`
   <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:16px">💳 Payment Releases</div>
