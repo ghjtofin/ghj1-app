@@ -285,104 +285,116 @@ function genId(){ return 'GHJ-'+Date.now()+'-'+Math.floor(Math.random()*9999); }
 //  5.4 EXPENSE or TRANSFER cannot exceed cash in hand of the sender
 // ══════════════════════════════════════════════════════════
 
+// ══════════════════════════════════════════════════════════
+//  CASH HOLDINGS — Simple, Unambiguous Rules
+//
+//  RULE: The LOGIN USER who created the entry is the HOLDER.
+//  No "Admin" special case. No paidByUser complexity.
+//
+//  Income(Inflow)  → createdBy gets the cash        (+balance)
+//  Expense(Outflow)→ createdBy loses the cash        (-balance)
+//  Transfer        → createdBy sends, transferTo receives
+//                    createdBy -balance, transferTo +balance
+//  Cash Allotment  → fromUser sends, toUser receives
+//                    (same as Transfer — fromUser -balance, toUser +balance)
+//
+//  Holdings list is ALWAYS limited to known USERS only — no unknowns.
+// ══════════════════════════════════════════════════════════
+
 function computeCashHoldings() {
   const d    = getData();
   const cash = d.cash.filter(e => e.status !== 'voided');
 
-  // Build per-person running balance from cash entries only
-  // Each entry has: holder (who has the cash), txnType, amount, transferTo (for TRANSFER)
-  const balances = {}; // { personName -> { receipts, transferIn, transferOut, expenses, balance } }
+  // Initialise balances for ALL known users only
+  const balances = {};
+  USERS.forEach(u => {
+    balances[u.name] = { receipts:0, transferIn:0, transferOut:0, expenses:0, balance:0 };
+  });
 
-  const initPerson = name => {
-    if (!balances[name]) balances[name] = { receipts:0, transferIn:0, transferOut:0, expenses:0, balance:0 };
-  };
-
-  // Seed all known users
-  USERS.forEach(u => initPerson(u.name));
+  const validUser = name => name && balances.hasOwnProperty(name);
 
   cash.forEach(e => {
-    // paidByUser = who physically holds the cash for this entry
-    // For Income: login user who collected it (paidByUser set on save)
-    // For Expense: who paid from their cash
-    // For Transfer: the sender (receiver is in transferTo)
-    // Fallback to createdBy, then to Admin
-    const holder = (e.paidByUser && e.paidByUser.trim())
-      ? e.paidByUser.trim()
-      : (e.createdBy && e.createdBy.trim() ? e.createdBy.trim() : 'Admin');
-    const amt    = Number(e.amount) || 0;
-    // EntryType values from Excel: Income(Inflow) | Transfer | Expense(Outflow)
-    const txn = e.txnType || (e.type === 'credit' ? 'Income(Inflow)' : 'Expense(Outflow)');
+    // RULE: holder is ALWAYS the login user who created the entry
+    // Use createdBy as the source of truth — it is set to currentUser.name on save
+    const holder = (e.createdBy && e.createdBy.trim()) ? e.createdBy.trim() : null;
+    if (!holder || !validUser(holder)) return; // skip entries with unknown creator
 
-    initPerson(holder);
+    const amt = Number(e.amount) || 0;
+    if (!amt) return;
 
-    if (txn === 'Income(Inflow)' || txn === 'RECEIPT') {
+    const txn = e.txnType
+      || (e.type === 'credit' ? 'Income(Inflow)' : 'Expense(Outflow)');
+
+    if (txn === 'Income(Inflow)') {
+      // Cash received from external → goes to the person who recorded it
       balances[holder].receipts += amt;
       balances[holder].balance  += amt;
-    } else if (txn === 'Expense(Outflow)' || txn === 'EXPENSE') {
+
+    } else if (txn === 'Expense(Outflow)') {
+      // Cash paid to vendor → deducted from the person who paid it
       balances[holder].expenses += amt;
       balances[holder].balance  -= amt;
-    } else if (txn === 'Transfer' || txn === 'TRANSFER') {
-      // vendor field = ReceivedBy/VendorName = the person receiving the transfer
-      const receiver = e.transferTo || e.vendor || '';
-      initPerson(receiver);
-      balances[holder].transferOut += amt;
-      balances[holder].balance     -= amt;
-      if (receiver) {
-        balances[receiver].transferIn += amt;
-        balances[receiver].balance    += amt;
+
+    } else if (txn === 'Transfer') {
+      // Cash moved to another person — transferTo must be a valid known user
+      const receiver = (e.transferTo || '').trim();
+      if (!validUser(receiver)) {
+        // transferTo is invalid/unknown — treat as expense (cash left system)
+        balances[holder].expenses += amt;
+        balances[holder].balance  -= amt;
+      } else {
+        balances[holder].transferOut += amt;
+        balances[holder].balance     -= amt;
+        balances[receiver].transferIn+= amt;
+        balances[receiver].balance   += amt;
       }
     }
   });
 
-  // Also apply allocations (CashMgmt register) as TRANSFER from Admin
+  // Apply Cash Allotments (CashMgmt register) as transfers
+  // fromUser sends → toUser receives. Both must be valid known users.
   const allc = getCashAllocations();
-  allc.filter(a => a.status !== 'cancelled').forEach(a => {
-    const from = a.fromUser || 'Admin';
-    const to   = a.toUser   || '';
+  allc.filter(a => a.status === 'active' || a.status === 'open').forEach(a => {
+    const from = (a.fromUser || '').trim();
+    const to   = (a.toUser   || '').trim();
     const amt  = Number(a.amount) || 0;
-    initPerson(from);
-    initPerson(to);
-    // Check if there's already a TRANSFER cash entry for this allocation (avoid double-count)
-    const linked = cash.find(e => e.allocationId === a.id || e.paymentRef === a.id);
-    if (!linked) {
-      // Allocation not yet reflected in cash entries — apply it
-      balances[from].transferOut += amt;
-      balances[from].balance     -= amt;
-      if (to) {
-        balances[to].transferIn  += amt;
-        balances[to].balance     += amt;
-      }
-    }
+    if (!amt || !validUser(from) || !validUser(to)) return;
+
+    // Avoid double-counting: skip if there's already a Transfer cash entry with this alloc ID
+    const alreadyLinked = cash.some(e =>
+      e.txnType === 'Transfer' &&
+      (e.paymentRef === a.id || e.allocationId === a.id)
+    );
+    if (alreadyLinked) return;
+
+    balances[from].transferOut += amt;
+    balances[from].balance     -= amt;
+    balances[to].transferIn    += amt;
+    balances[to].balance       += amt;
   });
 
-  // Build holdings map (same shape as before for backward compat)
+  // Build the final holdings object — only known users, no unknowns
   const holdings = {};
-  Object.entries(balances).forEach(([name, b]) => {
-    const u = USERS.find(u => u.name === name);
-    holdings[name] = {
-      allocated: b.receipts + b.transferIn,
-      spent:     b.expenses + b.transferOut,
-      balance:   b.balance,
-      receipts:  b.receipts,
-      transferIn: b.transferIn,
+  USERS.forEach(u => {
+    const b = balances[u.name];
+    holdings[u.name] = {
+      receipts:    b.receipts,
+      transferIn:  b.transferIn,
       transferOut: b.transferOut,
-      expenses:  b.expenses,
-      role:      u ? u.role : 'unknown',
-      isAdmin:   u ? u.role === 'admin' : false
+      expenses:    b.expenses,
+      balance:     b.balance,
+      allocated:   b.receipts + b.transferIn,
+      spent:       b.expenses + b.transferOut,
+      role:        u.role,
+      isAdmin:     u.role === 'admin'
     };
   });
 
-  const totalCashIn = balances['Admin'] ? balances['Admin'].receipts : 0;
-  const totalAllocatedToOthers = Object.entries(balances)
-    .filter(([n]) => n !== 'Admin')
-    .reduce((s, [, b]) => s + b.transferIn, 0);
-  const adminBills = balances['Admin'] ? balances['Admin'].expenses : 0;
-  const allocByUser = {};
-  Object.entries(balances).forEach(([n, b]) => { allocByUser[n] = b.transferIn; });
-  const billsByUser = {};
-  Object.entries(balances).forEach(([n, b]) => { billsByUser[n] = b.expenses; });
+  // Summary figures
+  const totalCashIn = Object.values(balances).reduce((s,b) => s + b.receipts, 0);
+  const totalHolding= Object.values(balances).reduce((s,b) => s + Math.max(0, b.balance), 0);
 
-  return { holdings, totalCashIn, allocByUser, billsByUser, totalAllocatedToOthers, adminBills };
+  return { holdings, totalCashIn, totalHolding };
 }
 
 // ══════════════════════════════════════════════════════════
@@ -953,29 +965,45 @@ function renderDashboard(){
 // ══════════════════════════════════════════════════════════
 function renderCashAlloc(){
   const allc=getCashAllocations();
-  const eligible=USERS.filter(u=>u.name!=='Admin');
+  const h=computeCashHoldings();
+  const myBal=(h.holdings[currentUser.name]||{}).balance||0;
+  // Can allocate to anyone except yourself
+  const eligible=USERS.filter(u=>u.name!==currentUser.name);
   return`
   <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:16px">💸 Cash Allocations</div>
 
   <!-- HOW IT WORKS -->
   <div style="background:#eaf0fb;border-left:4px solid var(--primary);padding:14px 16px;border-radius:0 8px 8px 0;font-size:12px;margin-bottom:16px;line-height:1.9">
-    <b style="font-size:13px;display:block;margin-bottom:6px;color:var(--primary)">🏦 Cash Flow Model — Admin is Master Custodian</b>
+    <b style="font-size:13px;display:block;margin-bottom:6px;color:var(--primary)">💵 Cash Flow — Login User is always the Cash Holder</b>
     <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px">
-      <b style="color:#27ae60">Step 1</b><span>Cash comes into system via: Donations, Fees, Sales, Accommodation, Bank Withdrawal, etc. — recorded as Cash CREDIT entries by Admin.</span>
-      <b style="color:#1a5276">Step 2</b><span>Admin allocates cash to Creators / Approvers to pay bills. Each allocation reduces Admin's holding and increases the user's holding.</span>
-      <b style="color:#e67e22">Step 3</b><span>Users add bill/expense entries. Each debit entry reduces their cash holding.</span>
-      <b style="color:#27ae60">Step 4</b><span>Admin settles: user returns unspent cash physically. Mark allocation as "Settled" in the register.</span>
+      <b style="color:#27ae60">RULE</b><span>Cash always belongs to the <b>Login User Name</b> who recorded/received/holds it.</span>
+      <b style="color:#1a5276">Income</b><span>Cash received (donation, sale, fees) → goes to <b>your</b> account (login user).</span>
+      <b style="color:#e67e22">Allocation</b><span>You give cash from <b>your</b> balance to another user. Their balance increases, yours decreases.</span>
+      <b style="color:#c0392b">Expense</b><span>Cash paid to vendor → deducted from <b>your</b> balance.</span>
+      <b style="color:#27ae60">Transfer</b><span>Move cash from <b>you</b> to another person via New Cash Entry → Transfer type.</span>
+    </div>
+    <div style="margin-top:10px;padding:8px 12px;background:#fff;border-radius:6px;font-size:13px">
+      💰 <b>Your current cash balance: <span style="color:${myBal>=0?'var(--success)':'var(--danger)'}">₹${myBal.toLocaleString('en-IN')}</span></b>
+      &nbsp;(${currentUser.name})
     </div>
   </div>
 
   <!-- NEW ALLOCATION FORM -->
   <div class="card" style="border-left:4px solid #27ae60">
-    <div class="card-title">➕ Allocate Cash to User</div>
+    <div class="card-title">➕ Allocate Cash to Another User</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">
+      This moves cash from <b>${currentUser.name}'s account</b> to the selected user's account.
+    </div>
     <div class="form-row col3">
       <div><label class="field-label">Allocate To *</label>
-        <select id="al_to"><option value="">Select user...</option>${eligible.map(u=>`<option value="${u.name}">${u.name} (${u.role})</option>`).join('')}</select>
+        <select id="al_to">
+          <option value="">Select user...</option>
+          ${eligible.map(u=>`<option value="${u.name}">${u.name} (${u.role})</option>`).join('')}
+        </select>
       </div>
-      <div><label class="field-label">Amount (₹) *</label><input type="number" id="al_amount" placeholder="5000" min="1"></div>
+      <div><label class="field-label">Amount (₹) * <span style="color:var(--text-muted)">(you hold ₹${myBal.toLocaleString('en-IN')})</span></label>
+        <input type="number" id="al_amount" placeholder="5000" min="1" max="${myBal}">
+      </div>
       <div><label class="field-label">Date *</label><input type="date" id="al_date" value="${new Date().toISOString().split('T')[0]}"></div>
     </div>
     <div class="form-row col2">
@@ -1030,26 +1058,41 @@ async function saveAllocationToSheet(rec){
 }
 
 function issueAllocation(){
-  const toUser=document.getElementById('al_to').value;
-  const amount=parseFloat(document.getElementById('al_amount').value);
-  const date=document.getElementById('al_date').value;
-  const purpose=document.getElementById('al_purpose').value.trim();
-  const remarks=document.getElementById('al_remarks').value.trim();
+  const toUser  = document.getElementById('al_to').value;
+  const amount  = parseFloat(document.getElementById('al_amount').value);
+  const date    = document.getElementById('al_date').value;
+  const purpose = document.getElementById('al_purpose').value.trim();
+  const remarks = document.getElementById('al_remarks').value.trim();
+
   if(!toUser||!amount||!date||!purpose){alert('Please fill all required fields.');return;}
 
-  const h=computeCashHoldings();
-  const adminBal=h.holdings['Admin']?.balance||0;
-  if(amount>adminBal){
-    if(!confirm('⚠️ Admin only holds ₹'+adminBal.toLocaleString('en-IN')+' cash.\nAllocating ₹'+amount.toLocaleString('en-IN')+' will create a deficit.\nProceed anyway?')) return;
+  // Validate receiver is a known user
+  if(!USERS.find(u=>u.name===toUser)){alert('Invalid recipient. Must be a registered user.');return;}
+  if(toUser===currentUser.name){alert('You cannot allocate cash to yourself.');return;}
+
+  // Check login user's own balance — HARD RULE: allocation cannot exceed what YOU hold
+  const h = computeCashHoldings();
+  const myBal = (h.holdings[currentUser.name]||{}).balance || 0;
+  if(amount > myBal){
+    if(!confirm(
+      '⚠️ Balance Warning!\n'+
+      'You ('+currentUser.name+') hold ₹'+myBal.toLocaleString('en-IN')+' cash.\n'+
+      'Allocating ₹'+amount.toLocaleString('en-IN')+' exceeds your balance.\n\n'+
+      'Proceed anyway? (This will create a deficit in your account.)'
+    )) return;
   }
 
   const allc=getCashAllocations();
-  const rec={id:genId(),date,toUser,fromUser:currentUser.name,amount,purpose,status:'active',remarks,createdAt:new Date().toISOString()};
+  const rec={
+    id:genId(), date, toUser,
+    fromUser: currentUser.name, // ALWAYS login user — who is giving the cash
+    amount, purpose, status:'active', remarks,
+    createdAt:new Date().toISOString()
+  };
   allc.push(rec);
   saveCashAllocations(allc);
-  // Clear the stale alloc cache flag so next load gets fresh data
   localStorage.removeItem('ghj_alloc_stale');
-  showToast('✅ ₹'+amount.toLocaleString('en-IN')+' allocated to '+toUser);
+  showToast('✅ ₹'+amount.toLocaleString('en-IN')+' allocated from '+currentUser.name+' to '+toUser);
   saveAllocationToSheet(rec);
   showPage('cashalloc');
 }
@@ -1117,19 +1160,17 @@ function renderCashHolding(){
       </div>
       <div>
         <div style="background:#f8f9fa;border-radius:10px;padding:16px">
-          <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px">CASH DISTRIBUTION</div>
-          <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:.5px solid var(--border)">
-            <span style="font-size:12px">With Admin</span>
-            <span style="font-weight:600;color:#1a5276">₹${(h.holdings['Admin']?.balance||0).toLocaleString('en-IN')}</span>
-          </div>
-          ${Object.entries(h.holdings).filter(([u])=>u!=='Admin').map(([u,v])=>`
-          <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:.5px solid var(--border)">
-            <span style="font-size:12px">${u} (${v.role})</span>
-            <span style="font-weight:600;color:${v.balance>0?'#e67e22':'#c0392b'}">₹${v.balance.toLocaleString('en-IN')}</span>
-          </div>`).join('')}
+          <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px">CASH BY LOGIN USER</div>
+          ${USERS.map(u=>{
+            const v=h.holdings[u.name]||{balance:0,role:u.role};
+            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:.5px solid var(--border);${u.name===currentUser.name?'background:#f0f4ff;margin:0 -6px;padding:7px 6px;border-radius:4px':''}">
+              <span style="font-size:12px;font-weight:${u.name===currentUser.name?'700':'400'}">${u.name} <span style="color:var(--text-muted);font-weight:400">(${u.role})</span>${u.name===currentUser.name?' 👈':''}</span>
+              <span style="font-weight:700;color:${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#888'}">₹${(v.balance||0).toLocaleString('en-IN')}</span>
+            </div>`;
+          }).join('')}
           <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:2px solid var(--border);margin-top:4px">
             <b style="font-size:13px">TOTAL ACCOUNTED</b>
-            <b style="font-size:14px;color:${h.totalCashIn===Object.values(h.holdings).reduce((s,v)=>s+v.balance,0)?'#27ae60':'#e67e22'}">₹${Object.values(h.holdings).reduce((s,v)=>s+v.balance,0).toLocaleString('en-IN')}</b>
+            <b style="font-size:14px;color:#27ae60">₹${h.totalHolding.toLocaleString('en-IN')}</b>
           </div>
         </div>
       </div>
@@ -1632,22 +1673,12 @@ function saveEntry(type){
   const etype  = document.getElementById('f_type').value;
   const head   = document.getElementById('f_head').value;
 
-  // Determine who holds this cash:
-  // Income(Inflow) → always login user (they received it)
-  // Transfer       → login user (sender); receiver is in transferTo
-  // Expense        → whoever the paidby field says (admin may set on behalf)
-  // Bank entries   → createdBy (no cash holder concept)
-  const txnTypeEl  = document.getElementById('f_txntype');
-  const txnType    = txnTypeEl ? txnTypeEl.value : (etype==='credit'?'Income(Inflow)':'Expense(Outflow)');
-  const paidByEl   = document.getElementById('f_paidby');
-  let   paidByUser = paidByEl ? paidByEl.value : currentUser.name;
-
-  // RULE: Income always credited to login user's account
-  if (txnType === 'Income(Inflow)') paidByUser = currentUser.name;
-  // RULE: Transfer sender is always login user
-  if (txnType === 'Transfer')       paidByUser = currentUser.name;
-  // RULE: If paidByUser is blank for any reason, default to login user
-  if (!paidByUser) paidByUser = currentUser.name;
+  // HARD RULE: Cash holder is ALWAYS the login user who creates the entry.
+  // paidByUser is set to currentUser.name on every entry — no exceptions.
+  // Transfer receiver is stored in transferTo field, not paidByUser.
+  const txnTypeEl = document.getElementById('f_txntype');
+  const txnType   = txnTypeEl ? txnTypeEl.value : (etype==='credit'?'Income(Inflow)':'Expense(Outflow)');
+  const paidByUser = currentUser.name; // ALWAYS login user
   const category   = document.getElementById('f_category').value;
   const amount     = parseFloat(document.getElementById('f_amount').value);
   const desc       = document.getElementById('f_desc').value.trim();
