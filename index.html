@@ -181,7 +181,6 @@ const APP_CONFIG = {
   sheetId:   '1JL8flLniqzH-9E36dnOZorCzHerjMO6BKxeQ0efkznk',
   appSecret: '6279@GSEKLX278905721',
 };
-
 // Apply config
 (function(){
   if(APP_CONFIG.scriptUrl) localStorage.setItem('ghj_api_url', APP_CONFIG.scriptUrl);
@@ -264,6 +263,84 @@ function getData(){ return { cash: loadData('ghj_cash'), bank: loadData('ghj_ban
 function getCashAllocations(){ return loadData('ghj_alloc'); }
 function saveCashAllocations(d){ saveData('ghj_alloc',d); }
 function genId(){ return 'GHJ-'+Date.now()+'-'+Math.floor(Math.random()*9999); }
+
+// ── Image compression & Drive upload ─────────────────────────────────────────
+const COMPRESS_CONFIG = { maxWidth:1200, maxHeight:1600, quality:0.65, mimeOut:'image/jpeg' };
+function b64SizeKB(b64){ return Math.round(b64.length*0.75/1024); }
+
+async function fileToBase64(file){
+  if(!file.type.startsWith('image/')){
+    return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(file);});
+  }
+  return new Promise((res,rej)=>{
+    const img=new Image(), objUrl=URL.createObjectURL(file);
+    img.onload=()=>{
+      URL.revokeObjectURL(objUrl);
+      let {width,height}=img;
+      const ratio=Math.min(COMPRESS_CONFIG.maxWidth/width,COMPRESS_CONFIG.maxHeight/height);
+      if(ratio<1){width=Math.round(width*ratio);height=Math.round(height*ratio);}
+      const canvas=document.createElement('canvas');
+      canvas.width=width; canvas.height=height;
+      const ctx=canvas.getContext('2d');
+      ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,width,height);
+      ctx.drawImage(img,0,0,width,height);
+      res(canvas.toDataURL(COMPRESS_CONFIG.mimeOut,COMPRESS_CONFIG.quality).split(',')[1]);
+    };
+    img.onerror=()=>{URL.revokeObjectURL(objUrl);rej(new Error('Image load failed'));};
+    img.src=objUrl;
+  });
+}
+
+// Folder: GHJ Exp App/Cash|Bank/Invoices|Payments
+// File:   Cash_Inv_VendorName_EntryID.jpg
+async function uploadFileToDrive(file, fieldId, paytype, entryId, vendor){
+  const url=getScriptUrl();
+  if(!url){showToast('⚠️ No Apps Script URL. Set in Settings.',4000);return null;}
+  const secret=APP_CONFIG.appSecret||localStorage.getItem('ghj_app_secret')||'';
+  const originalKB=Math.round(file.size/1024);
+  const base64=await fileToBase64(file);
+  const compKB=b64SizeKB(base64);
+  const isImage=file.type.startsWith('image/');
+  const typeFolder=paytype==='bank'?'Bank':'Cash';
+  const docFolder=fieldId==='invoice'?'Invoices':'Payments';
+  const folderPath='GHJ Exp App/'+typeFolder+'/'+docFolder;
+  const vendorClean=(vendor||'NoVendor').replace(/[^a-zA-Z0-9]/g,'_').substring(0,20);
+  const ext=isImage?'.jpg':'.'+file.name.split('.').pop();
+  const prefix=typeFolder+'_'+(fieldId==='invoice'?'Inv':'Pay');
+  const fileName=prefix+'_'+vendorClean+'_'+(entryId||Date.now())+ext;
+  const mimeType=isImage?COMPRESS_CONFIG.mimeOut:(file.type||'application/octet-stream');
+  try{
+    const resp=await fetch(url,{method:'POST',redirect:'follow',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({action:'uploadFile',_secret:secret,fileName,mimeType,base64Data:base64,folder:folderPath})});
+    const raw=await resp.text();
+    if(raw&&!raw.trimStart().startsWith('<')){
+      const r=JSON.parse(raw);
+      if(r.link){
+        showToast('✅ Uploaded '+fileName+' ('+(isImage?compKB:originalKB)+'KB)',4000);
+        return r.link;
+      }
+    }
+    throw new Error('No link returned');
+  }catch(e){showToast('⚠️ Upload failed: '+e.message,4000);return null;}
+}
+
+async function handleFileUpload(inputEl, linkFieldId, fieldId, paytype){
+  const file=inputEl.files[0]; if(!file) return;
+  const btn=inputEl.parentElement.querySelector('.upload-btn');
+  if(btn){btn.textContent='⏳ Uploading…';btn.disabled=true;}
+  const entryId=(document.getElementById('f_entry_id')||{}).value||Date.now();
+  const vendor=(document.getElementById('f_vendor')||{}).value||'';
+  const link=await uploadFileToDrive(file,fieldId,paytype,entryId,vendor);
+  if(link){
+    const linkEl=document.getElementById(linkFieldId);
+    if(linkEl) linkEl.value=link;
+    const preview=document.getElementById(linkFieldId+'_preview');
+    if(preview) preview.innerHTML='<a href="'+link+'" target="_blank" style="font-size:11px;color:var(--primary);margin-top:4px;display:block">🔗 View uploaded file</a>';
+  }
+  if(btn){btn.textContent=link?'✅ Uploaded':'📎 Retry';btn.disabled=false;}
+  inputEl.value='';
+}
 
 // ── CASH HOLDINGS COMPUTATION ─────────────────────────────
 // Admin holds all cash by default.
@@ -964,137 +1041,222 @@ function renderDashboard(){
 //  CASH ALLOCATIONS PAGE
 // ══════════════════════════════════════════════════════════
 function renderCashAlloc(){
-  const allc=getCashAllocations();
-  const h=computeCashHoldings();
-  const myBal=(h.holdings[currentUser.name]||{}).balance||0;
-  // Can allocate to anyone except yourself
-  const eligible=USERS.filter(u=>u.name!==currentUser.name);
-  return`
+  // IMPORTANT: getCashAllocations reads ghj_alloc which contains ONLY
+  // allocation records (id, date, toUser, fromUser, amount, purpose, status, remarks).
+  // It must NEVER be mixed with cash/bank entries.
+  const rawAlloc = getCashAllocations();
+  // Filter to only valid allocation records (must have toUser and fromUser fields)
+  const allc = rawAlloc.filter(a => a.toUser && a.fromUser && a.id && a.id.startsWith('GHJ'));
+
+  const h    = computeCashHoldings();
+  const myBal= (h.holdings[currentUser.name]||{}).balance || 0;
+  const eligible = USERS.filter(u => u.name !== currentUser.name);
+
+  return `
   <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:16px">💸 Cash Allocations</div>
 
-  <!-- HOW IT WORKS -->
-  <div style="background:#eaf0fb;border-left:4px solid var(--primary);padding:14px 16px;border-radius:0 8px 8px 0;font-size:12px;margin-bottom:16px;line-height:1.9">
-    <b style="font-size:13px;display:block;margin-bottom:6px;color:var(--primary)">💵 Cash Flow — Login User is always the Cash Holder</b>
-    <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px">
-      <b style="color:#27ae60">RULE</b><span>Cash always belongs to the <b>Login User Name</b> who recorded/received/holds it.</span>
-      <b style="color:#1a5276">Income</b><span>Cash received (donation, sale, fees) → goes to <b>your</b> account (login user).</span>
-      <b style="color:#e67e22">Allocation</b><span>You give cash from <b>your</b> balance to another user. Their balance increases, yours decreases.</span>
-      <b style="color:#c0392b">Expense</b><span>Cash paid to vendor → deducted from <b>your</b> balance.</span>
-      <b style="color:#27ae60">Transfer</b><span>Move cash from <b>you</b> to another person via New Cash Entry → Transfer type.</span>
-    </div>
-    <div style="margin-top:10px;padding:8px 12px;background:#fff;border-radius:6px;font-size:13px">
-      💰 <b>Your current cash balance: <span style="color:${myBal>=0?'var(--success)':'var(--danger)'}">₹${myBal.toLocaleString('en-IN')}</span></b>
-      &nbsp;(${currentUser.name})
-    </div>
+  <div id="alloc_stub_info" style="display:none;border-left:4px solid #3498db;padding:10px 14px;border-radius:0 8px 8px 0;font-size:12px;margin-bottom:14px;background:#eaf4fd;color:#1a5276">
+    <span id="alloc_stub_spinner" style="font-size:18px;margin-right:8px">⏳</span>
+    <span id="alloc_stub_text">Registering allocation in Sheet…</span>
   </div>
 
-  <!-- NEW ALLOCATION FORM -->
+  <div style="background:#fff8e1;border-left:4px solid var(--accent);padding:12px 16px;border-radius:0 8px 8px 0;font-size:12px;margin-bottom:16px;line-height:1.9">
+    <b>💵 Cash Allocation — give your cash to another user to pay bills</b><br>
+    Cash stays tracked under <b>Login User Names only</b>. Your balance decreases, recipient's increases.<br>
+    💰 <b>Your balance: <span style="color:${myBal>=0?'var(--success)':'var(--danger)'}">₹${myBal.toLocaleString('en-IN')}</span></b> (${currentUser.name})
+    &nbsp;|&nbsp; ⚠️ <b>Allocation ≠ Cash Entry.</b> Use New Cash Entry → Transfer to record in Cash ledger.
+  </div>
+
   <div class="card" style="border-left:4px solid #27ae60">
-    <div class="card-title">➕ Allocate Cash to Another User</div>
-    <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px">
-      This moves cash from <b>${currentUser.name}'s account</b> to the selected user's account.
-    </div>
-    <div class="form-row col3">
-      <div><label class="field-label">Allocate To *</label>
-        <select id="al_to">
-          <option value="">Select user...</option>
-          ${eligible.map(u=>`<option value="${u.name}">${u.name} (${u.role})</option>`).join('')}
-        </select>
-      </div>
-      <div><label class="field-label">Amount (₹) * <span style="color:var(--text-muted)">(you hold ₹${myBal.toLocaleString('en-IN')})</span></label>
-        <input type="number" id="al_amount" placeholder="5000" min="1" max="${myBal}">
-      </div>
-      <div><label class="field-label">Date *</label><input type="date" id="al_date" value="${new Date().toISOString().split('T')[0]}"></div>
+    <div class="card-title">➕ New Cash Allocation</div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px">
+      Moves cash from <b>${currentUser.name}</b> → selected user. Both balances update immediately.
     </div>
     <div class="form-row col2">
-      <div><label class="field-label">Purpose *</label><input type="text" id="al_purpose" placeholder="e.g. Weekly grocery purchase, Event expenses..."></div>
-      <div><label class="field-label">Remarks</label><input type="text" id="al_remarks" placeholder="Additional notes..."></div>
+      <div>
+        <label class="field-label">Allocate To (User) *</label>
+        <select id="al_to" style="width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:13px">
+          <option value="">Select recipient user...</option>
+          ${eligible.map(u=>'<option value="'+u.name+'">'+u.name+' ('+u.role+')</option>').join('')}
+        </select>
+      </div>
+      <div>
+        <label class="field-label">Amount (₹) * <span style="font-weight:400;color:var(--text-muted)">max ₹${myBal.toLocaleString('en-IN')}</span></label>
+        <input type="number" id="al_amount" placeholder="e.g. 5000" min="1" style="width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:13px">
+      </div>
     </div>
-    <div class="btn-row"><button class="btn btn-save" onclick="issueAllocation()">💸 Allocate Cash</button></div>
+    <div class="form-row col2">
+      <div>
+        <label class="field-label">Date *</label>
+        <input type="date" id="al_date" value="${new Date().toISOString().split('T')[0]}" style="width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:13px">
+      </div>
+      <div>
+        <label class="field-label">Purpose *</label>
+        <input type="text" id="al_purpose" placeholder="e.g. Grocery purchase, Event expenses" style="width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:13px">
+      </div>
+    </div>
+    <div class="form-row">
+      <div style="flex:1">
+        <label class="field-label">Remarks</label>
+        <input type="text" id="al_remarks" placeholder="Optional notes" style="width:100%;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-size:13px">
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-save" onclick="issueAllocation()">💸 Save & Sync Allocation</button>
+    </div>
+    <div id="alloc_save_confirm" style="display:none;margin-top:10px;padding:10px 14px;background:#eafaf1;border-radius:8px;font-size:12px;color:#1e8449;border-left:4px solid #27ae60"></div>
   </div>
 
-  <!-- ALLOCATIONS LIST -->
   <div class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-      <div class="card-title" style="margin:0">📋 All Allocations (${allc.length})</div>
-      <button class="btn btn-outline btn-sm" onclick="downloadCSV(getCashAllocations().map(a=>({ID:a.id,Date:a.date,To:a.toUser,From:a.fromUser,Amount:a.amount,Purpose:a.purpose,Status:a.status,Remarks:a.remarks})),'GHJ_allocations')">⬇ CSV</button>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <div class="card-title" style="margin:0">📋 Allocation Register (${allc.length} records)</div>
+      <button class="btn btn-outline btn-sm" onclick="downloadCSV(getCashAllocations().filter(a=>a.toUser&&a.fromUser).map(a=>({ID:a.id,Date:a.date,AllocatedTo:a.toUser,AllocatedBy:a.fromUser,Amount:a.amount,Purpose:a.purpose,Status:a.status,Remarks:a.remarks,CreatedAt:a.createdAt})),'GHJ_cash_allocations')">⬇ CSV</button>
     </div>
     <div class="tbl-wrap">
-    <table><thead><tr><th>Date</th><th>To</th><th>By</th><th>Amount</th><th>Purpose</th><th>Status</th><th>Remarks</th><th>Actions</th></tr></thead>
+    <table style="font-size:12px"><thead><tr>
+      <th>ID</th><th>Date</th><th>Allocated By</th><th>Allocated To</th>
+      <th>Amount</th><th>Purpose</th><th>Status</th><th>Remarks</th><th>Actions</th>
+    </tr></thead>
     <tbody>
-    ${allc.slice().reverse().map(a=>`<tr style="${a.status==='cancelled'?'opacity:.4':''}">
-      <td>${a.date}</td>
-      <td style="font-weight:600;color:#6c3483">${a.toUser}</td>
-      <td style="font-size:11px;color:var(--text-muted)">${a.fromUser||'Admin'}</td>
-      <td style="font-weight:700;color:#27ae60">₹${Number(a.amount).toLocaleString('en-IN')}</td>
-      <td>${a.purpose}</td>
-      <td><span class="badge badge-${a.status==='active'?'approved':a.status==='settled'?'paid':'voided'}">${a.status.toUpperCase()}</span></td>
-      <td style="font-size:11px">${a.remarks||'—'}</td>
-      <td>
-        ${a.status==='active'?`
-          <button class="btn btn-sm" style="background:#eafaf1;color:#27ae60;border:1px solid #27ae60" onclick="settleAllocation('${a.id}')">✓ Settle</button>
-          <button class="btn btn-sm" style="background:#fee;color:#c0392b;border:1px solid #f5c6cb;margin-left:4px" onclick="cancelAllocation('${a.id}')">✕</button>
-        `:'—'}
-      </td>
-    </tr>`).join('')||'<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text-muted)">No allocations yet. Issue cash above.</td></tr>'}
-    </tbody></table></div>
+    ${allc.length===0
+      ? '<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text-muted)">No allocations yet.</td></tr>'
+      : allc.slice().sort((a,b)=>b.createdAt>a.createdAt?1:-1).map(a=>'<tr style="border-bottom:.5px solid #f0f0f0;'+(a.status==="cancelled"?"opacity:.4":"")+'">'
+          +'<td style="font-size:10px;color:var(--text-muted)">'+a.id+'</td>'
+          +'<td>'+a.date+'</td>'
+          +'<td style="font-weight:600;color:#1a5276">'+a.fromUser+'</td>'
+          +'<td style="font-weight:700;color:#6c3483">'+a.toUser+'</td>'
+          +'<td style="font-weight:700;color:#27ae60">₹'+Number(a.amount).toLocaleString('en-IN')+'</td>'
+          +'<td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+a.purpose+'</td>'
+          +'<td><span class="badge badge-'+(a.status==='active'?'approved':a.status==='settled'?'paid':'voided')+'">'+a.status.toUpperCase()+'</span></td>'
+          +'<td style="font-size:11px">'+(a.remarks||'—')+'</td>'
+          +'<td>'+( a.status==='active'
+            ? '<button class="btn btn-sm" style="background:#eafaf1;color:#27ae60;border:1px solid #27ae60" data-aid="'+a.id+'" onclick="settleAllocation(this.dataset.aid)">✓ Settle</button>'
+              +' <button class="btn btn-sm" style="background:#fee;color:#c0392b;border:1px solid #f5c6cb" data-aid="'+a.id+'" onclick="cancelAllocation(this.dataset.aid)">✕</button>'
+            : '—')+'</td>'
+          +'</tr>').join('')}
+    </tbody></table>
+    </div>
   </div>`;
 }
 
+
 async function saveAllocationToSheet(rec){
-  const url=getScriptUrl(); if(!url) return;
-  const secret=APP_CONFIG.appSecret||'';
+  const url=getScriptUrl();
+  if(!url){ addAllocToSyncQueue(rec); return; }
+  const secret=APP_CONFIG.appSecret||localStorage.getItem('ghj_app_secret')||'';
   try{
-    const payload={action:'saveAllocation',_secret:secret,...rec};
     const resp=await fetch(url,{method:'POST',redirect:'follow',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({action:'saveAllocation',_secret:secret,...rec})});
     const raw=await resp.text();
     if(raw&&!raw.trimStart().startsWith('<')){
       const r=JSON.parse(raw);
-      if(r.status==='ok'){showToast('✅ Allocation synced to Sheet!'); updateSyncTimeDisplay();}
-      else throw new Error(r.error||'Sync failed');
+      if(r.status==='ok'){
+        // Mark this alloc as synced in localStorage
+        const allc=getCashAllocations();
+        const idx=allc.findIndex(a=>a.id===rec.id);
+        if(idx>=0){ allc[idx]._synced=true; saveCashAllocations(allc); }
+        const confirmEl=document.getElementById('alloc_save_confirm');
+        if(confirmEl){
+          confirmEl.style.display='block';
+          confirmEl.innerHTML='✅ <b>Saved to Google Sheet</b> — ID: <code>'+rec.id+'</code> · '+new Date().toLocaleString('en-IN');
+        }
+        const stubEl=document.getElementById('alloc_stub_info');
+        if(stubEl) stubEl.style.display='none';
+        updateSyncTimeDisplay();
+        return;
+      }
     }
-  }catch(e){showToast('⚠️ Saved locally — sheet sync failed: '+e.message);}
+    throw new Error('Sheet returned error');
+  }catch(e){
+    addAllocToSyncQueue(rec);
+    const confirmEl=document.getElementById('alloc_save_confirm');
+    if(confirmEl){
+      confirmEl.style.display='block';
+      confirmEl.style.background='#fff8e1';
+      confirmEl.style.borderColor='#f39c12';
+      confirmEl.style.color='#856404';
+      confirmEl.innerHTML='⚠️ Saved locally — Sheet sync failed. Will retry automatically. Error: '+e.message;
+    }
+  }
 }
 
-function issueAllocation(){
-  const toUser  = document.getElementById('al_to').value;
+// Separate sync queue for allocations (so it doesn't mix with cash/bank entries)
+function getAloocSyncQueue(){ try{return JSON.parse(localStorage.getItem('ghj_alloc_queue')||'[]');}catch{return[];} }
+function saveAllocSyncQueue(q){ try{localStorage.setItem('ghj_alloc_queue',JSON.stringify(q));}catch{} }
+function addAllocToSyncQueue(rec){
+  const q=getAloocSyncQueue();
+  const idx=q.findIndex(x=>x.id===rec.id);
+  if(idx>=0) q.splice(idx,1);
+  q.push(rec);
+  saveAllocSyncQueue(q);
+}
+async function retryAllocSyncQueue(){
+  const url=getScriptUrl(); if(!url) return;
+  const secret=APP_CONFIG.appSecret||localStorage.getItem('ghj_app_secret')||'';
+  const q=[...getAloocSyncQueue()];
+  let n=0;
+  for(const rec of q){
+    try{
+      const resp=await fetch(url,{method:'POST',redirect:'follow',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({action:'saveAllocation',_secret:secret,...rec})});
+      const raw=await resp.text();
+      if(raw&&!raw.trimStart().startsWith('<')){
+        const r=JSON.parse(raw);
+        if(r.status==='ok'){
+          const newQ=getAloocSyncQueue().filter(x=>x.id!==rec.id);
+          saveAllocSyncQueue(newQ);
+          n++;
+        }
+      }
+    }catch{}
+  }
+  if(n>0) showToast('✅ '+n+' allocation(s) synced to Sheet!',3000);
+}
+
+async function issueAllocation(){
+  const toUser  = document.getElementById('al_to').value.trim();
   const amount  = parseFloat(document.getElementById('al_amount').value);
   const date    = document.getElementById('al_date').value;
   const purpose = document.getElementById('al_purpose').value.trim();
   const remarks = document.getElementById('al_remarks').value.trim();
 
-  if(!toUser||!amount||!date||!purpose){alert('Please fill all required fields.');return;}
-
-  // Validate receiver is a known user
-  if(!USERS.find(u=>u.name===toUser)){alert('Invalid recipient. Must be a registered user.');return;}
+  if(!toUser||!amount||!date||!purpose){alert('Please fill: Allocate To, Amount, Date, Purpose');return;}
+  if(!USERS.find(u=>u.name===toUser)){alert('Invalid recipient. Select from the users list.');return;}
   if(toUser===currentUser.name){alert('You cannot allocate cash to yourself.');return;}
 
-  // Check login user's own balance — HARD RULE: allocation cannot exceed what YOU hold
-  const h = computeCashHoldings();
-  const myBal = (h.holdings[currentUser.name]||{}).balance || 0;
-  if(amount > myBal){
-    if(!confirm(
-      '⚠️ Balance Warning!\n'+
-      'You ('+currentUser.name+') hold ₹'+myBal.toLocaleString('en-IN')+' cash.\n'+
-      'Allocating ₹'+amount.toLocaleString('en-IN')+' exceeds your balance.\n\n'+
-      'Proceed anyway? (This will create a deficit in your account.)'
-    )) return;
+  const h=computeCashHoldings();
+  const myBal=(h.holdings[currentUser.name]||{}).balance||0;
+  if(amount>myBal){
+    if(!confirm('⚠️ Balance Warning!\nYou ('+currentUser.name+') hold ₹'+myBal.toLocaleString('en-IN')+'.\nAllocating ₹'+amount.toLocaleString('en-IN')+' exceeds your balance.\n\nProceed anyway?')) return;
   }
 
-  const allc=getCashAllocations();
+  // Show stub banner
+  const stubEl=document.getElementById('alloc_stub_info');
+  if(stubEl) stubEl.style.display='flex';
+
   const rec={
-    id:genId(), date, toUser,
-    fromUser: currentUser.name, // ALWAYS login user — who is giving the cash
+    id:'GHJ-A-'+Date.now(),
+    date, toUser,
+    fromUser:currentUser.name,
     amount, purpose, status:'active', remarks,
-    createdAt:new Date().toISOString()
+    createdAt:new Date().toISOString(),
+    _synced:false
   };
-  allc.push(rec);
-  saveCashAllocations(allc);
-  localStorage.removeItem('ghj_alloc_stale');
-  showToast('✅ ₹'+amount.toLocaleString('en-IN')+' allocated from '+currentUser.name+' to '+toUser);
-  saveAllocationToSheet(rec);
-  showPage('cashalloc');
+
+  // Save locally first — never lose it
+  const existing=getCashAllocations().filter(a=>a.toUser&&a.fromUser&&a.id);
+  existing.push(rec);
+  saveCashAllocations(existing);
+
+  showToast('✅ ₹'+amount.toLocaleString('en-IN')+' allocated to '+toUser+' — syncing…',4000);
+
+  // Sync to Sheet (async — updates banner)
+  await saveAllocationToSheet(rec);
+  await retryAllocSyncQueue();
+
+  setTimeout(()=>showPage('cashalloc'),1200);
 }
 
 function settleAllocation(id){
@@ -1596,7 +1758,17 @@ function entryForm(type,e){
     <div><label class="field-label">Cheque/NEFT/UTR Ref</label><input type="text" id="f_cheque" value="${v.chequeRef||''}" placeholder="Ref number"></div>
   </div>`:''}
   <div class="form-row col2">
-    <div><label class="field-label">Invoice / Bill Link (Google Drive)</label><input type="text" id="f_invoice" value="${v.invoiceLink||''}" placeholder="https://drive.google.com/..."></div>
+    <div><label class="field-label">📎 Invoice / Bill</label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="hidden" id="f_invoice" value="${v.invoiceLink||''}">
+        <label class="upload-btn btn btn-outline btn-sm" style="cursor:pointer;margin:0">
+          📎 Upload Invoice
+          <input type="file" accept="image/*,.pdf" style="display:none" onchange="handleFileUpload(this,'f_invoice','invoice','${type}')">
+        </label>
+        ${v.invoiceLink?'<a href="'+v.invoiceLink+'" target="_blank" style="font-size:11px;color:var(--primary)">🔗 View existing</a>':''}
+      </div>
+      <div id="f_invoice_preview" style="margin-top:4px"></div>
+    </div>
     <div><label class="field-label">Remarks</label><textarea id="f_remarks" style="min-height:40px">${v.remarks||''}</textarea></div>
   </div>
   <div class="btn-row">
@@ -1942,7 +2114,17 @@ function openPayModal(type,id){
     <div><label class="field-label">Paid By</label><input type="text" id="pay_by" value="${e.paidByUser||currentUser.name}" placeholder="Name of payer"></div>
   </div>
   <div class="form-row">
-    <div><label class="field-label">Payment Screenshot Link (Drive)</label><input type="text" id="pay_ss" value="${e.screenshotLink||''}" placeholder="https://drive.google.com/..."></div>
+    <div><label class="field-label">📷 Payment Screenshot</label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="hidden" id="pay_ss" value="${e.screenshotLink||''}">
+        <label class="upload-btn btn btn-outline btn-sm" style="cursor:pointer;margin:0">
+          📷 Upload Screenshot
+          <input type="file" accept="image/*,.pdf" style="display:none" onchange="handleFileUpload(this,'pay_ss','payment','${e.paytype||'cash'}')">
+        </label>
+        ${e.screenshotLink?'<a href="'+e.screenshotLink+'" target="_blank" style="font-size:11px;color:var(--primary)">🔗 View existing</a>':''}
+      </div>
+      <div id="pay_ss_preview" style="margin-top:4px"></div>
+    </div>
   </div>
   <div class="btn-row">
     <button class="btn btn-cancel" onclick="closePayModal()">Cancel</button>
