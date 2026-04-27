@@ -180,7 +180,7 @@ const APP_CONFIG = {
   scriptUrl: 'https://script.google.com/macros/s/AKfycbxJaR_JeS-PakbDHOMySAy5LOk7wcV4teGocCM0JcRLzyUo2ORMOQQJHqDnAUsvzXJ0/exec',
   sheetId:   '1JL8flLniqzH-9E36dnOZorCzHerjMO6BKxeQ0efkznk',
   appSecret: '6279@GSEKLX278905721',
-};
+}; 
 // Apply config
 (function(){
   if(APP_CONFIG.scriptUrl) localStorage.setItem('ghj_api_url', APP_CONFIG.scriptUrl);
@@ -297,181 +297,103 @@ async function uploadFileToDrive(file, fieldId, paytype, entryId, vendor){
   const url=getScriptUrl();
   if(!url){showToast('⚠️ No Apps Script URL. Set in Settings.',4000);return null;}
   const secret=APP_CONFIG.appSecret||localStorage.getItem('ghj_app_secret')||'';
-  const originalKB=Math.round(file.size/1024);
-  const base64=await fileToBase64(file);
-  const compKB=b64SizeKB(base64);
-  const isImage=file.type.startsWith('image/');
-  const typeFolder=paytype==='bank'?'Bank':'Cash';
-  const docFolder=fieldId==='invoice'?'Invoices':'Payments';
-  const folderPath='GHJ Exp App/'+typeFolder+'/'+docFolder;
-  const vendorClean=(vendor||'NoVendor').replace(/[^a-zA-Z0-9]/g,'_').substring(0,20);
-  const ext=isImage?'.jpg':'.'+file.name.split('.').pop();
-  const prefix=typeFolder+'_'+(fieldId==='invoice'?'Inv':'Pay');
-  const fileName=prefix+'_'+vendorClean+'_'+(entryId||Date.now())+ext;
-  const mimeType=isImage?COMPRESS_CONFIG.mimeOut:(file.type||'application/octet-stream');
+
+  // Show progress bar
+  const progressId='upload_progress_'+fieldId;
+  let progressEl=document.getElementById(progressId);
+  if(!progressEl){
+    progressEl=document.createElement('div');
+    progressEl.id=progressId;
+    progressEl.style.cssText='margin-top:6px;background:#ecf0f1;border-radius:4px;height:8px;overflow:hidden;display:none';
+    progressEl.innerHTML='<div id="'+progressId+'_bar" style="height:8px;background:var(--primary);width:0%;transition:width 0.3s;border-radius:4px"></div>';
+    const container=document.getElementById(linkFieldId+'_preview')||document.getElementById('f_invoice_preview');
+    if(container) container.parentElement.appendChild(progressEl);
+  }
+  progressEl.style.display='block';
+  const bar=document.getElementById(progressId+'_bar');
+  if(bar) bar.style.width='10%';
+
   try{
+    // Compress if image
+    const originalKB=Math.round(file.size/1024);
+    if(bar) bar.style.width='30%';
+    const base64=await fileToBase64(file);
+    const compKB=b64SizeKB(base64);
+    const isImage=file.type.startsWith('image/');
+    if(bar) bar.style.width='60%';
+
+    // Build folder and filename
+    const typeFolder=paytype==='bank'?'Bank':'Cash';
+    const docFolder=fieldId==='invoice'?'Invoices':'Payments';
+    const folderPath='GHJ Exp App/'+typeFolder+'/'+docFolder;
+    const vendorClean=(vendor||'NoVendor').replace(/[^a-zA-Z0-9]/g,'_').substring(0,20);
+    const ext=isImage?'.jpg':'.'+file.name.split('.').pop();
+    const prefix=typeFolder+'_'+(fieldId==='invoice'?'Inv':'Pay');
+    const fileName=prefix+'_'+vendorClean+'_'+(entryId||Date.now())+ext;
+    const mimeType=isImage?COMPRESS_CONFIG.mimeOut:(file.type||'application/octet-stream');
+
+    if(bar) bar.style.width='75%';
+
     const resp=await fetch(url,{method:'POST',redirect:'follow',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({action:'uploadFile',_secret:secret,fileName,mimeType,base64Data:base64,folder:folderPath})});
+      body:JSON.stringify({action:'uploadFile',_secret:secret,
+        fileName,mimeType,base64Data:base64,folder:folderPath})});
+
+    if(bar) bar.style.width='90%';
     const raw=await resp.text();
-    if(raw&&!raw.trimStart().startsWith('<')){
-      const r=JSON.parse(raw);
-      if(r.link){
-        showToast('✅ Uploaded '+fileName+' ('+(isImage?compKB:originalKB)+'KB)',4000);
-        return r.link;
-      }
-    }
-    throw new Error('No link returned');
-  }catch(e){showToast('⚠️ Upload failed: '+e.message,4000);return null;}
+
+    if(!raw||raw.trimStart().startsWith('<')) throw new Error('Apps Script returned HTML — check deployment');
+    const r=JSON.parse(raw);
+    if(r.status==='error') throw new Error(r.error||'Upload error');
+    if(!r.link) throw new Error('No Drive link returned');
+
+    if(bar){ bar.style.width='100%'; bar.style.background='#27ae60'; }
+    setTimeout(()=>{ if(progressEl) progressEl.style.display='none'; },2000);
+
+    const sizeMsg=isImage&&originalKB>compKB
+      ?'✅ Uploaded ('+compKB+'KB, saved '+(originalKB-compKB)+'KB by compression)'
+      :'✅ Uploaded '+fileName+' ('+compKB+'KB)';
+    showToast(sizeMsg,5000);
+    return r.link;
+
+  }catch(e){
+    if(bar){ bar.style.width='100%'; bar.style.background='#c0392b'; }
+    setTimeout(()=>{ if(progressEl) progressEl.style.display='none'; },3000);
+    console.error('Upload error:',e);
+    showToast('⚠️ Upload failed: '+e.message+'\nCheck Apps Script is redeployed.',5000);
+    return null;
+  }
 }
 
 async function handleFileUpload(inputEl, linkFieldId, fieldId, paytype){
   const file=inputEl.files[0]; if(!file) return;
-  const btn=inputEl.parentElement.querySelector('.upload-btn');
-  if(btn){btn.textContent='⏳ Uploading…';btn.disabled=true;}
+
+  // Find the label button and update it
+  const label=inputEl.closest('label')||inputEl.parentElement;
+  const origText=label.childNodes[0]?label.childNodes[0].textContent:'📎 Upload';
+  if(label){ label.childNodes[0].textContent='⏳ Uploading…'; }
+
   const entryId=(document.getElementById('f_entry_id')||{}).value||Date.now();
   const vendor=(document.getElementById('f_vendor')||{}).value||'';
-  const link=await uploadFileToDrive(file,fieldId,paytype,entryId,vendor);
+
+  const link=await uploadFileToDrive(file, fieldId, paytype, entryId, vendor);
+
+  // Restore button text
+  if(label){ label.childNodes[0].textContent=link?'✅ Uploaded':'📎 Retry'; }
+
   if(link){
     const linkEl=document.getElementById(linkFieldId);
     if(linkEl) linkEl.value=link;
-    const preview=document.getElementById(linkFieldId+'_preview');
-    if(preview) preview.innerHTML='<a href="'+link+'" target="_blank" style="font-size:11px;color:var(--primary);margin-top:4px;display:block">🔗 View uploaded file</a>';
-  }
-  if(btn){btn.textContent=link?'✅ Uploaded':'📎 Retry';btn.disabled=false;}
-  inputEl.value='';
-}
-
-// ── CASH HOLDINGS COMPUTATION ─────────────────────────────
-// Admin holds all cash by default.
-// Allocations transfer custodianship from Admin → any user.
-// Each user's holding = Cash allocated to them (credit) - Cash bills they paid (debit)
-// Admin's holding   = Total cash received (all inflows) - Allocated to others - Admin's own bills
-
-// ══════════════════════════════════════════════════════════
-//  CASH LEDGER — Per-Person Running Balance
-//  Every cash entry has a txnType:
-//    RECEIPT  : Cash received from external source → increases holder's balance
-//    TRANSFER : Cash moved between people          → decreases sender, increases receiver
-//    EXPENSE  : Cash paid to vendor/expense        → decreases holder's balance
-//
-//  Rules (per spec):
-//  5.1 RECEIPT  → From = External source (donation, sale, bank withdrawal, etc.)
-//  5.2 TRANSFER → Between people (Admin → Creator, etc.)
-//  5.3 EXPENSE  → To = Vendor/Payee
-//  5.4 EXPENSE or TRANSFER cannot exceed cash in hand of the sender
-// ══════════════════════════════════════════════════════════
-
-// ══════════════════════════════════════════════════════════
-//  CASH HOLDINGS — Simple, Unambiguous Rules
-//
-//  RULE: The LOGIN USER who created the entry is the HOLDER.
-//  No "Admin" special case. No paidByUser complexity.
-//
-//  Income(Inflow)  → createdBy gets the cash        (+balance)
-//  Expense(Outflow)→ createdBy loses the cash        (-balance)
-//  Transfer        → createdBy sends, transferTo receives
-//                    createdBy -balance, transferTo +balance
-//  Cash Allotment  → fromUser sends, toUser receives
-//                    (same as Transfer — fromUser -balance, toUser +balance)
-//
-//  Holdings list is ALWAYS limited to known USERS only — no unknowns.
-// ══════════════════════════════════════════════════════════
-
-function computeCashHoldings() {
-  const d    = getData();
-  const cash = d.cash.filter(e => e.status !== 'voided');
-
-  // Initialise balances for ALL known users only
-  const balances = {};
-  USERS.forEach(u => {
-    balances[u.name] = { receipts:0, transferIn:0, transferOut:0, expenses:0, balance:0 };
-  });
-
-  const validUser = name => name && balances.hasOwnProperty(name);
-
-  cash.forEach(e => {
-    // RULE: holder is ALWAYS the login user who created the entry
-    // Use createdBy as the source of truth — it is set to currentUser.name on save
-    const holder = (e.createdBy && e.createdBy.trim()) ? e.createdBy.trim() : null;
-    if (!holder || !validUser(holder)) return; // skip entries with unknown creator
-
-    const amt = Number(e.amount) || 0;
-    if (!amt) return;
-
-    const txn = e.txnType
-      || (e.type === 'credit' ? 'Income(Inflow)' : 'Expense(Outflow)');
-
-    if (txn === 'Income(Inflow)') {
-      // Cash received from external → goes to the person who recorded it
-      balances[holder].receipts += amt;
-      balances[holder].balance  += amt;
-
-    } else if (txn === 'Expense(Outflow)') {
-      // Cash paid to vendor → deducted from the person who paid it
-      balances[holder].expenses += amt;
-      balances[holder].balance  -= amt;
-
-    } else if (txn === 'Transfer') {
-      // Cash moved to another person — transferTo must be a valid known user
-      const receiver = (e.transferTo || '').trim();
-      if (!validUser(receiver)) {
-        // transferTo is invalid/unknown — treat as expense (cash left system)
-        balances[holder].expenses += amt;
-        balances[holder].balance  -= amt;
-      } else {
-        balances[holder].transferOut += amt;
-        balances[holder].balance     -= amt;
-        balances[receiver].transferIn+= amt;
-        balances[receiver].balance   += amt;
-      }
+    // Show preview link below the button
+    let preview=document.getElementById(linkFieldId+'_preview');
+    if(!preview){
+      preview=document.createElement('div');
+      preview.id=linkFieldId+'_preview';
+      if(label.parentElement) label.parentElement.appendChild(preview);
     }
-  });
-
-  // Apply Cash Allotments (CashMgmt register) as transfers
-  // fromUser sends → toUser receives. Both must be valid known users.
-  const allc = getCashAllocations();
-  allc.filter(a => a.status === 'active' || a.status === 'open').forEach(a => {
-    const from = (a.fromUser || '').trim();
-    const to   = (a.toUser   || '').trim();
-    const amt  = Number(a.amount) || 0;
-    if (!amt || !validUser(from) || !validUser(to)) return;
-
-    // Avoid double-counting: skip if there's already a Transfer cash entry with this alloc ID
-    const alreadyLinked = cash.some(e =>
-      e.txnType === 'Transfer' &&
-      (e.paymentRef === a.id || e.allocationId === a.id)
-    );
-    if (alreadyLinked) return;
-
-    balances[from].transferOut += amt;
-    balances[from].balance     -= amt;
-    balances[to].transferIn    += amt;
-    balances[to].balance       += amt;
-  });
-
-  // Build the final holdings object — only known users, no unknowns
-  const holdings = {};
-  USERS.forEach(u => {
-    const b = balances[u.name];
-    holdings[u.name] = {
-      receipts:    b.receipts,
-      transferIn:  b.transferIn,
-      transferOut: b.transferOut,
-      expenses:    b.expenses,
-      balance:     b.balance,
-      allocated:   b.receipts + b.transferIn,
-      spent:       b.expenses + b.transferOut,
-      role:        u.role,
-      isAdmin:     u.role === 'admin'
-    };
-  });
-
-  // Summary figures
-  const totalCashIn = Object.values(balances).reduce((s,b) => s + b.receipts, 0);
-  const totalHolding= Object.values(balances).reduce((s,b) => s + Math.max(0, b.balance), 0);
-
-  return { holdings, totalCashIn, totalHolding };
+    preview.innerHTML='<a href="'+link+'" target="_blank" style="font-size:11px;color:var(--primary);display:inline-block;margin-top:4px">🔗 View in Google Drive</a>';
+  }
+  inputEl.value='';
 }
 
 // ══════════════════════════════════════════════════════════
@@ -511,10 +433,28 @@ async function doLogin(){
     document.getElementById('appShell').style.display='block';
     document.getElementById('userBadge').textContent='👤 '+user.name+' ('+user.role+')';
     buildSidebar();
-    showPage('dashboard');
+    showPage('dashboard');   // show instantly from localStorage cache
     updateBadges();
     updateSyncTimeDisplay();
-    if(url) loadFromSheet();
+    // Q3 FIX: Show app immediately from cache.
+    // Sheet sync runs in background — non-blocking.
+    // A small banner shows "Syncing from Sheet…" at the top.
+    if(url){
+      const syncBanner=document.createElement('div');
+      syncBanner.id='login_sync_banner';
+      syncBanner.style.cssText='position:fixed;top:54px;left:0;right:0;z-index:999;background:#3498db;color:#fff;font-size:12px;text-align:center;padding:5px;cursor:pointer';
+      syncBanner.textContent='🔄 Syncing latest data from Google Sheet… (click to dismiss)';
+      syncBanner.onclick=function(){syncBanner.remove();};
+      document.body.appendChild(syncBanner);
+      loadFromSheet().then(function(){
+        const b=document.getElementById('login_sync_banner');
+        if(b) b.remove();
+        showPage(currentPage); // refresh current page with latest data
+      }).catch(function(){
+        const b=document.getElementById('login_sync_banner');
+        if(b){ b.style.background='#e67e22'; b.textContent='⚠️ Sheet sync failed — showing cached data. Click to dismiss.'; }
+      });
+    }
     return;
   }
   errEl.textContent='Invalid email or password. Demo: admin@ghj.org / admin123';
@@ -523,11 +463,10 @@ async function doLogin(){
 
 function doLogout(){
   currentUser=null;
-  // Clear session data — keep users and sync queue
-  // But clear cash/bank/alloc so fresh data loads from Sheet on next login
-  localStorage.removeItem('ghj_cash');
-  localStorage.removeItem('ghj_bank');
-  // NOTE: Do NOT clear ghj_alloc here — it will be refreshed from Sheet on next login
+  // Keep ghj_cash, ghj_bank in localStorage — they load instantly on next login
+  // while Sheet sync runs in background. Data is not sensitive beyond login.
+  // Just clear session-specific state.
+  localStorage.setItem('ghj_data_stale','true'); // flag for next login to sync
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('appShell').style.display='none';
 }
@@ -546,6 +485,70 @@ function clearAllCacheAndReload(){
 //  SHEET SYNC
 // ══════════════════════════════════════════════════════════
 function getScriptUrl(){ return APP_CONFIG.scriptUrl||localStorage.getItem('ghj_api_url')||''; }
+
+
+function computeCashHoldings() {
+  const d    = getData();
+  const cash = d.cash.filter(e => e.status !== 'voided');
+
+  // Only known registered users — no unknowns ever
+  const validUser = name => name && USERS.some(u => u.name === name.trim());
+
+  // Per-person ledger: built ENTIRELY from CashEntries — single source of truth
+  const bl = {};
+  USERS.forEach(u => {
+    bl[u.name] = { income:0, expense:0, transferOut:0, transferIn:0, balance:0 };
+  });
+
+  cash.forEach(e => {
+    const holder = (e.createdBy || '').trim();
+    if (!validUser(holder)) return;  // skip unknown creators
+    const amt = Number(e.amount) || 0;
+    if (!amt) return;
+
+    const txn = e.txnType
+      || (e.type === 'credit' ? 'Income(Inflow)' : 'Expense(Outflow)');
+
+    if (txn === 'Income(Inflow)') {
+      bl[holder].income  += amt;
+      bl[holder].balance += amt;
+
+    } else if (txn === 'Expense(Outflow)') {
+      bl[holder].expense  += amt;
+      bl[holder].balance  -= amt;
+
+    } else if (txn === 'Transfer') {
+      // Transfer is NOT income, NOT expense — it is a custody movement
+      const receiver = (e.transferTo || '').trim();
+      bl[holder].transferOut += amt;
+      bl[holder].balance     -= amt;
+      if (validUser(receiver)) {
+        bl[receiver].transferIn += amt;
+        bl[receiver].balance    += amt;
+      }
+    }
+    // Any other txnType: ignore
+  });
+
+  // Build holdings map — only USERS, sorted by role
+  const holdings = {};
+  USERS.forEach(u => {
+    const b = bl[u.name];
+    holdings[u.name] = {
+      income:      b.income,
+      expense:     b.expense,
+      transferOut: b.transferOut,
+      transferIn:  b.transferIn,
+      balance:     b.balance,
+      role:        u.role
+    };
+  });
+
+  const totalCashIn  = USERS.reduce((s,u) => s + bl[u.name].income, 0);
+  const totalHolding = USERS.reduce((s,u) => s + Math.max(0, bl[u.name].balance), 0);
+
+  return { holdings, totalCashIn, totalHolding };
+}
 
 async function pushToSheet(action,data){
   const url=getScriptUrl();
@@ -774,8 +777,7 @@ function buildSidebar(){
     {s:'Main',     p:'dashboard',  i:'📊', l:'Dashboard'},
     {s:'Cash',     p:'cash',       i:'💵', l:'Cash Ledger'},
     {s:'',         p:'bank',       i:'🏦', l:'Bank Ledger'},
-    {s:'Cash Mgmt',p:'cashalloc',  i:'💸', l:'Cash Allocations',  admin:true},
-    {s:'',         p:'cashholding',i:'👛', l:'Cash Holdings',      admin:true},
+    {s:'Cash Mgmt',p:'cashholding',i:'👛', l:'Cash Holdings',      admin:true},
     {s:'Workflow', p:'approvals',  i:'✅', l:'Approvals',          admin:true},
     {s:'',         p:'payments',   i:'💳', l:'Payment Releases',   admin:true},
     {s:'Reports',  p:'reports',    i:'📈', l:'Reports / MIS',      admin:true},
@@ -1291,102 +1293,59 @@ function cancelAllocation(id){
 function renderCashHolding(){
   const h=computeCashHoldings();
   const d=getData();
-  const allc=getCashAllocations();
-
-  // Inflow breakdown by head
-  const inflowByHead={};
-  CASH_INFLOW_HEADS.forEach(hd=>{
-    inflowByHead[hd]=d.cash.filter(e=>e.head===hd&&e.type==='credit'&&e.status!=='voided').reduce((s,e)=>s+Number(e.amount),0);
+  const cash=d.cash.filter(e=>e.status!=='voided');
+  const rows=USERS.map(u=>{const b=h.holdings[u.name]||{income:0,expense:0,transferOut:0,transferIn:0,balance:0};return{name:u.name,role:u.role,...b};});
+  const csvData=rows.map(r=>({'Login User':r.name,Role:r.role,'Income(Inflow)':r.income,'Transfer In':r.transferIn,'Transfer Out':r.transferOut,'Expense(Outflow)':r.expense,'Closing Balance':r.balance}));
+  window._ledgerCsvData=csvData;
+  var fmtBtn="<button class=\"btn btn-outline btn-sm\" onclick=\"downloadCSV(window._ledgerCsvData,'GHJ_Cash_Ledger')\">⬇ Ledger CSV</button>";
+  html+='<div style="background:#fff8e1;border-left:4px solid var(--accent);padding:10px 14px;border-radius:0 8px 8px 0;font-size:12px;margin-bottom:14px;line-height:1.8"><b>Single source of truth: CashEntries only.</b> Transfers shown separately — NOT counted in Income or Expense.<br>Formula: <code>Balance = Income + Transfer In − Transfer Out − Expense</code></div>';
+  // Summary table
+  html+='<div class="card" style="margin-bottom:16px"><div class="card-title">📊 Summary</div><div class="tbl-wrap"><table style="width:100%;font-size:13px;border-collapse:collapse"><thead><tr style="background:#1a3a5c;color:#fff"><th style="padding:9px 8px;text-align:left">Login User</th><th style="padding:9px 8px;text-align:right;color:#90EE90">Income(Inflow)</th><th style="padding:9px 8px;text-align:right;color:#87CEEB">Transfer In</th><th style="padding:9px 8px;text-align:right;color:#DDA0DD">Transfer Out</th><th style="padding:9px 8px;text-align:right;color:#FFB6C1">Expense(Outflow)</th><th style="padding:9px 8px;text-align:right;background:#27ae60;color:#fff">Closing Balance</th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    var hl=r.name===currentUser.name?' style="background:#f0f8ff;font-weight:700"':'';
+    html+='<tr'+hl+'><td style="padding:8px">'+r.name+(r.name===currentUser.name?' 👈':'')+' <small style="color:var(--text-muted)">('+r.role+')</small></td>'
+      +'<td style="padding:8px;text-align:right;color:#27ae60">'+(r.income?'₹'+r.income.toLocaleString('en-IN'):'-')+'</td>'
+      +'<td style="padding:8px;text-align:right;color:#2980b9">'+(r.transferIn?'₹'+r.transferIn.toLocaleString('en-IN'):'-')+'</td>'
+      +'<td style="padding:8px;text-align:right;color:#8e44ad">'+(r.transferOut?'₹'+r.transferOut.toLocaleString('en-IN'):'-')+'</td>'
+      +'<td style="padding:8px;text-align:right;color:#c0392b">'+(r.expense?'₹'+r.expense.toLocaleString('en-IN'):'-')+'</td>'
+      +'<td style="padding:8px;text-align:right;font-weight:700;color:'+(r.balance>=0?'#27ae60':'#c0392b')+'">'+( r.balance<0?'−':'')+' ₹'+Math.abs(r.balance).toLocaleString('en-IN')+(r.balance<0?' ⚠️':'')+'</td></tr>';
   });
-  const inflowEntries=Object.entries(inflowByHead).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-
-  return`
-  <div style="font-size:20px;font-weight:700;color:var(--primary);margin-bottom:16px">👛 Cash Holdings Register</div>
-
-  <!-- TOTAL CASH RECEIVED BY HEAD -->
-  <div class="card" style="border:2px solid #27ae60;margin-bottom:16px">
-    <div class="card-title" style="font-size:16px">💰 Total Cash Received — By Head</div>
-    <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px">All cash that has come INTO the system from external sources</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-      <div>
-        ${inflowEntries.length===0?'<div style="color:var(--text-muted);font-size:12px">No cash inflows recorded yet.</div>':
-        inflowEntries.map(([hd,amt])=>`
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:.5px solid #f0f0f0">
-          <span style="font-size:12px;color:var(--text)">${hd}</span>
-          <span style="font-weight:700;color:#27ae60;font-size:13px">₹${amt.toLocaleString('en-IN')}</span>
-        </div>`).join('')}
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:2px solid var(--primary);margin-top:6px">
-          <b style="font-size:14px">TOTAL CASH IN</b>
-          <b style="font-size:16px;color:#27ae60">₹${h.totalCashIn.toLocaleString('en-IN')}</b>
-        </div>
-      </div>
-      <div>
-        <div style="background:#f8f9fa;border-radius:10px;padding:16px">
-          <div style="font-size:12px;font-weight:700;color:var(--primary);margin-bottom:10px">CASH BY LOGIN USER</div>
-          ${USERS.map(u=>{
-            const v=h.holdings[u.name]||{balance:0,role:u.role};
-            return `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:.5px solid var(--border);${u.name===currentUser.name?'background:#f0f4ff;margin:0 -6px;padding:7px 6px;border-radius:4px':''}">
-              <span style="font-size:12px;font-weight:${u.name===currentUser.name?'700':'400'}">${u.name} <span style="color:var(--text-muted);font-weight:400">(${u.role})</span>${u.name===currentUser.name?' 👈':''}</span>
-              <span style="font-weight:700;color:${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#888'}">₹${(v.balance||0).toLocaleString('en-IN')}</span>
-            </div>`;
-          }).join('')}
-          <div style="display:flex;justify-content:space-between;padding:8px 0;border-top:2px solid var(--border);margin-top:4px">
-            <b style="font-size:13px">TOTAL ACCOUNTED</b>
-            <b style="font-size:14px;color:#27ae60">₹${h.totalHolding.toLocaleString('en-IN')}</b>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- PER-USER PERSONAL LEDGER TABLE -->
-  <div class="card" style="margin-bottom:16px">
-    <div class="card-title">📊 Per-Person Cash Ledger — Opening + Received − Expenses = Closing</div>
-    <div style="font-size:10px;color:var(--text-muted);margin-bottom:10px">
-      RECEIPT = cash from external source · TRANSFER IN = received from another person ·
-      TRANSFER OUT = given to another person · EXPENSE = paid to vendor
-    </div>
-    <div class="tbl-wrap">
-    <table style="font-size:12px;border-collapse:collapse;width:100%">
-      <thead>
-        <tr style="background:#f0f4f8;border-bottom:1.5px solid var(--border)">
-          <th style="text-align:left;padding:7px 6px">Person</th>
-          <th style="text-align:left;padding:7px 6px">Role</th>
-          <th style="text-align:right;padding:7px 6px;color:#27ae60">Receipts (Ext)</th>
-          <th style="text-align:right;padding:7px 6px;color:#2980b9">Transfer In</th>
-          <th style="text-align:right;padding:7px 6px;color:#8e44ad">Transfer Out</th>
-          <th style="text-align:right;padding:7px 6px;color:#c0392b">Expenses</th>
-          <th style="text-align:right;padding:7px 6px;color:#1a5276;border-left:2px solid var(--border)">Cash in Hand</th>
-        </tr>
-      </thead>
-      <tbody>
-      ${Object.entries(h.holdings).sort((a,b)=>a[0]==='Admin'?-1:1).map(([uName,v])=>`
-        <tr style="border-bottom:.5px solid #f0f0f0;${v.balance<0?'background:#fff5f5':''}">
-          <td style="padding:7px 6px;font-weight:700">${uName}</td>
-          <td style="padding:7px 6px;font-size:11px;color:var(--text-muted)">${v.role}</td>
-          <td style="padding:7px 6px;text-align:right;color:#27ae60">${v.receipts>0?'₹'+v.receipts.toLocaleString('en-IN'):'-'}</td>
-          <td style="padding:7px 6px;text-align:right;color:#2980b9">${v.transferIn>0?'₹'+v.transferIn.toLocaleString('en-IN'):'-'}</td>
-          <td style="padding:7px 6px;text-align:right;color:#8e44ad">${v.transferOut>0?'₹'+v.transferOut.toLocaleString('en-IN'):'-'}</td>
-          <td style="padding:7px 6px;text-align:right;color:#c0392b">${v.expenses>0?'₹'+v.expenses.toLocaleString('en-IN'):'-'}</td>
-          <td style="padding:7px 6px;text-align:right;font-weight:700;font-size:13px;border-left:2px solid var(--border);color:${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#888'}">
-            ${v.balance<0?'−':''}₹${Math.abs(v.balance).toLocaleString('en-IN')}
-            ${v.balance<0?'<span style="font-size:9px;background:#c0392b;color:#fff;border-radius:4px;padding:1px 4px;margin-left:3px">DEFICIT</span>':''}
-          </td>
-        </tr>`).join('')}
-      </tbody>
-      <tfoot>
-        <tr style="border-top:2px solid var(--primary);font-weight:700;background:#f0f4f8">
-          <td colspan="2" style="padding:7px 6px">TOTAL</td>
-          <td style="padding:7px 6px;text-align:right;color:#27ae60">₹${Object.values(h.holdings).reduce((s,v)=>s+v.receipts,0).toLocaleString('en-IN')}</td>
-          <td style="padding:7px 6px;text-align:right;color:#2980b9">—</td>
-          <td style="padding:7px 6px;text-align:right;color:#8e44ad">—</td>
-          <td style="padding:7px 6px;text-align:right;color:#c0392b">₹${Object.values(h.holdings).reduce((s,v)=>s+v.expenses,0).toLocaleString('en-IN')}</td>
-          <td style="padding:7px 6px;text-align:right;border-left:2px solid var(--border);font-size:13px;color:${Object.values(h.holdings).reduce((s,v)=>s+v.balance,0)>=0?'#27ae60':'#c0392b'}">₹${Object.values(h.holdings).reduce((s,v)=>s+v.balance,0).toLocaleString('en-IN')}</td>
-        </tr>
-      </tfoot>
-    </table>
-    </div>
-  </div>`;
+  var totInc=rows.reduce(function(s,r){return s+r.income;},0);
+  var totExp=rows.reduce(function(s,r){return s+r.expense;},0);
+  html+='<tr style="background:#f0f4f8;font-weight:700;border-top:2px solid var(--primary)"><td style="padding:9px 8px">TOTAL</td><td style="padding:9px 8px;text-align:right;color:#27ae60">₹'+totInc.toLocaleString('en-IN')+'</td><td style="padding:9px 8px;text-align:right">—</td><td style="padding:9px 8px;text-align:right">—</td><td style="padding:9px 8px;text-align:right;color:#c0392b">₹'+totExp.toLocaleString('en-IN')+'</td><td style="padding:9px 8px;text-align:right;color:'+( h.totalHolding>=0?'#27ae60':'#c0392b')+';font-size:14px">₹'+h.totalHolding.toLocaleString('en-IN')+'</td></tr>';
+  html+='</tbody></table></div></div>';
+  // Per-person detail cards
+  rows.forEach(function(r){
+    var mine=cash.filter(function(e){return (e.createdBy||'').trim()===r.name;});
+    var trIn=cash.filter(function(e){return e.txnType==='Transfer'&&(e.transferTo||'').trim()===r.name;});
+    var all=[].concat(mine,trIn).sort(function(a,b){return a.date>b.date?1:-1;});
+    html+='<div class="card" style="margin-bottom:12px;border-left:4px solid '+(r.balance>=0?'#27ae60':'#c0392b')+'">';
+    html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:15px;font-weight:700">'+r.name+' <span style="font-size:11px;font-weight:400;color:var(--text-muted)">('+r.role+')</span></div>';
+    html+='<div style="font-size:18px;font-weight:700;color:'+(r.balance>=0?'#27ae60':'#c0392b')+'">'+( r.balance<0?'−':'')+' ₹'+Math.abs(r.balance).toLocaleString('en-IN')+(r.balance<0?' ⚠️':'')+'</div></div>';
+    html+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">';
+    html+='<div style="text-align:center;background:#eafaf1;border-radius:6px;padding:8px"><div style="font-size:10px;color:var(--text-muted)">Income</div><div style="font-weight:700;color:#27ae60">₹'+r.income.toLocaleString('en-IN')+'</div></div>';
+    html+='<div style="text-align:center;background:#eaf4fd;border-radius:6px;padding:8px"><div style="font-size:10px;color:var(--text-muted)">Transfer In</div><div style="font-weight:700;color:#2980b9">₹'+r.transferIn.toLocaleString('en-IN')+'</div></div>';
+    html+='<div style="text-align:center;background:#f9ebf9;border-radius:6px;padding:8px"><div style="font-size:10px;color:var(--text-muted)">Transfer Out</div><div style="font-weight:700;color:#8e44ad">₹'+r.transferOut.toLocaleString('en-IN')+'</div></div>';
+    html+='<div style="text-align:center;background:#fde8e8;border-radius:6px;padding:8px"><div style="font-size:10px;color:var(--text-muted)">Expense</div><div style="font-weight:700;color:#c0392b">₹'+r.expense.toLocaleString('en-IN')+'</div></div>';
+    html+='</div>';
+    if(all.length===0){
+      html+='<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:12px">No cash entries yet.</div>';
+    } else {
+      html+='<div class="tbl-wrap"><table style="font-size:11px;width:100%;border-collapse:collapse"><thead><tr style="background:#f5f6fa"><th style="padding:5px 4px;text-align:left">Date</th><th style="padding:5px 4px;text-align:left">Type</th><th style="padding:5px 4px;text-align:left">Head</th><th style="padding:5px 4px;text-align:left">Description</th><th style="padding:5px 4px;text-align:left">Vendor/To/From</th><th style="padding:5px 4px;text-align:right">Amount</th><th style="padding:5px 4px">Dr/Cr</th></tr></thead><tbody>';
+      all.forEach(function(e){
+        var isTrIn=e.txnType==='Transfer'&&(e.transferTo||'').trim()===r.name;
+        var isTrOut=e.txnType==='Transfer'&&(e.createdBy||'').trim()===r.name;
+        var typeLabel=e.txnType==='Income(Inflow)'?'💰 Income':e.txnType==='Expense(Outflow)'?'💸 Expense':isTrIn?'🔄 Tr.In':isTrOut?'🔄 Tr.Out':'💸 Expense';
+        var color=( e.txnType==='Income(Inflow)'||isTrIn)?'#27ae60':isTrOut?'#8e44ad':'#c0392b';
+        var sign=(e.txnType==='Income(Inflow)'||isTrIn)?'+':'-';
+        var party=isTrIn?'From: '+(e.createdBy||''):isTrOut?'To: '+(e.transferTo||''):(e.vendor||'-');
+        html+='<tr style="border-bottom:.5px solid #f0f0f0"><td style="padding:5px 4px">'+e.date+'</td><td style="padding:5px 4px;font-size:10px">'+typeLabel+'</td><td style="padding:5px 4px;font-size:10px">'+e.head+'</td><td style="padding:5px 4px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e.desc+'</td><td style="padding:5px 4px;font-size:10px;color:var(--text-muted)">'+party+'</td><td style="padding:5px 4px;text-align:right;font-weight:600;color:'+color+'">'+sign+'₹'+Number(e.amount).toLocaleString('en-IN')+'</td><td style="padding:5px 4px;text-align:center"><span style="font-size:10px;background:'+(e.type==='credit'?'#eafaf1':'#fde8e8')+';color:'+(e.type==='credit'?'#27ae60':'#c0392b')+';padding:2px 6px;border-radius:4px">'+(e.type==='credit'?'CR':'DR')+'</span></td></tr>';
+      });
+      html+='</tbody></table></div>';
+    }
+    html+='</div>';
+  });
+  return html;
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2679,6 +2638,26 @@ function doPost(e) {
         }
       }
       return corsResponse({status:'error', error:'ID not found'});
+    }
+
+    // ── Upload file to Google Drive ─────────────────────────────────────────
+    if (p.action === 'uploadFile') {
+      try {
+        var decoded  = Utilities.base64Decode(p.base64Data);
+        var blob     = Utilities.newBlob(decoded, p.mimeType, p.fileName);
+        // Get or create nested folder: e.g. "GHJ Exp App/Cash/Invoices"
+        var parts = (p.folder || 'GHJ Exp App').split('/');
+        var folder = DriveApp.getRootFolder();
+        parts.forEach(function(part){
+          var found = folder.getFoldersByName(part);
+          folder = found.hasNext() ? found.next() : folder.createFolder(part);
+        });
+        var file   = folder.createFile(blob);
+        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        return corsResponse({status:'ok', link:'https://drive.google.com/file/d/'+file.getId()+'/view'});
+      } catch(ue) {
+        return corsResponse({status:'error', error:'Upload failed: '+ue.message});
+      }
     }
 
     return corsResponse({status:'error', error:'Unknown action: '+p.action});
