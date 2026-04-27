@@ -177,10 +177,11 @@
 //  CONFIGURATION — edit these in the HTML file
 // ══════════════════════════════════════════════════════════
 const APP_CONFIG = {
-  scriptUrl: 'https://script.google.com/macros/s/AKfycbxJaR_JeS-PakbDHOMySAy5LOk7wcV4teGocCM0JcRLzyUo2ORMOQQJHqDnAUsvzXJ0/exec',
+  scriptUrl: 'https://script.google.com/macros/s/AKfycbxg7dcDVpUMPKP0MNIbQj-V_wdXF2Ku5n5hffqhZWYacI0BuKqMlJ6a3FCdKOaNM0c/exec',
   sheetId:   '1JL8flLniqzH-9E36dnOZorCzHerjMO6BKxeQ0efkznk',
-  appSecret: '6279@GSEKLX278905721',
-}; 
+  secret:    '6279@GSEKLX278905721',
+};
+
 // Apply config
 (function(){
   if(APP_CONFIG.scriptUrl) localStorage.setItem('ghj_api_url', APP_CONFIG.scriptUrl);
@@ -306,8 +307,9 @@ async function uploadFileToDrive(file, fieldId, paytype, entryId, vendor){
     progressEl.id=progressId;
     progressEl.style.cssText='margin-top:6px;background:#ecf0f1;border-radius:4px;height:8px;overflow:hidden;display:none';
     progressEl.innerHTML='<div id="'+progressId+'_bar" style="height:8px;background:var(--primary);width:0%;transition:width 0.3s;border-radius:4px"></div>';
-    const container=document.getElementById(linkFieldId+'_preview')||document.getElementById('f_invoice_preview');
-    if(container) container.parentElement.appendChild(progressEl);
+    const previewId = fieldId==='invoice' ? 'f_invoice_preview' : 'pay_ss_preview';
+    const container = document.getElementById(previewId);
+    if(container && container.parentElement) container.parentElement.appendChild(progressEl);
   }
   progressEl.style.display='block';
   const bar=document.getElementById(progressId+'_bar');
@@ -831,6 +833,7 @@ function showPage(page){
 //  DASHBOARD
 // ══════════════════════════════════════════════════════════
 function renderDashboard(){
+  try {
   const d=getData();
   const isCreator=currentUser.role==='creator';
   const allc=getCashAllocations();
@@ -839,7 +842,7 @@ function renderDashboard(){
   if(isCreator){
     // ── CREATOR DASHBOARD ──────────────────────────────────
     const myName=currentUser.name;
-    const myH=h.holdings[myName]||{allocated:0,spent:0,balance:0};
+    const myH=h.holdings[myName]||{income:0,expense:0,transferIn:0,transferOut:0,balance:0};
     const myAllocs=allc.filter(a=>a.toUser===myName&&a.status!=='cancelled');
     const myBills=d.cash.filter(e=>e.type==='debit'&&e.status!=='voided'&&(e.paidByUser===myName||e.createdBy===myName));
     const myBillsAmt=myBills.reduce((s,e)=>s+Number(e.amount),0);
@@ -856,7 +859,7 @@ function renderDashboard(){
         <div style="font-size:13px;opacity:.8;margin-bottom:4px">MY CASH WALLET BALANCE</div>
         <div style="font-size:36px;font-weight:700">${myH.balance>=0?'':'−'}₹${Math.abs(myH.balance).toLocaleString('en-IN')}</div>
         <div style="font-size:12px;opacity:.75;margin-top:4px">
-          Total Received: ₹${myH.allocated.toLocaleString('en-IN')} &nbsp;|&nbsp; Total Spent: ₹${myH.spent.toLocaleString('en-IN')}
+          Income: ₹${myH.income.toLocaleString('en-IN')} | Transfer In: ₹${myH.transferIn.toLocaleString('en-IN')} | Expense: ₹${myH.expense.toLocaleString('en-IN')}
         </div>
       </div>
       <div style="text-align:right">
@@ -974,7 +977,7 @@ function renderDashboard(){
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div>
             <div style="font-weight:700;font-size:13px">${u} <span style="font-size:10px;color:var(--text-muted)">(${v.role})</span></div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Received: ₹${v.allocated.toLocaleString('en-IN')} · Spent: ₹${v.spent.toLocaleString('en-IN')}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Received: ₹${(v.income+v.transferIn).toLocaleString('en-IN')} · Spent: ₹${(v.expense+v.transferOut).toLocaleString('en-IN')}</div>
           </div>
           <div style="text-align:right">
             <div style="font-size:18px;font-weight:700;color:${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#888'}">
@@ -1037,6 +1040,10 @@ function renderDashboard(){
     </tr>`).join('')||'<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text-muted)">No entries yet.</td></tr>'}
     </tbody></table></div>
   </div>`;
+  } catch(dashErr) {
+    console.error('Dashboard error:', dashErr);
+    return '<div style="padding:24px;color:#c0392b"><b>Dashboard error:</b> ' + dashErr.message + '<br><small>Check browser console (F12)</small></div>';
+  }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2226,7 +2233,7 @@ function renderReports(){
       <div style="border-radius:10px;padding:14px;border:2px solid ${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#bdc3c7'};background:${v.balance>0?'#f0fff4':v.balance<0?'#fff5f5':'#f8f9fa'}">
         <div style="font-weight:700;font-size:13px">${uName} <span style="font-size:10px;font-weight:400;color:var(--text-muted)">(${v.role})</span></div>
         <div style="font-size:24px;font-weight:700;margin:6px 0;color:${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#888'}">${v.balance<0?'−':''}₹${Math.abs(v.balance).toLocaleString('en-IN')}</div>
-        <div style="font-size:11px;color:var(--text-muted)">Rcvd: ₹${v.allocated.toLocaleString('en-IN')} · Spent: ₹${v.spent.toLocaleString('en-IN')}</div>
+        <div style="font-size:11px;color:var(--text-muted)">Rcvd: ₹${(v.income+v.transferIn).toLocaleString('en-IN')} · Spent: ₹${(v.expense+v.transferOut).toLocaleString('en-IN')}</div>
         <div style="margin-top:6px;font-size:11px;font-weight:600;color:${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#888'}">${v.balance>0?'🟢 Holds cash':v.balance<0?'🔴 Deficit':'⚪ Settled'}</div>
       </div>`).join('')}
     </div>
@@ -2237,8 +2244,8 @@ function renderReports(){
       <tr style="border-bottom:.5px solid #f0f0f0">
         <td style="padding:7px 6px;font-weight:600">${uName}</td>
         <td style="padding:7px 6px;color:var(--text-muted)">${v.role}</td>
-        <td style="padding:7px 6px;text-align:right;color:#27ae60;font-weight:600">₹${v.allocated.toLocaleString('en-IN')}</td>
-        <td style="padding:7px 6px;text-align:right;color:#c0392b;font-weight:600">₹${v.spent.toLocaleString('en-IN')}</td>
+        <td style="padding:7px 6px;text-align:right;color:#27ae60;font-weight:600">₹${(v.income+v.transferIn).toLocaleString('en-IN')}</td>
+        <td style="padding:7px 6px;text-align:right;color:#c0392b;font-weight:600">₹${(v.expense+v.transferOut).toLocaleString('en-IN')}</td>
         <td style="padding:7px 6px;text-align:right;font-weight:700;font-size:14px;color:${v.balance>0?'#27ae60':v.balance<0?'#c0392b':'#888'}">${v.balance<0?'−':''}₹${Math.abs(v.balance).toLocaleString('en-IN')}</td>
         <td style="padding:7px 6px"><span class="badge badge-${v.balance>0?'approved':v.balance<0?'rejected':'paid'}">${v.balance>0?'HOLDS CASH':v.balance<0?'DEFICIT':'SETTLED'}</span></td>
       </tr>`).join('')}
@@ -2402,6 +2409,25 @@ function corsResponse(data) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+function ensureHeaders(tab, headers) {
+  // Update the header row if it doesn't match expected headers
+  // This fixes sheets created with old column names
+  if (tab.getLastRow() === 0) return; // empty sheet
+  var existing = tab.getRange(1, 1, 1, Math.max(tab.getLastColumn(), headers.length)).getValues()[0];
+  var needsUpdate = false;
+  for (var i = 0; i < headers.length; i++) {
+    if (String(existing[i]||'').trim() !== headers[i]) { needsUpdate = true; break; }
+  }
+  if (needsUpdate) {
+    tab.getRange(1, 1, 1, headers.length).setValues([headers]);
+    tab.getRange(1, 1, 1, headers.length)
+       .setFontWeight('bold')
+       .setBackground('#1a3a5c')
+       .setFontColor('#ffffff');
+    tab.setFrozenRows(1);
+  }
+}
+
 function getOrCreateTab(ss, name, headers) {
   var tab = ss.getSheetByName(name);
   if (!tab) {
@@ -2533,6 +2559,7 @@ function doPost(e) {
 
       if (p.paytype === 'bank') {
         var btab = getOrCreateTab(ss, 'BankEntries', BANK_HEADERS);
+        ensureHeaders(btab, BANK_HEADERS); // fix headers if tab existed with old columns
         var brows = btab.getDataRange().getValues();
         var bfound = -1;
         for (var bi = 1; bi < brows.length; bi++) {
@@ -2569,6 +2596,7 @@ function doPost(e) {
 
       } else {
         var ctab = getOrCreateTab(ss, 'CashEntries', CASH_HEADERS);
+        ensureHeaders(ctab, CASH_HEADERS); // fix headers if tab existed with old columns
         var crows = ctab.getDataRange().getValues();
         var cfound = -1;
         for (var ci = 1; ci < crows.length; ci++) {
