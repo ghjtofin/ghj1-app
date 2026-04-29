@@ -177,11 +177,10 @@
 //  CONFIGURATION — edit these in the HTML file
 // ══════════════════════════════════════════════════════════
 const APP_CONFIG = {
-  scriptUrl: 'https://script.google.com/macros/s/AKfycbxg7dcDVpUMPKP0MNIbQj-V_wdXF2Ku5n5hffqhZWYacI0BuKqMlJ6a3FCdKOaNM0c/exec',
+scriptUrl: 'https://script.google.com/macros/s/AKfycbxPrJ-HqbAoxKfTnhZLQdBt2oA03Bi6hpq-1tKWDtlgrlwa3BC8p-7uPQGSWEp47j_F/exec',
   sheetId:   '1JL8flLniqzH-9E36dnOZorCzHerjMO6BKxeQ0efkznk',
   secret:    '6279@GSEKLX278905721',
 };
-
 // Apply config
 (function(){
   if(APP_CONFIG.scriptUrl) localStorage.setItem('ghj_api_url', APP_CONFIG.scriptUrl);
@@ -872,9 +871,9 @@ function renderDashboard(){
     <!-- STATS -->
     <div class="stats-row">
       <div class="stat-card" style="border-left-color:#27ae60">
-        <div class="stat-label">Cash Allocated to Me</div>
-        <div class="stat-value" style="color:#27ae60">₹${myH.allocated.toLocaleString('en-IN')}</div>
-        <div class="stat-sub">${myAllocs.length} allocation(s) from Admin</div>
+        <div class="stat-label">Income + Transfer In</div>
+        <div class="stat-value" style="color:#27ae60">₹${(myH.income+myH.transferIn).toLocaleString('en-IN')}</div>
+        <div class="stat-sub">Income: ₹${myH.income.toLocaleString('en-IN')} · TrIn: ₹${myH.transferIn.toLocaleString('en-IN')}</div>
       </div>
       <div class="stat-card" style="border-left-color:#c0392b">
         <div class="stat-label">Bills Paid by Me</div>
@@ -926,9 +925,10 @@ function renderDashboard(){
 
   // ── ADMIN / APPROVER DASHBOARD ────────────────────────────
   const totalCashIn=h.totalCashIn;
-  const adminBalance=h.holdings['Admin']?.balance||0;
-  const allBalances=Object.entries(h.holdings).filter(([u])=>u!=='Admin');
+  // No hardcoded 'Admin' — sum all known users
+  const allBalances=Object.entries(h.holdings);
   const totalWithOthers=allBalances.reduce((s,[,v])=>s+v.balance,0);
+  const adminBalance=totalWithOthers; // total cash in system
   const all=[...d.cash,...d.bank];
   const totalDebit=all.filter(e=>e.type==='debit'&&e.status!=='voided').reduce((s,e)=>s+Number(e.amount),0);
   const pending=all.filter(e=>e.status==='pending').length;
@@ -1298,61 +1298,165 @@ function cancelAllocation(id){
 //  CASH HOLDINGS PAGE
 // ══════════════════════════════════════════════════════════
 function renderCashHolding(){
-  const h=computeCashHoldings();
-  const d=getData();
-  const cash=d.cash.filter(e=>e.status!=='voided');
-  const rows=USERS.map(u=>{const b=h.holdings[u.name]||{income:0,expense:0,transferOut:0,transferIn:0,balance:0};return{name:u.name,role:u.role,...b};});
-  const csvData=rows.map(r=>({'Login User':r.name,Role:r.role,'Income(Inflow)':r.income,'Transfer In':r.transferIn,'Transfer Out':r.transferOut,'Expense(Outflow)':r.expense,'Closing Balance':r.balance}));
-  window._ledgerCsvData=csvData;
-  var fmtBtn="<button class=\"btn btn-outline btn-sm\" onclick=\"downloadCSV(window._ledgerCsvData,'GHJ_Cash_Ledger')\">⬇ Ledger CSV</button>";
-  html+='<div style="background:#fff8e1;border-left:4px solid var(--accent);padding:10px 14px;border-radius:0 8px 8px 0;font-size:12px;margin-bottom:14px;line-height:1.8"><b>Single source of truth: CashEntries only.</b> Transfers shown separately — NOT counted in Income or Expense.<br>Formula: <code>Balance = Income + Transfer In − Transfer Out − Expense</code></div>';
-  // Summary table
-  html+='<div class="card" style="margin-bottom:16px"><div class="card-title">📊 Summary</div><div class="tbl-wrap"><table style="width:100%;font-size:13px;border-collapse:collapse"><thead><tr style="background:#1a3a5c;color:#fff"><th style="padding:9px 8px;text-align:left">Login User</th><th style="padding:9px 8px;text-align:right;color:#90EE90">Income(Inflow)</th><th style="padding:9px 8px;text-align:right;color:#87CEEB">Transfer In</th><th style="padding:9px 8px;text-align:right;color:#DDA0DD">Transfer Out</th><th style="padding:9px 8px;text-align:right;color:#FFB6C1">Expense(Outflow)</th><th style="padding:9px 8px;text-align:right;background:#27ae60;color:#fff">Closing Balance</th></tr></thead><tbody>';
-  rows.forEach(function(r){
-    var hl=r.name===currentUser.name?' style="background:#f0f8ff;font-weight:700"':'';
-    html+='<tr'+hl+'><td style="padding:8px">'+r.name+(r.name===currentUser.name?' 👈':'')+' <small style="color:var(--text-muted)">('+r.role+')</small></td>'
-      +'<td style="padding:8px;text-align:right;color:#27ae60">'+(r.income?'₹'+r.income.toLocaleString('en-IN'):'-')+'</td>'
-      +'<td style="padding:8px;text-align:right;color:#2980b9">'+(r.transferIn?'₹'+r.transferIn.toLocaleString('en-IN'):'-')+'</td>'
-      +'<td style="padding:8px;text-align:right;color:#8e44ad">'+(r.transferOut?'₹'+r.transferOut.toLocaleString('en-IN'):'-')+'</td>'
-      +'<td style="padding:8px;text-align:right;color:#c0392b">'+(r.expense?'₹'+r.expense.toLocaleString('en-IN'):'-')+'</td>'
-      +'<td style="padding:8px;text-align:right;font-weight:700;color:'+(r.balance>=0?'#27ae60':'#c0392b')+'">'+( r.balance<0?'−':'')+' ₹'+Math.abs(r.balance).toLocaleString('en-IN')+(r.balance<0?' ⚠️':'')+'</td></tr>';
+  try {
+  const h   = computeCashHoldings();
+  const d   = getData();
+  const cash= d.cash.filter(e=>e.status!=='voided');
+  const rows= USERS.map(u=>{
+    const b=h.holdings[u.name]||{income:0,expense:0,transferOut:0,transferIn:0,balance:0};
+    return {name:u.name, role:u.role, ...b};
   });
-  var totInc=rows.reduce(function(s,r){return s+r.income;},0);
-  var totExp=rows.reduce(function(s,r){return s+r.expense;},0);
-  html+='<tr style="background:#f0f4f8;font-weight:700;border-top:2px solid var(--primary)"><td style="padding:9px 8px">TOTAL</td><td style="padding:9px 8px;text-align:right;color:#27ae60">₹'+totInc.toLocaleString('en-IN')+'</td><td style="padding:9px 8px;text-align:right">—</td><td style="padding:9px 8px;text-align:right">—</td><td style="padding:9px 8px;text-align:right;color:#c0392b">₹'+totExp.toLocaleString('en-IN')+'</td><td style="padding:9px 8px;text-align:right;color:'+( h.totalHolding>=0?'#27ae60':'#c0392b')+';font-size:14px">₹'+h.totalHolding.toLocaleString('en-IN')+'</td></tr>';
-  html+='</tbody></table></div></div>';
-  // Per-person detail cards
+
+  // Store CSV data globally to avoid quote issues in onclick
+  window._ledgerCsvData = rows.map(r=>({
+    'Login User':r.name, Role:r.role,
+    'Income(Inflow)':r.income,
+    'Transfer In':r.transferIn,
+    'Transfer Out':r.transferOut,
+    'Expense(Outflow)':r.expense,
+    'Closing Balance':r.balance
+  }));
+
+  // ── Start building HTML ────────────────────────────────────────────────────
+  var html = '';
+
+  // Header row
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">';
+  html += '<div style="font-size:20px;font-weight:700;color:var(--primary)">👛 Cash Holdings — Per-Person Ledger</div>';
+  html += '<button class="btn btn-outline btn-sm" onclick="downloadCSV(window._ledgerCsvData,\'GHJ_Cash_Ledger\')">⬇ Ledger CSV</button>';
+  html += '</div>';
+
+  // Info box
+  html += '<div style="background:#fff8e1;border-left:4px solid var(--accent);padding:10px 14px;border-radius:0 8px 8px 0;font-size:12px;margin-bottom:14px;line-height:1.8">';
+  html += '<b>Single source of truth: CashEntries only.</b> Transfers shown separately — NOT counted in Income or Expense.<br>';
+  html += 'Formula: <code style="background:rgba(0,0,0,.06);padding:2px 6px;border-radius:3px">Balance = Income + Transfer In − Transfer Out − Expense</code>';
+  html += '</div>';
+
+  // ── Summary table ──────────────────────────────────────────────────────────
+  html += '<div class="card" style="margin-bottom:16px">';
+  html += '<div class="card-title">📊 Summary — All Users</div>';
+  html += '<div class="tbl-wrap">';
+  html += '<table style="width:100%;font-size:13px;border-collapse:collapse">';
+  html += '<thead><tr style="background:#1a3a5c;color:#fff">';
+  html += '<th style="padding:9px 8px;text-align:left">Login User</th>';
+  html += '<th style="padding:9px 8px;text-align:right;color:#90EE90">Income(Inflow)</th>';
+  html += '<th style="padding:9px 8px;text-align:right;color:#87CEEB">Transfer In</th>';
+  html += '<th style="padding:9px 8px;text-align:right;color:#DDA0DD">Transfer Out</th>';
+  html += '<th style="padding:9px 8px;text-align:right;color:#FFB6C1">Expense(Outflow)</th>';
+  html += '<th style="padding:9px 8px;text-align:right;background:#27ae60;color:#fff;min-width:110px">Closing Balance</th>';
+  html += '</tr></thead><tbody>';
+
   rows.forEach(function(r){
-    var mine=cash.filter(function(e){return (e.createdBy||'').trim()===r.name;});
-    var trIn=cash.filter(function(e){return e.txnType==='Transfer'&&(e.transferTo||'').trim()===r.name;});
-    var all=[].concat(mine,trIn).sort(function(a,b){return a.date>b.date?1:-1;});
-    html+='<div class="card" style="margin-bottom:12px;border-left:4px solid '+(r.balance>=0?'#27ae60':'#c0392b')+'">';
-    html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:15px;font-weight:700">'+r.name+' <span style="font-size:11px;font-weight:400;color:var(--text-muted)">('+r.role+')</span></div>';
-    html+='<div style="font-size:18px;font-weight:700;color:'+(r.balance>=0?'#27ae60':'#c0392b')+'">'+( r.balance<0?'−':'')+' ₹'+Math.abs(r.balance).toLocaleString('en-IN')+(r.balance<0?' ⚠️':'')+'</div></div>';
-    html+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">';
-    html+='<div style="text-align:center;background:#eafaf1;border-radius:6px;padding:8px"><div style="font-size:10px;color:var(--text-muted)">Income</div><div style="font-weight:700;color:#27ae60">₹'+r.income.toLocaleString('en-IN')+'</div></div>';
-    html+='<div style="text-align:center;background:#eaf4fd;border-radius:6px;padding:8px"><div style="font-size:10px;color:var(--text-muted)">Transfer In</div><div style="font-weight:700;color:#2980b9">₹'+r.transferIn.toLocaleString('en-IN')+'</div></div>';
-    html+='<div style="text-align:center;background:#f9ebf9;border-radius:6px;padding:8px"><div style="font-size:10px;color:var(--text-muted)">Transfer Out</div><div style="font-weight:700;color:#8e44ad">₹'+r.transferOut.toLocaleString('en-IN')+'</div></div>';
-    html+='<div style="text-align:center;background:#fde8e8;border-radius:6px;padding:8px"><div style="font-size:10px;color:var(--text-muted)">Expense</div><div style="font-weight:700;color:#c0392b">₹'+r.expense.toLocaleString('en-IN')+'</div></div>';
-    html+='</div>';
-    if(all.length===0){
-      html+='<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:12px">No cash entries yet.</div>';
+    var hl = r.name===currentUser.name ? ' style="background:#f0f8ff;font-weight:700"' : '';
+    html += '<tr'+hl+'>';
+    html += '<td style="padding:8px">'+r.name+(r.name===currentUser.name?' 👈':'')+' <small style="color:var(--text-muted)">('+r.role+')</small></td>';
+    html += '<td style="padding:8px;text-align:right;color:#27ae60">'+(r.income?'₹'+r.income.toLocaleString('en-IN'):'-')+'</td>';
+    html += '<td style="padding:8px;text-align:right;color:#2980b9">'+(r.transferIn?'₹'+r.transferIn.toLocaleString('en-IN'):'-')+'</td>';
+    html += '<td style="padding:8px;text-align:right;color:#8e44ad">'+(r.transferOut?'₹'+r.transferOut.toLocaleString('en-IN'):'-')+'</td>';
+    html += '<td style="padding:8px;text-align:right;color:#c0392b">'+(r.expense?'₹'+r.expense.toLocaleString('en-IN'):'-')+'</td>';
+    var balColor = r.balance>=0?'#27ae60':'#c0392b';
+    html += '<td style="padding:8px;text-align:right;font-weight:700;color:'+balColor+'">'+(r.balance<0?'− ':'')+' ₹'+Math.abs(r.balance).toLocaleString('en-IN')+(r.balance<0?' ⚠️':'')+'</td>';
+    html += '</tr>';
+  });
+
+  // Totals row
+  var totInc = rows.reduce(function(s,r){return s+r.income;},0);
+  var totExp = rows.reduce(function(s,r){return s+r.expense;},0);
+  var totBal = h.totalHolding;
+  html += '<tr style="background:#f0f4f8;font-weight:700;border-top:2px solid var(--primary)">';
+  html += '<td style="padding:9px 8px">TOTAL</td>';
+  html += '<td style="padding:9px 8px;text-align:right;color:#27ae60">₹'+totInc.toLocaleString('en-IN')+'</td>';
+  html += '<td style="padding:9px 8px;text-align:right">—</td>';
+  html += '<td style="padding:9px 8px;text-align:right">—</td>';
+  html += '<td style="padding:9px 8px;text-align:right;color:#c0392b">₹'+totExp.toLocaleString('en-IN')+'</td>';
+  html += '<td style="padding:9px 8px;text-align:right;font-size:14px;color:'+(totBal>=0?'#27ae60':'#c0392b')+'">₹'+totBal.toLocaleString('en-IN')+'</td>';
+  html += '</tr>';
+  html += '</tbody></table></div></div>';
+
+  // ── Per-person detail cards ────────────────────────────────────────────────
+  rows.forEach(function(r){
+    var mine  = cash.filter(function(e){return (e.createdBy||'').trim()===r.name;});
+    var trIn  = cash.filter(function(e){return e.txnType==='Transfer'&&(e.transferTo||'').trim()===r.name;});
+    // Combine and sort by date (avoid duplicates — mine already excludes trIn where createdBy !== r.name)
+    var allEntries = mine.concat(trIn).sort(function(a,b){return a.date>b.date?1:-1;});
+
+    var balColor = r.balance>=0?'#27ae60':'#c0392b';
+    html += '<div class="card" style="margin-bottom:12px;border-left:4px solid '+balColor+'">';
+
+    // Card header
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">';
+    html += '<div style="font-size:15px;font-weight:700">'+r.name+' <span style="font-size:11px;font-weight:400;color:var(--text-muted)">('+r.role+')</span></div>';
+    html += '<div style="font-size:18px;font-weight:700;color:'+balColor+'">'+(r.balance<0?'− ':'')+' ₹'+Math.abs(r.balance).toLocaleString('en-IN')+(r.balance<0?' ⚠️':'')+'</div>';
+    html += '</div>';
+
+    // 4 stat boxes
+    html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px">';
+    html += '<div style="text-align:center;background:#eafaf1;border-radius:6px;padding:8px"><div style="font-size:10px;color:var(--text-muted)">Income</div><div style="font-weight:700;color:#27ae60">₹'+r.income.toLocaleString('en-IN')+'</div></div>';
+    html += '<div style="text-align:center;background:#eaf4fd;border-radius:6px;padding:8px"><div style="font-size:10px;color:var(--text-muted)">Transfer In</div><div style="font-weight:700;color:#2980b9">₹'+r.transferIn.toLocaleString('en-IN')+'</div></div>';
+    html += '<div style="text-align:center;background:#f9ebf9;border-radius:6px;padding:8px"><div style="font-size:10px;color:var(--text-muted)">Transfer Out</div><div style="font-weight:700;color:#8e44ad">₹'+r.transferOut.toLocaleString('en-IN')+'</div></div>';
+    html += '<div style="text-align:center;background:#fde8e8;border-radius:6px;padding:8px"><div style="font-size:10px;color:var(--text-muted)">Expense</div><div style="font-weight:700;color:#c0392b">₹'+r.expense.toLocaleString('en-IN')+'</div></div>';
+    html += '</div>';
+
+    // Entry detail table
+    if(allEntries.length===0){
+      html += '<div style="text-align:center;padding:12px;color:var(--text-muted);font-size:12px">No cash entries yet for '+r.name+'.</div>';
     } else {
-      html+='<div class="tbl-wrap"><table style="font-size:11px;width:100%;border-collapse:collapse"><thead><tr style="background:#f5f6fa"><th style="padding:5px 4px;text-align:left">Date</th><th style="padding:5px 4px;text-align:left">Type</th><th style="padding:5px 4px;text-align:left">Head</th><th style="padding:5px 4px;text-align:left">Description</th><th style="padding:5px 4px;text-align:left">Vendor/To/From</th><th style="padding:5px 4px;text-align:right">Amount</th><th style="padding:5px 4px">Dr/Cr</th></tr></thead><tbody>';
-      all.forEach(function(e){
-        var isTrIn=e.txnType==='Transfer'&&(e.transferTo||'').trim()===r.name;
-        var isTrOut=e.txnType==='Transfer'&&(e.createdBy||'').trim()===r.name;
-        var typeLabel=e.txnType==='Income(Inflow)'?'💰 Income':e.txnType==='Expense(Outflow)'?'💸 Expense':isTrIn?'🔄 Tr.In':isTrOut?'🔄 Tr.Out':'💸 Expense';
-        var color=( e.txnType==='Income(Inflow)'||isTrIn)?'#27ae60':isTrOut?'#8e44ad':'#c0392b';
-        var sign=(e.txnType==='Income(Inflow)'||isTrIn)?'+':'-';
-        var party=isTrIn?'From: '+(e.createdBy||''):isTrOut?'To: '+(e.transferTo||''):(e.vendor||'-');
-        html+='<tr style="border-bottom:.5px solid #f0f0f0"><td style="padding:5px 4px">'+e.date+'</td><td style="padding:5px 4px;font-size:10px">'+typeLabel+'</td><td style="padding:5px 4px;font-size:10px">'+e.head+'</td><td style="padding:5px 4px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+e.desc+'</td><td style="padding:5px 4px;font-size:10px;color:var(--text-muted)">'+party+'</td><td style="padding:5px 4px;text-align:right;font-weight:600;color:'+color+'">'+sign+'₹'+Number(e.amount).toLocaleString('en-IN')+'</td><td style="padding:5px 4px;text-align:center"><span style="font-size:10px;background:'+(e.type==='credit'?'#eafaf1':'#fde8e8')+';color:'+(e.type==='credit'?'#27ae60':'#c0392b')+';padding:2px 6px;border-radius:4px">'+(e.type==='credit'?'CR':'DR')+'</span></td></tr>';
+      html += '<div class="tbl-wrap">';
+      html += '<table style="font-size:11px;width:100%;border-collapse:collapse">';
+      html += '<thead><tr style="background:#f5f6fa">';
+      html += '<th style="padding:5px 4px;text-align:left">Date</th>';
+      html += '<th style="padding:5px 4px;text-align:left">Type</th>';
+      html += '<th style="padding:5px 4px;text-align:left">Head</th>';
+      html += '<th style="padding:5px 4px;text-align:left">Description</th>';
+      html += '<th style="padding:5px 4px;text-align:left">Vendor / To / From</th>';
+      html += '<th style="padding:5px 4px;text-align:right">Amount</th>';
+      html += '<th style="padding:5px 4px;text-align:center">Dr/Cr</th>';
+      html += '</tr></thead><tbody>';
+
+      allEntries.forEach(function(e){
+        var isTrIn  = e.txnType==='Transfer' && (e.transferTo||'').trim()===r.name;
+        var isTrOut = e.txnType==='Transfer' && (e.createdBy||'').trim()===r.name && !isTrIn;
+        var typeLabel, color, sign, party, drCrBg, drCrColor, drCrLabel;
+
+        if(e.txnType==='Income(Inflow)'){
+          typeLabel='💰 Income'; color='#27ae60'; sign='+'; party=e.vendor||'-';
+          drCrBg='#eafaf1'; drCrColor='#27ae60'; drCrLabel='CR';
+        } else if(isTrIn){
+          typeLabel='🔄 Tr.In'; color='#2980b9'; sign='+'; party='From: '+(e.createdBy||'-');
+          drCrBg='#eaf4fd'; drCrColor='#2980b9'; drCrLabel='TR-IN';
+        } else if(isTrOut){
+          typeLabel='🔄 Tr.Out'; color='#8e44ad'; sign='-'; party='To: '+(e.transferTo||'-');
+          drCrBg='#f9ebf9'; drCrColor='#8e44ad'; drCrLabel='TR-OUT';
+        } else {
+          typeLabel='💸 Expense'; color='#c0392b'; sign='-'; party=e.vendor||'-';
+          drCrBg='#fde8e8'; drCrColor='#c0392b'; drCrLabel='DR';
+        }
+
+        html += '<tr style="border-bottom:.5px solid #f0f0f0">';
+        html += '<td style="padding:5px 4px">'+e.date+'</td>';
+        html += '<td style="padding:5px 4px;font-size:10px">'+typeLabel+'</td>';
+        html += '<td style="padding:5px 4px;font-size:10px">'+e.head+'</td>';
+        html += '<td style="padding:5px 4px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+e.desc+'">'+e.desc+'</td>';
+        html += '<td style="padding:5px 4px;font-size:10px;color:var(--text-muted)">'+party+'</td>';
+        html += '<td style="padding:5px 4px;text-align:right;font-weight:600;color:'+color+'">'+sign+'₹'+Number(e.amount).toLocaleString('en-IN')+'</td>';
+        html += '<td style="padding:5px 4px;text-align:center"><span style="font-size:9px;background:'+drCrBg+';color:'+drCrColor+';padding:2px 5px;border-radius:3px">'+drCrLabel+'</span></td>';
+        html += '</tr>';
       });
-      html+='</tbody></table></div>';
+
+      html += '</tbody></table></div>';
     }
-    html+='</div>';
+    html += '</div>'; // end card
   });
+
   return html;
+
+  } catch(err) {
+    console.error('renderCashHolding error:', err);
+    return '<div style="padding:24px;color:#c0392b;font-size:13px">'
+      + '<b>⚠️ Cash Holdings error:</b> '+err.message
+      + '<br><small>Check browser console (F12) for details.</small>'
+      + '</div>';
+  }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2130,43 +2234,45 @@ function getReportPeriodFilter(period){
 
 function renderReports(){
   const d=getData();
-  const allc=getCashAllocations();
   const periodFn=getReportPeriodFilter(reportPeriod);
   const periodLabel={all:'All Time',this_month:'This Month',prev_month:'Previous Month',this_year:'This Year',last_3m:'Last 3 Months',last_6m:'Last 6 Months'}[reportPeriod];
 
   const allRaw=[...d.cash.map(e=>({...e,paytype:'cash'})),...d.bank.map(e=>({...e,paytype:'bank'}))];
   const modeFiltered=reportMode==='all'?allRaw:allRaw.filter(e=>e.paytype===reportMode);
-  const filtered=modeFiltered.filter(e=>e.status!=='voided'&&periodFn(e));
 
-  // ── CASH INFLOWS (Credit, cash only) ─────────────────────
-  const cashCredits=d.cash.filter(e=>e.type==='credit'&&e.status!=='voided'&&periodFn(e));
-  const inflowByHead={};
-  CASH_INFLOW_HEADS.forEach(h=>{inflowByHead[h]=cashCredits.filter(e=>e.head===h).reduce((s,e)=>s+Number(e.amount),0);});
-  const inflowEntries=Object.entries(inflowByHead).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  const totalIn=inflowEntries.reduce((s,[,v])=>s+v,0);
+  // ── RULE: Transfer entries are NEVER counted in income or expense ─────────
+  const isTransfer = e => e.txnType==='Transfer';
+  const filtered   = modeFiltered.filter(e=>e.status!=='voided'&&periodFn(e)&&!isTransfer(e));
+  const transfers  = modeFiltered.filter(e=>e.status!=='voided'&&periodFn(e)&&isTransfer(e));
 
-  // ── HOLDINGS (current, all-time not filtered) ─────────────
+  // ── INCOME: Credit entries only, NO transfers ─────────────────────────────
+  const credits    = filtered.filter(e=>e.type==='credit');
+  const totalCredit= credits.reduce((s,e)=>s+Number(e.amount),0);
+
+  // ── EXPENSE: Debit entries only, NO transfers ─────────────────────────────
+  const debits     = filtered.filter(e=>e.type==='debit');
+  const totalDebit = debits.reduce((s,e)=>s+Number(e.amount),0);
+
+  // ── HEAD BREAKDOWN: income and expense, NO transfers ─────────────────────
+  const byHeadCr={}, byHeadDr={};
+  INCOME_HEADS.forEach(hd=>{byHeadCr[hd]=credits.filter(e=>e.head===hd).reduce((s,e)=>s+Number(e.amount),0);});
+  EXPENSE_HEADS.forEach(hd=>{byHeadDr[hd]=debits.filter(e=>e.head===hd).reduce((s,e)=>s+Number(e.amount),0);});
+  const headCrEntries=Object.entries(byHeadCr).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  const headDrEntries=Object.entries(byHeadDr).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+  const maxCr=headCrEntries.length?headCrEntries[0][1]:1;
+  const maxDr=headDrEntries.length?headDrEntries[0][1]:1;
+
+  // ── HOLDINGS by user (from computeCashHoldings — live, all-time) ─────────
   const h=computeCashHoldings();
 
-  // ── EXPENSES (Debits) ────────────────────────────────────
-  const debits=filtered.filter(e=>e.type==='debit');
-  const totalDebit=debits.reduce((s,e)=>s+Number(e.amount),0);
-  const credits=filtered.filter(e=>e.type==='credit');
-  const totalCredit=credits.reduce((s,e)=>s+Number(e.amount),0);
-
-  // Debit by Head
-  const byHead={};
-  ALL_HEADS.forEach(hd=>{byHead[hd]=debits.filter(e=>e.head===hd).reduce((s,e)=>s+Number(e.amount),0);});
-  const headEntries=Object.entries(byHead).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
-  const maxH=headEntries.length?headEntries[0][1]:1;
-
-  // Holdings by user (filtered period allocations)
-  const periodAllocs=allc.filter(a=>a.status!=='cancelled'&&periodFn({date:a.date}));
-  const holdingByUser={};
-  USERS.forEach(u=>{
-    const rcvd=periodAllocs.filter(a=>a.toUser===u.name).reduce((s,a)=>s+Number(a.amount),0);
-    const spent=d.cash.filter(e=>e.type==='debit'&&e.status!=='voided'&&periodFn(e)&&(e.paidByUser===u.name||e.createdBy===u.name)).reduce((s,e)=>s+Number(e.amount),0);
-    holdingByUser[u.name]={rcvd,spent,balance:rcvd-spent,role:u.role};
+  // ── MIS: Per-user summary for period ─────────────────────────────────────
+  const misRows=USERS.map(u=>{
+    const uCr = credits.filter(e=>e.createdBy===u.name).reduce((s,e)=>s+Number(e.amount),0);
+    const uDr = debits.filter(e=>e.createdBy===u.name).reduce((s,e)=>s+Number(e.amount),0);
+    const uTrOut = transfers.filter(e=>e.createdBy===u.name).reduce((s,e)=>s+Number(e.amount),0);
+    const uTrIn  = transfers.filter(e=>(e.transferTo||'')===u.name).reduce((s,e)=>s+Number(e.amount),0);
+    const bal    = (h.holdings[u.name]||{}).balance||0;
+    return {name:u.name,role:u.role,income:uCr,expense:uDr,trIn:uTrIn,trOut:uTrOut,balance:bal};
   });
 
   return`
@@ -2199,25 +2305,25 @@ function renderReports(){
         <table style="width:100%;font-size:12px;border-collapse:collapse">
           <thead><tr style="border-bottom:1.5px solid var(--border)"><th style="text-align:left;padding:5px 4px">Head / Source</th><th style="text-align:right;padding:5px 4px">Amount</th><th style="text-align:right;padding:5px 4px">%</th></tr></thead>
           <tbody>
-          ${inflowEntries.map(([hd,amt])=>`
+          ${headCrEntries.map(([hd,amt])=>`
           <tr style="border-bottom:.5px solid #f0f0f0">
             <td style="padding:6px 4px">${hd}</td>
             <td style="padding:6px 4px;text-align:right;font-weight:600;color:#27ae60">₹${amt.toLocaleString('en-IN')}</td>
-            <td style="padding:6px 4px;text-align:right;color:var(--primary)">${totalIn>0?(amt/totalIn*100).toFixed(1):0}%</td>
+            <td style="padding:6px 4px;text-align:right;color:var(--primary)">${totalCredit>0?(amt/totalCredit*100).toFixed(1):0}%</td>
           </tr>`).join('')||'<tr><td colspan="3" style="text-align:center;padding:16px;color:var(--text-muted)">No cash inflows in this period</td></tr>'}
           </tbody>
-          <tfoot><tr style="border-top:2px solid var(--border)"><td style="padding:8px 4px"><b>TOTAL CASH IN</b></td><td style="padding:8px 4px;text-align:right;font-weight:700;font-size:14px;color:#27ae60">₹${totalIn.toLocaleString('en-IN')}</td><td style="padding:8px 4px;text-align:right"><b>100%</b></td></tr></tfoot>
+          <tfoot><tr style="border-top:2px solid var(--border)"><td style="padding:8px 4px"><b>TOTAL INCOME</b></td><td style="padding:8px 4px;text-align:right;font-weight:700;font-size:14px;color:#27ae60">₹${totalCredit.toLocaleString('en-IN')}</td><td style="padding:8px 4px;text-align:right"><b>100%</b></td></tr></tfoot>
         </table>
       </div>
       <div>
-        ${inflowEntries.map(([hd,amt])=>`
+        ${headCrEntries.map(([hd,amt])=>`
         <div style="margin-bottom:8px">
           <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">
             <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">${hd}</span>
             <span style="color:#27ae60;font-weight:600">₹${amt.toLocaleString('en-IN')}</span>
           </div>
           <div style="background:#ecf0f1;border-radius:3px;height:8px">
-            <div style="background:#27ae60;height:8px;border-radius:3px;width:${totalIn>0?(amt/totalIn*100):0}%"></div>
+            <div style="background:#27ae60;height:8px;border-radius:3px;width:${totalCredit>0?(amt/totalCredit*100):0}%"></div>
           </div>
         </div>`).join('')||'<div style="text-align:center;padding:20px;color:var(--text-muted)">No data</div>'}
       </div>
@@ -2264,14 +2370,14 @@ function renderReports(){
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
     <div class="card">
       <div class="card-title">📊 Expenses by Head · ${periodLabel}</div>
-      ${headEntries.map(([hd,amt])=>`
+      ${headDrEntries.map(([hd,amt])=>`
       <div style="margin-bottom:8px">
         <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:2px">
           <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px">${hd}</span>
           <span style="color:#c0392b;font-weight:600">₹${amt.toLocaleString('en-IN')} <span style="color:var(--primary)">${totalDebit>0?(amt/totalDebit*100).toFixed(0):0}%</span></span>
         </div>
         <div style="background:#ecf0f1;border-radius:3px;height:6px">
-          <div style="background:#c0392b;height:6px;border-radius:3px;width:${maxH>0?(amt/maxH*100):0}%"></div>
+          <div style="background:#c0392b;height:6px;border-radius:3px;width:${maxDr>0?(amt/maxDr*100):0}%"></div>
         </div>
       </div>`).join('')||'<div style="text-align:center;padding:16px;color:var(--text-muted)">No expense data</div>'}
     </div>
@@ -2291,30 +2397,96 @@ function renderReports(){
           <span>Total Entries</span><span style="font-weight:700">${filtered.length}</span>
         </div>
         <div style="display:flex;justify-content:space-between;padding:10px;background:#f0e8ff;border-radius:8px">
-          <span>Cash Allocations (period)</span><span style="font-weight:700;color:#6c3483">₹${allc.filter(a=>a.status!=='cancelled'&&periodFn({date:a.date})).reduce((s,a)=>s+Number(a.amount),0).toLocaleString('en-IN')}</span>
+          <span>🔄 Transfers (not in income/expense)</span><span style="font-weight:700;color:#6c3483">₹${transfers.reduce((s,e)=>s+Number(e.amount),0).toLocaleString('en-IN')}</span>
         </div>
       </div>
     </div>
   </div>
 
+  <!-- MIS: PER-USER SUMMARY -->
+  <div class="card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="card-title" style="margin:0">👤 MIS — Per User · ${periodLabel}</div>
+      <button class="btn btn-outline btn-sm" onclick="downloadMISReport()">⬇ MIS CSV</button>
+    </div>
+    <div class="tbl-wrap">
+    <table style="font-size:12px;border-collapse:collapse;width:100%">
+      <thead><tr style="background:#1a3a5c;color:#fff">
+        <th style="padding:8px 6px;text-align:left">User</th>
+        <th style="padding:8px 6px;text-align:right;color:#90EE90">Income</th>
+        <th style="padding:8px 6px;text-align:right;color:#87CEEB">Transfer In</th>
+        <th style="padding:8px 6px;text-align:right;color:#DDA0DD">Transfer Out</th>
+        <th style="padding:8px 6px;text-align:right;color:#FFB6C1">Expense</th>
+        <th style="padding:8px 6px;text-align:right;background:#27ae60;color:#fff">Balance</th>
+      </tr></thead>
+      <tbody>
+      ${misRows.map(r=>`<tr style="border-bottom:.5px solid #f0f0f0;${r.name===currentUser.name?'background:#f0f8ff;font-weight:600':''}">
+        <td style="padding:7px 6px">${r.name}${r.name===currentUser.name?' 👈':''} <small style="color:var(--text-muted)">(${r.role})</small></td>
+        <td style="padding:7px 6px;text-align:right;color:#27ae60">${r.income?'₹'+r.income.toLocaleString('en-IN'):'-'}</td>
+        <td style="padding:7px 6px;text-align:right;color:#2980b9">${r.trIn?'₹'+r.trIn.toLocaleString('en-IN'):'-'}</td>
+        <td style="padding:7px 6px;text-align:right;color:#8e44ad">${r.trOut?'₹'+r.trOut.toLocaleString('en-IN'):'-'}</td>
+        <td style="padding:7px 6px;text-align:right;color:#c0392b">${r.expense?'₹'+r.expense.toLocaleString('en-IN'):'-'}</td>
+        <td style="padding:7px 6px;text-align:right;font-weight:700;color:${r.balance>=0?'#27ae60':'#c0392b'}">${r.balance<0?'−':''}₹${Math.abs(r.balance).toLocaleString('en-IN')}</td>
+      </tr>`).join('')}
+      </tbody>
+      <tfoot><tr style="border-top:2px solid var(--primary);background:#f0f4f8;font-weight:700">
+        <td style="padding:8px 6px">TOTAL</td>
+        <td style="padding:8px 6px;text-align:right;color:#27ae60">₹${misRows.reduce((s,r)=>s+r.income,0).toLocaleString('en-IN')}</td>
+        <td style="padding:8px 6px;text-align:right">—</td>
+        <td style="padding:8px 6px;text-align:right">—</td>
+        <td style="padding:8px 6px;text-align:right;color:#c0392b">₹${misRows.reduce((s,r)=>s+r.expense,0).toLocaleString('en-IN')}</td>
+        <td style="padding:8px 6px;text-align:right;color:${h.totalHolding>=0?'#27ae60':'#c0392b'}">₹${h.totalHolding.toLocaleString('en-IN')}</td>
+      </tfoot>
+    </table>
+    </div>
+  </div>
+
   <!-- FULL LEDGER TABLE -->
   <div class="card">
-    <div class="card-title">📄 Full Ledger · ${periodLabel}</div>
+    <div class="card-title">📄 Full Ledger · ${periodLabel} <span style="font-size:11px;font-weight:400;color:var(--text-muted)">(Transfers shown separately — not counted in totals)</span></div>
     <div class="tbl-wrap">
-    <table><thead><tr><th>Sr.No</th><th>Date</th><th>Mode</th><th>Head</th><th>Description</th><th>Vendor</th><th>Paid By</th><th>Dr/Cr</th><th>Amount</th><th>Status</th></tr></thead>
-    <tbody>${modeFiltered.filter(e=>periodFn(e)).slice().sort((a,b)=>b.date>a.date?1:-1).map(e=>`<tr style="${e.status==='voided'?'opacity:.4':''}">
-      <td style="font-size:10px">${e.srno}</td><td>${e.date}</td>
-      <td><span class="badge badge-${e.paytype}">${e.paytype.toUpperCase()}</span></td>
-      <td style="font-size:11px">${e.head}</td>
-      <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.desc}</td>
-      <td style="font-size:11px;color:var(--primary-light)">${e.vendor||'—'}</td>
-      <td style="font-size:11px;color:#6c3483;font-weight:500">${e.paidByUser||e.createdBy||'—'}</td>
-      <td style="font-weight:700;color:${e.type==='debit'?'#c0392b':'#27ae60'}">${e.type==='debit'?'DR':'CR'}</td>
-      <td style="font-weight:600;color:${e.type==='debit'?'var(--danger)':'var(--success)'}">₹${Number(e.amount).toLocaleString('en-IN')}</td>
-      <td><span class="badge badge-${e.status}">${e.status==='voided'?'VOID':e.status.toUpperCase()}</span></td>
-    </tr>`).join('')||'<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text-muted)">No data for this period/mode.</td></tr>'}
+    <table><thead><tr>
+      <th>Sr.No</th><th>Date</th><th>Mode</th><th>Type</th><th>Head</th>
+      <th>Description</th><th>Vendor/To</th><th>By</th><th>Dr/Cr</th><th>Amount</th><th>Status</th>
+    </tr></thead>
+    <tbody>${modeFiltered.filter(e=>periodFn(e)&&e.status!=='voided').slice().sort((a,b)=>b.date>a.date?1:-1).map(e=>{
+      const isTr=e.txnType==='Transfer';
+      return `<tr style="background:${isTr?'#fdf3ff':''}">
+        <td style="font-size:10px">${e.srno}</td><td>${e.date}</td>
+        <td><span class="badge badge-${e.paytype}">${e.paytype.toUpperCase()}</span></td>
+        <td><span style="font-size:10px;padding:2px 6px;border-radius:4px;background:${isTr?'#e8d5f5':e.type==='credit'?'#eafaf1':'#fde8e8'};color:${isTr?'#6c3483':e.type==='credit'?'#27ae60':'#c0392b'}">${isTr?'TRANSFER':e.type==='credit'?'INCOME':'EXPENSE'}</span></td>
+        <td style="font-size:11px">${e.head}</td>
+        <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.desc}</td>
+        <td style="font-size:11px;color:var(--primary-light)">${isTr?(e.transferTo||e.vendor||'—'):(e.vendor||'—')}</td>
+        <td style="font-size:11px;color:#6c3483">${e.createdBy||'—'}</td>
+        <td style="font-weight:700;color:${isTr?'#8e44ad':e.type==='debit'?'#c0392b':'#27ae60'}">${isTr?'TR':e.type==='debit'?'DR':'CR'}</td>
+        <td style="font-weight:600;color:${isTr?'#8e44ad':e.type==='debit'?'var(--danger)':'var(--success)'}">₹${Number(e.amount).toLocaleString('en-IN')}</td>
+        <td><span class="badge badge-${e.status}">${e.status.toUpperCase()}</span></td>
+      </tr>`;
+    }).join('')||'<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--text-muted)">No data for this period.</td></tr>'}
     </tbody></table></div>
   </div>`;
+}
+
+function downloadMISReport(){
+  const d=getData();
+  const periodFn=getReportPeriodFilter(reportPeriod);
+  const isTransfer=e=>e.txnType==='Transfer';
+  const allRaw=[...d.cash.map(e=>({...e,paytype:'cash'})),...d.bank.map(e=>({...e,paytype:'bank'}))];
+  const modeFiltered=(reportMode==='all'?allRaw:allRaw.filter(e=>e.paytype===reportMode)).filter(e=>e.status!=='voided'&&periodFn(e));
+  const credits=modeFiltered.filter(e=>e.type==='credit'&&!isTransfer(e));
+  const debits =modeFiltered.filter(e=>e.type==='debit' &&!isTransfer(e));
+  const transfers=modeFiltered.filter(e=>isTransfer(e));
+  const h=computeCashHoldings();
+  const rows=USERS.map(u=>({
+    'User':u.name,'Role':u.role,
+    'Income(Inflow)':credits.filter(e=>e.createdBy===u.name).reduce((s,e)=>s+Number(e.amount),0),
+    'Transfer In':transfers.filter(e=>(e.transferTo||'')===u.name).reduce((s,e)=>s+Number(e.amount),0),
+    'Transfer Out':transfers.filter(e=>e.createdBy===u.name).reduce((s,e)=>s+Number(e.amount),0),
+    'Expense(Outflow)':debits.filter(e=>e.createdBy===u.name).reduce((s,e)=>s+Number(e.amount),0),
+    'Cash Balance':(h.holdings[u.name]||{}).balance||0
+  }));
+  downloadCSV(rows,'GHJ_MIS_'+reportPeriod);
 }
 
 function downloadReportData(){
@@ -2451,14 +2623,17 @@ function rebuildCashMgmt(ss) {
   var hdr  = rows[0].map(function(h){ return String(h).trim(); });
   var col  = function(name){ return hdr.indexOf(name); };
 
-  // Per-user summary
-  var summary = {}; // { userName: { income:0, transfer_in:0, transfer_out:0, expense:0 } }
-  var init = function(u){ if(!summary[u]) summary[u]={income:0,transfer_in:0,transfer_out:0,expense:0}; };
+  // Per-user summary from CashEntries — single source of truth
+  var summary = {};
+  var init = function(u){ if(!summary[u]) summary[u]={income:0,transferIn:0,transferOut:0,expense:0}; };
 
   for (var i = 1; i < rows.length; i++) {
     var r      = rows[i];
-    var holder = String(r[col('CreatedBy')]  || '').trim();
-    var etype  = String(r[col('EntryType')]  || '').trim();
+    var status = String(r[col('Status')] || '').trim().toLowerCase();
+    if (status === 'voided' || status === 'stub') continue; // skip voided and stubs
+
+    var holder = String(r[col('CreatedBy')] || '').trim();
+    var etype  = String(r[col('EntryType')] || '').trim();
     var amt    = parseFloat(r[col('Amount')] || 0);
     var vendor = String(r[col('ReceivedBy/VendorName')] || '').trim();
 
@@ -2466,34 +2641,46 @@ function rebuildCashMgmt(ss) {
     init(holder);
 
     if (etype === 'Income(Inflow)') {
+      // Income — NOT a transfer, goes to holder's income
       summary[holder].income += amt;
     } else if (etype === 'Transfer') {
-      // Transfer OUT from holder, Transfer IN to vendor (recipient)
-      summary[holder].transfer_out += amt;
-      init(vendor);
-      summary[vendor].transfer_in += amt;
+      // Transfer — custody moves from holder to vendor/recipient
+      // NOT counted in income or expense of either person
+      summary[holder].transferOut += amt;
+      if (vendor) { init(vendor); summary[vendor].transferIn += amt; }
     } else if (etype === 'Expense(Outflow)') {
+      // Expense — NOT a transfer, deducted from holder
       summary[holder].expense += amt;
     }
   }
 
-  // Write to CashMgmt tab — clear and rewrite
-  var mtab = getOrCreateTab(ss, 'CashMgmt', ['Total Cash Holding Status','Opening','Income(Inflow)','Transfer','Expense(Outflow)','Net Balance']);
-  // Clear data rows (keep header)
-  if (mtab.getLastRow() > 1) {
-    mtab.getRange(2, 1, mtab.getLastRow() - 1, 6).clearContent();
+  // ── Write CashMgmt tab — CLEAR ALL then rewrite cleanly ──────────────────
+  var CMGMT_HDR = ['LoginUserName','Opening','Income(Inflow)','Transfer In','Transfer Out','Expense(Outflow)','Closing Balance'];
+  var mtab = ss.getSheetByName('CashMgmt');
+  if (!mtab) {
+    mtab = ss.insertSheet('CashMgmt');
   }
+  // Clear entire sheet and start fresh — prevents duplicates
+  mtab.clearContents();
 
-  // Write Admin section header
-  mtab.appendRow(['Admin Cash Summary','Opening','Income(Inflow)','Transfer Out','Expense(Outflow)','Net Balance']);
+  // Write header row
+  mtab.appendRow(CMGMT_HDR);
+  mtab.getRange(1, 1, 1, CMGMT_HDR.length)
+      .setFontWeight('bold')
+      .setBackground('#1a3a5c')
+      .setFontColor('#ffffff');
+  mtab.setFrozenRows(1);
 
-  // Write per-user rows
-  mtab.appendRow(['LoginUserName','Opening','Income(Inflow) Received','Transfer In','Expense(Outflow)','Closing Balance']);
-  Object.keys(summary).forEach(function(u) {
+  // Write one row per user (only users who have entries)
+  var userNames = Object.keys(summary).sort();
+  userNames.forEach(function(u) {
     var s = summary[u];
-    var net = 0 + s.income + s.transfer_in - s.transfer_out - s.expense;
-    mtab.appendRow([u, 0, s.income, s.transfer_in, s.expense, net]);
+    var closing = s.income + s.transferIn - s.transferOut - s.expense;
+    mtab.appendRow([u, 0, s.income, s.transferIn, s.transferOut, s.expense, closing]);
   });
+
+  // Auto-resize columns
+  try { mtab.autoResizeColumns(1, CMGMT_HDR.length); } catch(e) {}
 }
 
 // ════════════════════════════════════════════════════════════════════════
