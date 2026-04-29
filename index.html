@@ -181,6 +181,7 @@ scriptUrl: 'https://script.google.com/macros/s/AKfycbxPrJ-HqbAoxKfTnhZLQdBt2oA03
   sheetId:   '1JL8flLniqzH-9E36dnOZorCzHerjMO6BKxeQ0efkznk',
   secret:    '6279@GSEKLX278905721',
 };
+
 // Apply config
 (function(){
   if(APP_CONFIG.scriptUrl) localStorage.setItem('ghj_api_url', APP_CONFIG.scriptUrl);
@@ -246,7 +247,12 @@ const DEFAULT_USERS = [
   {email:'creator2@ghj.org', pwd:'create456', name:'Creator2', role:'creator'},
 ];
 
-let USERS = JSON.parse(localStorage.getItem('ghj_users')||'null') || DEFAULT_USERS;
+// USERS: always read from localStorage — ghj_users preserved across cache clears
+let USERS = (function(){
+  try{ const s=localStorage.getItem('ghj_users'); if(s){ const p=JSON.parse(s); if(Array.isArray(p)&&p.length) return p; } }catch(e){}
+  return DEFAULT_USERS;
+})();
+function reloadUsers(){ try{ const s=localStorage.getItem('ghj_users'); if(s){ const p=JSON.parse(s); if(Array.isArray(p)&&p.length){ USERS=p; return; } } }catch(e){} USERS=DEFAULT_USERS; }
 let currentUser = null;
 let currentPage = 'dashboard';
 let editingId   = null;
@@ -420,7 +426,11 @@ async function doLogin(){
           const ni=hdr.indexOf('name'),ei=hdr.indexOf('email'),pi=['password','pwd','pass'].reduce((f,k)=>f>=0?f:hdr.indexOf(k),-1),ri=hdr.indexOf('role');
           if(ei>=0&&pi>=0){
             const sheetUsers=rows.slice(1).filter(r=>r[ei]).map(r=>({name:ni>=0?String(r[ni]).trim():String(r[ei]).trim(),email:String(r[ei]).trim(),pwd:String(r[pi]).trim(),role:ri>=0?String(r[ri]).trim().toLowerCase():'creator'}));
-            if(sheetUsers.length){USERS=sheetUsers;localStorage.setItem('ghj_users',JSON.stringify(USERS));}
+            if(sheetUsers.length){
+              USERS=sheetUsers;
+              localStorage.setItem('ghj_users',JSON.stringify(USERS));
+              reloadUsers(); // keep global USERS in sync
+            }
           }
         }
       }
@@ -473,13 +483,33 @@ function doLogout(){
 }
 
 function clearAllCacheAndReload(){
-  if(!confirm('Clear all locally cached data and reload?\nThis will remove cash, bank, alloc, and user data from browser.\nSheet data will reload fresh on next login.')) return;
-  const keysToKeep=['ghj_api_url','ghj_sheet_id','ghj_app_secret'];
-  Object.keys(localStorage).forEach(k=>{
-    if(!keysToKeep.includes(k)) localStorage.removeItem(k);
-  });
-  showToast('✅ Cache cleared! Reloading...');
-  setTimeout(()=>location.reload(),1500);
+  if(!confirm(
+    'Clear locally cached data and reload?\n\n' +
+    'This will remove cash entries, bank entries, sync queue\n' +
+    'from browser storage. Your Google Sheet data is safe.\n\n' +
+    'Your Sheet URL, Secret, and User accounts will be kept.\n' +
+    'Fresh data will load from Sheet on next login.'
+  )) return;
+
+  // Keys to KEEP — everything needed to reconnect to Sheet
+  const keysToKeep = [
+    'ghj_api_url',      // Apps Script URL
+    'ghj_sheet_id',     // Sheet ID
+    'ghj_app_secret',   // Security token
+    'ghj_users',        // User accounts — MUST keep so real login works after clear
+    'ghj_last_sheet_sync' // Sync timestamp
+  ];
+
+  // Remove only data keys, not config keys
+  const toRemove = [];
+  for(let i=0; i<localStorage.length; i++){
+    const k = localStorage.key(i);
+    if(!keysToKeep.includes(k)) toRemove.push(k);
+  }
+  toRemove.forEach(k => localStorage.removeItem(k));
+
+  showToast('✅ Cache cleared — reloading…', 2000);
+  setTimeout(() => location.reload(), 1500);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -520,12 +550,21 @@ function computeCashHoldings() {
 
     } else if (txn === 'Transfer') {
       // Transfer is NOT income, NOT expense — it is a custody movement
-      const receiver = (e.transferTo || '').trim();
+      // transferTo = the person receiving cash (selected from USERS dropdown)
+      // Also check vendor field as fallback (some entries stored it there)
+      const rawReceiver = e.transferTo || e.vendor || '';
+      const receiver = rawReceiver.trim();
       bl[holder].transferOut += amt;
       bl[holder].balance     -= amt;
-      if (validUser(receiver)) {
-        bl[receiver].transferIn += amt;
-        bl[receiver].balance    += amt;
+      // Try exact match first, then case-insensitive match
+      let receiverKey = receiver;
+      if (!validUser(receiverKey)) {
+        const found = USERS.find(u => u.name.trim().toLowerCase() === receiver.toLowerCase());
+        receiverKey = found ? found.name : '';
+      }
+      if (receiverKey) {
+        bl[receiverKey].transferIn += amt;
+        bl[receiverKey].balance    += amt;
       }
     }
     // Any other txnType: ignore
@@ -1376,7 +1415,7 @@ function renderCashHolding(){
   // ── Per-person detail cards ────────────────────────────────────────────────
   rows.forEach(function(r){
     var mine  = cash.filter(function(e){return (e.createdBy||'').trim()===r.name;});
-    var trIn  = cash.filter(function(e){return e.txnType==='Transfer'&&(e.transferTo||'').trim()===r.name;});
+    var trIn  = cash.filter(function(e){return e.txnType==='Transfer'&&(e.transferTo||e.vendor||'').trim().toLowerCase()===r.name.toLowerCase();});
     // Combine and sort by date (avoid duplicates — mine already excludes trIn where createdBy !== r.name)
     var allEntries = mine.concat(trIn).sort(function(a,b){return a.date>b.date?1:-1;});
 
@@ -1414,7 +1453,7 @@ function renderCashHolding(){
       html += '</tr></thead><tbody>';
 
       allEntries.forEach(function(e){
-        var isTrIn  = e.txnType==='Transfer' && (e.transferTo||'').trim()===r.name;
+        var isTrIn  = e.txnType==='Transfer' && (e.transferTo||e.vendor||'').trim().toLowerCase()===r.name.toLowerCase();
         var isTrOut = e.txnType==='Transfer' && (e.createdBy||'').trim()===r.name && !isTrIn;
         var typeLabel, color, sign, party, drCrBg, drCrColor, drCrLabel;
 
@@ -2270,7 +2309,7 @@ function renderReports(){
     const uCr = credits.filter(e=>e.createdBy===u.name).reduce((s,e)=>s+Number(e.amount),0);
     const uDr = debits.filter(e=>e.createdBy===u.name).reduce((s,e)=>s+Number(e.amount),0);
     const uTrOut = transfers.filter(e=>e.createdBy===u.name).reduce((s,e)=>s+Number(e.amount),0);
-    const uTrIn  = transfers.filter(e=>(e.transferTo||'')===u.name).reduce((s,e)=>s+Number(e.amount),0);
+    const uTrIn  = transfers.filter(e=>(e.transferTo||e.vendor||'').trim().toLowerCase()===u.name.toLowerCase()).reduce((s,e)=>s+Number(e.amount),0);
     const bal    = (h.holdings[u.name]||{}).balance||0;
     return {name:u.name,role:u.role,income:uCr,expense:uDr,trIn:uTrIn,trOut:uTrOut,balance:bal};
   });
@@ -2481,7 +2520,7 @@ function downloadMISReport(){
   const rows=USERS.map(u=>({
     'User':u.name,'Role':u.role,
     'Income(Inflow)':credits.filter(e=>e.createdBy===u.name).reduce((s,e)=>s+Number(e.amount),0),
-    'Transfer In':transfers.filter(e=>(e.transferTo||'')===u.name).reduce((s,e)=>s+Number(e.amount),0),
+    'Transfer In':transfers.filter(e=>(e.transferTo||e.vendor||'').trim().toLowerCase()===u.name.toLowerCase()).reduce((s,e)=>s+Number(e.amount),0),
     'Transfer Out':transfers.filter(e=>e.createdBy===u.name).reduce((s,e)=>s+Number(e.amount),0),
     'Expense(Outflow)':debits.filter(e=>e.createdBy===u.name).reduce((s,e)=>s+Number(e.amount),0),
     'Cash Balance':(h.holdings[u.name]||{}).balance||0
