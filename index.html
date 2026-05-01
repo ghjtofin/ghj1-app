@@ -3019,22 +3019,59 @@ async function testConnection(){
 }
 
 async function refreshUsersFromSheet(){
-  const url=localStorage.getItem('ghj_api_url');if(!url){showToast('No Apps Script URL saved.');return;}
-  showToast('🔄 Fetching users...');
+  const url = getScriptUrl();
+  if(!url){ showToast('⚠️ No Apps Script URL. Set it in Settings first.', 4000); return; }
+
+  // Use secret from both sources
+  const secret = APP_CONFIG.appSecret || localStorage.getItem('ghj_app_secret') || '';
+  const fetchUrl = url + '?type=users' + (secret ? '&secret=' + encodeURIComponent(secret) : '');
+
+  showToast('🔄 Fetching users from Sheet…', 3000);
   try{
-    const secret=APP_CONFIG.appSecret||'';
-    const resp=await fetch(url+'?type=users'+(secret?'&secret='+encodeURIComponent(secret):''),{redirect:'follow'});
-    const raw=await resp.text();
-    if(!raw||raw.trimStart().startsWith('<')) throw new Error('HTML response');
-    const rows=JSON.parse(raw);
-    if(!Array.isArray(rows)||rows.length<2) throw new Error('Empty Users tab');
-    const hdr=rows[0].map(h=>String(h).toLowerCase().trim());
-    const ni=hdr.indexOf('name'),ei=hdr.indexOf('email'),pi=['password','pwd','pass'].reduce((f,k)=>f>=0?f:hdr.indexOf(k),-1),ri=hdr.indexOf('role');
-    if(ei<0||pi<0) throw new Error('Email or Password column not found');
-    const users=rows.slice(1).filter(r=>r[ei]).map(r=>({name:ni>=0?String(r[ni]).trim():String(r[ei]).trim(),email:String(r[ei]).trim(),pwd:String(r[pi]).trim(),role:ri>=0?String(r[ri]).trim().toLowerCase():'creator'}));
-    USERS=users;localStorage.setItem('ghj_users',JSON.stringify(USERS));
-    showToast('✅ '+USERS.length+' users loaded!');showPage('settings');
-  }catch(e){showToast('❌ '+e.message);}
+    const resp = await fetch(fetchUrl, {redirect:'follow'});
+    const raw  = await resp.text();
+
+    if(!raw || raw.trimStart().startsWith('<'))
+      throw new Error('Apps Script returned HTML — check it is deployed and URL is correct');
+
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch(e) { throw new Error('Invalid JSON: '+raw.substring(0,80)); }
+
+    if(parsed.status === 'error') throw new Error('Sheet error: ' + (parsed.error||'unknown'));
+    if(!Array.isArray(parsed)) throw new Error('Expected array, got: '+typeof parsed);
+    if(parsed.length < 2) throw new Error('Users tab is empty or has only headers. Add users to Sheet.');
+
+    // Map columns by header name — handles any column order
+    const hdr = parsed[0].map(h => String(h||'').toLowerCase().trim());
+    const ni = hdr.indexOf('name');
+    const ei = ['email','e-mail','mail'].reduce((f,k)=>f>=0?f:hdr.indexOf(k), -1);
+    const pi = ['password','pwd','pass'].reduce((f,k)=>f>=0?f:hdr.indexOf(k), -1);
+    const ri = hdr.indexOf('role');
+
+    if(ei < 0) throw new Error('Email column not found. Sheet columns: ' + hdr.join(', '));
+    if(pi < 0) throw new Error('Password column not found. Sheet columns: ' + hdr.join(', '));
+
+    const users = parsed.slice(1)
+      .filter(r => r[ei] && String(r[ei]).trim())
+      .map(r => ({
+        name:  ni>=0 ? String(r[ni]||'').trim() : String(r[ei]).trim(),
+        email: String(r[ei]).trim(),
+        pwd:   String(r[pi]).trim(),
+        role:  ri>=0 ? String(r[ri]||'creator').trim().toLowerCase() : 'creator'
+      }));
+
+    if(!users.length) throw new Error('No valid users found in Sheet (all rows empty?)');
+
+    USERS = users;
+    localStorage.setItem('ghj_users', JSON.stringify(USERS));
+    reloadUsers();
+
+    showToast('✅ ' + USERS.length + ' users loaded from Sheet!', 4000);
+    showPage('settings'); // refresh settings page to show updated user list
+  } catch(e) {
+    console.error('refreshUsersFromSheet error:', e);
+    showToast('❌ User load failed: ' + e.message, 6000);
+  }
 }
 
 // ══════════════════════════════════════════════════════════
