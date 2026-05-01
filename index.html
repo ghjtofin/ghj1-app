@@ -440,31 +440,43 @@ async function doLogin(){
   const user=USERS.find(u=>u.email.toLowerCase()===email.toLowerCase()&&u.pwd===pwd);
   if(user){
     currentUser=user;
+
+    // Show a loading screen while we fetch fresh data from Sheet
     document.getElementById('loginScreen').style.display='none';
     document.getElementById('appShell').style.display='block';
     document.getElementById('userBadge').textContent='👤 '+user.name+' ('+user.role+')';
     buildSidebar();
-    showPage('dashboard');   // show instantly from localStorage cache
-    updateBadges();
-    updateSyncTimeDisplay();
-    // Q3 FIX: Show app immediately from cache.
-    // Sheet sync runs in background — non-blocking.
-    // A small banner shows "Syncing from Sheet…" at the top.
+
     if(url){
-      const syncBanner=document.createElement('div');
-      syncBanner.id='login_sync_banner';
-      syncBanner.style.cssText='position:fixed;top:54px;left:0;right:0;z-index:999;background:#3498db;color:#fff;font-size:12px;text-align:center;padding:5px;cursor:pointer';
-      syncBanner.textContent='🔄 Syncing latest data from Google Sheet… (click to dismiss)';
-      syncBanner.onclick=function(){syncBanner.remove();};
-      document.body.appendChild(syncBanner);
+      // Show a clean "Loading from Sheet" screen — no stale data shown first
+      const mc=document.getElementById('mainContent');
+      mc.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:16px">'
+        +'<div style="font-size:48px">⏳</div>'
+        +'<div style="font-size:18px;font-weight:700;color:var(--primary)">Loading data from Google Sheet…</div>'
+        +'<div style="font-size:13px;color:var(--text-muted)">Fetching latest cash, bank and user data</div>'
+        +'<div id="login_load_msg" style="font-size:12px;color:#e67e22;margin-top:8px"></div>'
+        +'</div>';
+
       loadFromSheet().then(function(){
-        const b=document.getElementById('login_sync_banner');
-        if(b) b.remove();
-        showPage(currentPage); // refresh current page with latest data
-      }).catch(function(){
-        const b=document.getElementById('login_sync_banner');
-        if(b){ b.style.background='#e67e22'; b.textContent='⚠️ Sheet sync failed — showing cached data. Click to dismiss.'; }
+        reloadUsers(); // ensure USERS global is updated after Sheet loaded users
+        updateBadges();
+        updateSyncTimeDisplay();
+        showPage('dashboard');
+      }).catch(function(err){
+        // Sheet failed — show cached data with warning
+        const msgEl=document.getElementById('login_load_msg');
+        if(msgEl) msgEl.textContent='⚠️ Sheet unreachable ('+err.message+') — showing cached data.';
+        setTimeout(function(){
+          updateBadges();
+          updateSyncTimeDisplay();
+          showPage('dashboard');
+        }, 1500);
       });
+    } else {
+      // No URL configured — use cached data immediately
+      updateBadges();
+      updateSyncTimeDisplay();
+      showPage('dashboard');
     }
     return;
   }
@@ -474,10 +486,11 @@ async function doLogin(){
 
 function doLogout(){
   currentUser=null;
-  // Keep ghj_cash, ghj_bank in localStorage — they load instantly on next login
-  // while Sheet sync runs in background. Data is not sensitive beyond login.
-  // Just clear session-specific state.
-  localStorage.setItem('ghj_data_stale','true'); // flag for next login to sync
+  // Clear cash/bank data so next login always fetches fresh from Sheet
+  // Config keys (URL, secret, users) are kept so login works immediately
+  localStorage.removeItem('ghj_cash');
+  localStorage.removeItem('ghj_bank');
+  localStorage.removeItem('ghj_data_stale');
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('appShell').style.display='none';
 }
