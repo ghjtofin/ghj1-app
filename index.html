@@ -2981,17 +2981,57 @@ function doGet(e) {
   </div>
   <div class="card">
     <div class="card-title">👥 User Management</div>
-    <div style="background:#eaf0fb;padding:10px 14px;border-radius:8px;font-size:12px;margin-bottom:12px">
-      Users tab columns: <b>Name | Email | Password | Role</b><br>
-      Roles: <code>admin</code> · <code>approver</code> · <code>creator</code>
+
+    <!-- Connection status -->
+    <div style="background:#f8f9fa;border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-size:12px;margin-bottom:12px;line-height:1.9">
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px">
+        <b>Sheet URL:</b><span style="color:${getScriptUrl()?'#27ae60':'#c0392b'}">${getScriptUrl()?'✅ Configured':'❌ Not set — go to Google Setup above'}</span>
+        <b>Secret:</b><span style="color:${(APP_CONFIG.appSecret||localStorage.getItem('ghj_app_secret'))?'#27ae60':'#e67e22'}">${(APP_CONFIG.appSecret||localStorage.getItem('ghj_app_secret'))?'✅ Set':'⚠️ Not set (requests may be rejected)'}</span>
+        <b>Users source:</b><span style="color:#1a5276">${localStorage.getItem('ghj_users')?'📋 From Google Sheet ('+USERS.length+' users)':'⚠️ Demo users only — click Refresh below'}</span>
+        <b>Last sync:</b><span style="color:var(--text-muted)">${localStorage.getItem('ghj_last_sheet_sync')?new Date(localStorage.getItem('ghj_last_sheet_sync')).toLocaleString('en-IN'):'Never'}</span>
+      </div>
     </div>
-    <div style="display:flex;gap:8px;margin-bottom:10px">
-      <button class="btn btn-outline btn-sm" onclick="refreshUsersFromSheet()">🔄 Refresh from Sheet</button>
-      <button class="btn btn-outline btn-sm" onclick="loadFromSheet()" style="background:#eafaf1;color:#27ae60;border-color:#27ae60">🔄 Sync All Data Now</button>
-      <button class="btn btn-outline btn-sm" onclick="clearAllCacheAndReload()" style="background:#fee;color:#c0392b;border-color:#f5c6cb">🗑 Clear Cache & Reload</button>
+
+    <!-- Info box -->
+    <div style="background:#fff8e1;border-left:3px solid var(--accent);padding:10px 12px;font-size:12px;border-radius:0 6px 6px 0;margin-bottom:12px">
+      <b>Users Sheet tab columns:</b> Name | Email | Password | Role<br>
+      <b>Valid roles:</b> <code>admin</code> · <code>approver</code> · <code>creator</code><br>
+      After adding users to your Sheet, click <b>🔄 Refresh Users</b> to load them here.
     </div>
-    <table style="width:100%;font-size:12px"><thead><tr><th>Name</th><th>Email</th><th>Role</th></tr></thead>
-    <tbody>${USERS.map(u=>`<tr><td>${u.name}</td><td>${u.email}</td><td><span class="badge badge-approved">${u.role}</span></td></tr>`).join('')}</tbody></table>
+
+    <!-- Action buttons -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <button class="btn btn-save btn-sm" onclick="refreshUsersFromSheet()" style="font-size:12px">🔄 Refresh Users from Sheet</button>
+      <button class="btn btn-outline btn-sm" onclick="loadFromSheet()" style="background:#eafaf1;color:#27ae60;border-color:#27ae60;font-size:12px">🔄 Sync All Data</button>
+      <button class="btn btn-outline btn-sm" onclick="clearAllCacheAndReload()" style="background:#fee;color:#c0392b;border-color:#f5c6cb;font-size:12px">🗑 Clear Cache & Reload</button>
+    </div>
+
+    <!-- Users table -->
+    <div class="tbl-wrap">
+    <table style="width:100%;font-size:12px;border-collapse:collapse">
+      <thead><tr style="background:#1a3a5c;color:#fff">
+        <th style="padding:7px 8px;text-align:left">#</th>
+        <th style="padding:7px 8px;text-align:left">Name</th>
+        <th style="padding:7px 8px;text-align:left">Email</th>
+        <th style="padding:7px 8px;text-align:left">Role</th>
+        <th style="padding:7px 8px;text-align:left">Source</th>
+      </tr></thead>
+      <tbody>
+      ${USERS.map((u,i)=>`<tr style="border-bottom:.5px solid #f0f0f0;${u.email===currentUser.email?'background:#f0f8ff;font-weight:600':''}">
+        <td style="padding:6px 8px;color:var(--text-muted)">${i+1}</td>
+        <td style="padding:6px 8px">${u.name}${u.email===currentUser.email?' 👈 (you)':''}</td>
+        <td style="padding:6px 8px;color:var(--text-muted)">${u.email}</td>
+        <td style="padding:6px 8px"><span class="badge badge-${u.role==='admin'?'paid':u.role==='approver'?'approved':'pending'}">${u.role.toUpperCase()}</span></td>
+        <td style="padding:6px 8px;font-size:10px;color:var(--text-muted)">${localStorage.getItem('ghj_users')?'Sheet':'Demo'}</td>
+      </tr>`).join('')}
+      </tbody>
+    </table>
+    </div>
+    ${!localStorage.getItem('ghj_users')?`
+    <div style="margin-top:10px;background:#fde8e8;border-left:3px solid #c0392b;padding:10px 12px;font-size:12px;border-radius:0 6px 6px 0;color:#c0392b">
+      <b>⚠️ Showing demo users only.</b> Real logins from your Sheet are not loaded yet.<br>
+      Click <b>🔄 Refresh Users from Sheet</b> above to load your actual user accounts.
+    </div>`:''}
   </div>`;
 }
 
