@@ -651,88 +651,115 @@ async function pushToSheet(action,data){
 
 async function loadFromSheet(){
   const url=getScriptUrl(); if(!url) return;
-  const secret=APP_CONFIG.appSecret||'';
+  // CRITICAL: use secret from BOTH sources — localStorage takes priority over hardcoded
+  const secret = localStorage.getItem('ghj_app_secret') || APP_CONFIG.appSecret || '';
   const startTime=Date.now();
   try{
-    // Load Cash + Bank ledger entries
+    // ── Load Users FIRST so login works with real accounts ──────────────────
+    try{
+      const uResp=await fetch(url+'?type=users'+(secret?'&secret='+encodeURIComponent(secret):''),{redirect:'follow'});
+      const uRaw=await uResp.text();
+      if(uRaw&&!uRaw.trimStart().startsWith('<')&&!uRaw.includes('"error"')){
+        const uRows=JSON.parse(uRaw);
+        if(Array.isArray(uRows)&&uRows.length>1){
+          const uh=uRows[0].map(h=>String(h||'').toLowerCase().trim());
+          const ui=k=>uh.indexOf(k);
+          const ni=ui('name'), ei=['email','e-mail'].reduce((f,k)=>f>=0?f:ui(k),-1);
+          const pi=['password','pwd','pass'].reduce((f,k)=>f>=0?f:ui(k),-1), ri=ui('role');
+          const sheetUsers=uRows.slice(1).filter(r=>r[ei>=0?ei:1]&&String(r[ei>=0?ei:1]).includes('@')).map(r=>({
+            name:  ni>=0?String(r[ni]||'').trim():String(r[0]||'').trim(),
+            email: String(r[ei>=0?ei:1]||'').trim(),
+            pwd:   pi>=0?String(r[pi]||'').trim():'',
+            role:  ri>=0?String(r[ri]||'creator').trim().toLowerCase():'creator'
+          })).filter(u=>u.email);
+          if(sheetUsers.length){
+            USERS=sheetUsers;
+            localStorage.setItem('ghj_users',JSON.stringify(USERS));
+            reloadUsers();
+            console.log('Loaded '+USERS.length+' users from Sheet');
+          }
+        }
+      }
+    }catch(ue){console.warn('User load failed:',ue.message);}
+
+    // ── Load Cash + Bank ledger entries ─────────────────────────────────────
     for(const type of['cash','bank']){
       const resp=await fetch(url+'?type='+type+(secret?'&secret='+encodeURIComponent(secret):''),{redirect:'follow'});
       const raw=await resp.text();
-      if(!raw||raw.trimStart().startsWith('<')) continue;
+      if(!raw||raw.trimStart().startsWith('<')||raw.includes('"error"')) continue;
       const rows=JSON.parse(raw);
       if(!Array.isArray(rows)||rows.length<2) continue;
 
-      // Normalise header: lowercase, strip spaces/special chars for key matching
+      // Use header row to find column positions — robust to any column order
       const hdr=rows[0].map(h=>String(h||'').toLowerCase().replace(/[^a-z0-9]/g,''));
-      const col=k=>hdr.indexOf(k);
-      const s=(r,k,fb)=>String((col(k)>=0?r[col(k)]:r[fb])||'');
+      const col=k=>{const i=hdr.indexOf(k);return i>=0?i:-1;};
+      const sv=(r,k,fb)=>{const i=col(k);return String(i>=0&&r[i]!=null?r[i]:r[fb]!=null?r[fb]:'');};
+      const nv=(r,k,fb)=>{const i=col(k);return parseFloat(i>=0&&r[i]!=null?r[i]:r[fb]!=null?r[fb]:0)||0;};
 
       let entries;
       if(type==='cash'){
-        // CashEntries columns from Excel:
-        // A:idauto B:timestampauto C:createdby D:entrytype E:srno F:date
-        // G:head H:category I:receivedbyvndorname J:amount K:description
-        // L:invoicelink M:screenshot N:status O:approvedby P:paymentref Q:remarks R:type
-        entries=rows.slice(1).filter(r=>r[0]&&String(r[0]).startsWith('GHJ')).map(r=>{
-          const entryType=s(r,'entrytype',3);
-          const isInflow = entryType==='Income(Inflow)';
-          const isTransfer = entryType==='Transfer';
-          return {
-            id:          s(r,'idauto',0),
-            createdAt:   s(r,'timestampauto',1),
-            createdBy:   s(r,'createdby',2),
-            txnType:     entryType,                           // Income(Inflow)/Transfer/Expense(Outflow)
-            srno:        s(r,'srno',4),
-            date:        s(r,'date',5),
-            head:        s(r,'head',6),
-            category:    s(r,'category',7),
-            vendor:      s(r,'receivedbyvndorname',8),        // ReceivedBy / VendorName
-            amount:      parseFloat(r[col('amount')>=0?col('amount'):9]||0),
-            desc:        s(r,'description',10),
-            invoiceLink: s(r,'invoicelink',11),
-            screenshotLink:s(r,'screenshot',12),
-            status:      s(r,'status',13)||'pending',
-            approvedBy:  s(r,'approvedby',14),
-            paymentRef:  s(r,'paymentref',15),
-            remarks:     s(r,'remarks',16),
-            type:        isInflow ? 'credit' : 'debit',       // derive from EntryType
-            paytype:     'cash',
-            paidByUser:  s(r,'createdby',2),                  // CreatedBy = who holds cash
-            transferTo:  isTransfer ? s(r,'receivedbyvndorname',8) : ''
-          };
-        });
+        entries=rows.slice(1)
+          .filter(r=>r[0]&&String(r[0]).startsWith('GHJ')&&sv(r,'status',13).toLowerCase()!=='stub')
+          .map(r=>{
+            const entryType=sv(r,'entrytype',3);
+            const isInflow  = entryType==='Income(Inflow)';
+            const isTransfer= entryType==='Transfer';
+            return {
+              id:           sv(r,'idauto',0)||sv(r,'id',0),
+              createdAt:    sv(r,'timestampauto',1),
+              createdBy:    sv(r,'createdby',2),
+              txnType:      entryType,
+              srno:         sv(r,'srno',4),
+              date:         sv(r,'date',5),
+              head:         sv(r,'head',6),
+              category:     sv(r,'category',7),
+              vendor:       sv(r,'receivedbyvndorname',8)||sv(r,'vendor',8),
+              amount:       nv(r,'amount',9),
+              desc:         sv(r,'description',10),
+              invoiceLink:  sv(r,'invoicelink',11),
+              screenshotLink:sv(r,'screenshot',12),
+              status:       sv(r,'status',13)||'pending',
+              approvedBy:   sv(r,'approvedby',14),
+              paymentRef:   sv(r,'paymentref',15),
+              remarks:      sv(r,'remarks',16),
+              type:         isInflow?'credit':'debit',
+              paytype:      'cash',
+              paidByUser:   sv(r,'createdby',2),
+              transferTo:   isTransfer?(sv(r,'receivedbyvndorname',8)||sv(r,'vendor',8)):''
+            };
+          });
       } else {
-        // BankEntries columns from Excel:
-        // A:id B:srno C:date D:head E:category F:type G:amount H:description
-        // I:vendor J:invoicelink K:screenshot L:status M:createdby N:approvedby
-        // O:paymentref P:remarks Q:bankname R:accountno S:chequeref T:paytype
-        entries=rows.slice(1).filter(r=>r[0]&&String(r[0]).startsWith('GHJ')).map(r=>({
-          id:           s(r,'id',0),
-          srno:         s(r,'srno',1),
-          date:         s(r,'date',2),
-          head:         s(r,'head',3),
-          category:     s(r,'category',4),
-          type:         s(r,'type',5)||'debit',
-          amount:       parseFloat(r[col('amount')>=0?col('amount'):6]||0),
-          desc:         s(r,'description',7),
-          vendor:       s(r,'vendor',8),
-          invoiceLink:  s(r,'invoicelink',9),
-          screenshotLink:s(r,'screenshot',10),
-          status:       s(r,'status',11)||'pending',
-          createdBy:    s(r,'createdby',12),
-          approvedBy:   s(r,'approvedby',13),
-          paymentRef:   s(r,'paymentref',14),
-          remarks:      s(r,'remarks',15),
-          bankName:     s(r,'bankname',16),
-          accNo:        s(r,'accountno',17),
-          chequeRef:    s(r,'chequeref',18),
-          paytype:      'bank'
-        }));
+        entries=rows.slice(1)
+          .filter(r=>r[0]&&String(r[0]).startsWith('GHJ')&&sv(r,'status',11).toLowerCase()!=='stub')
+          .map(r=>({
+            id:           sv(r,'id',0),
+            srno:         sv(r,'srno',1),
+            date:         sv(r,'date',2),
+            head:         sv(r,'head',3),
+            category:     sv(r,'category',4),
+            type:         sv(r,'type',5)||'debit',
+            amount:       nv(r,'amount',6),
+            desc:         sv(r,'description',7),
+            vendor:       sv(r,'vendor',8),
+            invoiceLink:  sv(r,'invoicelink',9),
+            screenshotLink:sv(r,'screenshot',10),
+            status:       sv(r,'status',11)||'pending',
+            createdBy:    sv(r,'createdby',12),
+            approvedBy:   sv(r,'approvedby',13),
+            paymentRef:   sv(r,'paymentref',14),
+            remarks:      sv(r,'remarks',15),
+            bankName:     sv(r,'bankname',16),
+            accNo:        sv(r,'accountno',17),
+            chequeRef:    sv(r,'chequeref',18),
+            paytype:      'bank'
+          }));
       }
+      // Merge with pending queue (local unsaved entries take priority)
       const queuedIds=new Set(getPendingQueue().map(q=>q.id));
       const merged=entries.filter(e=>!queuedIds.has(e.id));
       merged.push(...getPendingQueue().filter(q=>q.paytype===type));
-      saveData('ghj_'+type,merged);
+      saveData('ghj_'+type, merged);
+      console.log('Loaded '+merged.length+' '+type+' entries from Sheet');
     }
 
     // Load Cash Allocations from Sheet (CashMgmt tab)
