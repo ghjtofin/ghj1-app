@@ -412,75 +412,111 @@ async function doLogin(){
   const errEl = document.getElementById('loginErr');
   const btn   = document.querySelector('.btn-primary');
   errEl.style.display='none';
-  const url = localStorage.getItem('ghj_api_url');
+
+  if(!email||!pwd){
+    errEl.textContent='Please enter email and password.';
+    errEl.style.display='block'; return;
+  }
+
+  const url    = getScriptUrl(); // uses localStorage first, then APP_CONFIG
+  // CRITICAL: check localStorage first — this is where Settings UI saves the secret
+  const secret = localStorage.getItem('ghj_app_secret') || APP_CONFIG.appSecret || '';
+
+  btn.textContent='Signing in…'; btn.disabled=true;
+  errEl.style.display='none';
+
+  // ── Step 1: Try to fetch users from Sheet and verify login ────────────────
   if(url){
-    btn.textContent='Verifying...'; btn.disabled=true;
     try{
-      const secret3=APP_CONFIG.appSecret||'';
-      const resp=await fetch(url+'?type=users'+(secret3?'&secret='+encodeURIComponent(secret3):''),{redirect:'follow'});
-      const raw=await resp.text();
-      if(raw&&!raw.trimStart().startsWith('<')){
-        const rows=JSON.parse(raw);
-        if(Array.isArray(rows)&&rows.length>1){
-          const hdr=rows[0].map(h=>String(h).toLowerCase().trim());
-          const ni=hdr.indexOf('name'),ei=hdr.indexOf('email'),pi=['password','pwd','pass'].reduce((f,k)=>f>=0?f:hdr.indexOf(k),-1),ri=hdr.indexOf('role');
-          if(ei>=0&&pi>=0){
-            const sheetUsers=rows.slice(1).filter(r=>r[ei]).map(r=>({name:ni>=0?String(r[ni]).trim():String(r[ei]).trim(),email:String(r[ei]).trim(),pwd:String(r[pi]).trim(),role:ri>=0?String(r[ri]).trim().toLowerCase():'creator'}));
-            if(sheetUsers.length){
-              USERS=sheetUsers;
-              localStorage.setItem('ghj_users',JSON.stringify(USERS));
-              reloadUsers(); // keep global USERS in sync
-            }
+      const fetchUrl = url+'?type=users'+(secret?'&secret='+encodeURIComponent(secret):'');
+      const resp = await fetch(fetchUrl, {redirect:'follow'});
+      const raw  = await resp.text();
+
+      if(!raw||raw.trimStart().startsWith('<')){
+        throw new Error('Apps Script returned HTML — check URL and deployment');
+      }
+      const parsed = JSON.parse(raw);
+      if(parsed && parsed.status==='error'){
+        throw new Error('Sheet error: '+(parsed.error||'Unauthorized — check secret token'));
+      }
+      if(Array.isArray(parsed)&&parsed.length>1){
+        const hdr = parsed[0].map(h=>String(h||'').toLowerCase().trim());
+        const ni=hdr.indexOf('name');
+        const ei=['email','e-mail','mail'].reduce((f,k)=>f>=0?f:hdr.indexOf(k),-1);
+        const pi=['password','pwd','pass'].reduce((f,k)=>f>=0?f:hdr.indexOf(k),-1);
+        const ri=hdr.indexOf('role');
+        if(ei>=0&&pi>=0){
+          const sheetUsers=parsed.slice(1)
+            .filter(r=>r[ei]&&String(r[ei]).includes('@'))
+            .map(r=>({
+              name:  ni>=0?String(r[ni]||'').trim():String(r[ei]).split('@')[0],
+              email: String(r[ei]).trim(),
+              pwd:   pi>=0?String(r[pi]||'').trim():'',
+              role:  ri>=0?String(r[ri]||'creator').trim().toLowerCase():'creator'
+            })).filter(u=>u.email&&u.pwd);
+          if(sheetUsers.length){
+            USERS=sheetUsers;
+            localStorage.setItem('ghj_users',JSON.stringify(USERS));
+            reloadUsers();
+            console.log('✅ Verified '+sheetUsers.length+' users from Sheet');
           }
         }
       }
-    }catch(e){/* fallback to cached */}
-    btn.textContent='Sign In'; btn.disabled=false;
+    }catch(sheetErr){
+      console.warn('Sheet login check failed:',sheetErr.message);
+      // Don't block login — fall back to cached users
+      // But show a warning so the user knows what happened
+      errEl.textContent='⚠️ Could not reach Sheet ('+sheetErr.message+') — trying cached users…';
+      errEl.style.color='#e67e22';
+      errEl.style.display='block';
+      await new Promise(r=>setTimeout(r,1200));
+      errEl.style.display='none';
+      errEl.style.color='';
+    }
   }
-  const user=USERS.find(u=>u.email.toLowerCase()===email.toLowerCase()&&u.pwd===pwd);
+
+  btn.textContent='Sign In'; btn.disabled=false;
+
+  // ── Step 2: Verify credentials against (now updated) USERS list ───────────
+  const user = USERS.find(u=>
+    u.email.toLowerCase().trim()===email.toLowerCase().trim() && u.pwd===pwd
+  );
+
   if(user){
     currentUser=user;
-
-    // Show a loading screen while we fetch fresh data from Sheet
     document.getElementById('loginScreen').style.display='none';
     document.getElementById('appShell').style.display='block';
     document.getElementById('userBadge').textContent='👤 '+user.name+' ('+user.role+')';
     buildSidebar();
 
     if(url){
-      // Show a clean "Loading from Sheet" screen — no stale data shown first
+      // Show loading screen while fetching all data from Sheet
       const mc=document.getElementById('mainContent');
       mc.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:16px">'
         +'<div style="font-size:48px">⏳</div>'
         +'<div style="font-size:18px;font-weight:700;color:var(--primary)">Loading data from Google Sheet…</div>'
-        +'<div style="font-size:13px;color:var(--text-muted)">Fetching latest cash, bank and user data</div>'
+        +'<div style="font-size:13px;color:var(--text-muted)">Fetching cash, bank and allocation data</div>'
         +'<div id="login_load_msg" style="font-size:12px;color:#e67e22;margin-top:8px"></div>'
         +'</div>';
-
       loadFromSheet().then(function(){
-        reloadUsers(); // ensure USERS global is updated after Sheet loaded users
-        updateBadges();
-        updateSyncTimeDisplay();
-        showPage('dashboard');
+        updateBadges(); updateSyncTimeDisplay(); showPage('dashboard');
       }).catch(function(err){
-        // Sheet failed — show cached data with warning
-        const msgEl=document.getElementById('login_load_msg');
-        if(msgEl) msgEl.textContent='⚠️ Sheet unreachable ('+err.message+') — showing cached data.';
-        setTimeout(function(){
-          updateBadges();
-          updateSyncTimeDisplay();
-          showPage('dashboard');
-        }, 1500);
+        const el=document.getElementById('login_load_msg');
+        if(el) el.textContent='⚠️ Sheet unreachable — showing cached data.';
+        setTimeout(function(){ updateBadges(); updateSyncTimeDisplay(); showPage('dashboard'); },1500);
       });
     } else {
-      // No URL configured — use cached data immediately
-      updateBadges();
-      updateSyncTimeDisplay();
-      showPage('dashboard');
+      updateBadges(); updateSyncTimeDisplay(); showPage('dashboard');
     }
     return;
   }
-  errEl.textContent='Invalid email or password. Demo: admin@ghj.org / admin123';
+
+  // Login failed — tell user exactly why
+  if(USERS===DEFAULT_USERS||!localStorage.getItem('ghj_users')){
+    errEl.textContent='⚠️ Using demo users only. If you have a Sheet, check URL and Secret in Settings, then try again. Demo: admin@ghj.org / admin123';
+  } else {
+    errEl.textContent='❌ Invalid email or password. Check your credentials.';
+  }
   errEl.style.display='block';
 }
 
