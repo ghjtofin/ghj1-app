@@ -407,116 +407,87 @@ async function handleFileUpload(inputEl, linkFieldId, fieldId, paytype){
 //  AUTH
 // ══════════════════════════════════════════════════════════
 async function doLogin(){
-  const email = document.getElementById('loginEmail').value.trim();
-  const pwd   = document.getElementById('loginPwd').value;
-  const errEl = document.getElementById('loginErr');
-  const btn   = document.querySelector('.btn-primary');
+  const email=document.getElementById('loginEmail').value.trim();
+  const pwd  =document.getElementById('loginPwd').value;
+  const errEl=document.getElementById('loginErr');
+  const btn  =document.querySelector('.btn-primary');
   errEl.style.display='none';
+  if(!email||!pwd){ errEl.textContent='Please enter email and password.'; errEl.style.display='block'; return; }
 
-  if(!email||!pwd){
-    errEl.textContent='Please enter email and password.';
-    errEl.style.display='block'; return;
-  }
+  // Always write APP_CONFIG values to localStorage — critical for new devices
+  if(APP_CONFIG.scriptUrl) localStorage.setItem('ghj_api_url',    APP_CONFIG.scriptUrl);
+  if(APP_CONFIG.appSecret) localStorage.setItem('ghj_app_secret', APP_CONFIG.appSecret);
 
-  const url    = getScriptUrl(); // uses localStorage first, then APP_CONFIG
-  // CRITICAL: check localStorage first — this is where Settings UI saves the secret
-  const secret = localStorage.getItem('ghj_app_secret') || APP_CONFIG.appSecret || '';
+  const url    = APP_CONFIG.scriptUrl || localStorage.getItem('ghj_api_url') || '';
+  const secret = APP_CONFIG.appSecret || localStorage.getItem('ghj_app_secret') || '';
 
-  btn.textContent='Signing in…'; btn.disabled=true;
-  errEl.style.display='none';
+  btn.textContent='Connecting to Sheet\u2026'; btn.disabled=true;
 
-  // ── Step 1: Try to fetch users from Sheet and verify login ────────────────
+  // ── Fetch real users from Sheet ─────────────────────────────────────────
   if(url){
     try{
-      const fetchUrl = url+'?type=users'+(secret?'&secret='+encodeURIComponent(secret):'');
-      const resp = await fetch(fetchUrl, {redirect:'follow'});
-      const raw  = await resp.text();
-
-      if(!raw||raw.trimStart().startsWith('<')){
-        throw new Error('Apps Script returned HTML — check URL and deployment');
-      }
-      const parsed = JSON.parse(raw);
-      if(parsed && parsed.status==='error'){
-        throw new Error('Sheet error: '+(parsed.error||'Unauthorized — check secret token'));
-      }
+      const fetchUrl=url+'?type=users'+(secret?'&secret='+encodeURIComponent(secret):'');
+      const resp=await fetch(fetchUrl,{redirect:'follow'});
+      const raw =await resp.text();
+      if(!raw||raw.trimStart().startsWith('<'))
+        throw new Error('Apps Script returned HTML. Please redeploy: Execute as Me, Anyone can access.');
+      let parsed; try{parsed=JSON.parse(raw);}catch(e){throw new Error('Bad response: '+raw.substring(0,60));}
+      if(parsed&&parsed.status==='error') throw new Error(parsed.error||'Sheet error');
       if(Array.isArray(parsed)&&parsed.length>1){
-        const hdr = parsed[0].map(h=>String(h||'').toLowerCase().trim());
+        const hdr=parsed[0].map(h=>String(h||'').toLowerCase().trim());
         const ni=hdr.indexOf('name');
         const ei=['email','e-mail','mail'].reduce((f,k)=>f>=0?f:hdr.indexOf(k),-1);
         const pi=['password','pwd','pass'].reduce((f,k)=>f>=0?f:hdr.indexOf(k),-1);
         const ri=hdr.indexOf('role');
-        if(ei>=0&&pi>=0){
-          const sheetUsers=parsed.slice(1)
-            .filter(r=>r[ei]&&String(r[ei]).includes('@'))
-            .map(r=>({
-              name:  ni>=0?String(r[ni]||'').trim():String(r[ei]).split('@')[0],
-              email: String(r[ei]).trim(),
-              pwd:   pi>=0?String(r[pi]||'').trim():'',
-              role:  ri>=0?String(r[ri]||'creator').trim().toLowerCase():'creator'
-            })).filter(u=>u.email&&u.pwd);
-          if(sheetUsers.length){
-            USERS=sheetUsers;
-            localStorage.setItem('ghj_users',JSON.stringify(USERS));
-            reloadUsers();
-            console.log('✅ Verified '+sheetUsers.length+' users from Sheet');
-          }
-        }
+        if(ei<0) throw new Error('No Email column in Users sheet. Found: '+hdr.join(', '));
+        if(pi<0) throw new Error('No Password column in Users sheet. Found: '+hdr.join(', '));
+        const su=parsed.slice(1).filter(r=>r[ei]&&String(r[ei]).includes('@')).map(r=>({
+          name: ni>=0?String(r[ni]||'').trim():String(r[ei]).split('@')[0],
+          email:String(r[ei]).trim(), pwd:String(r[pi]||'').trim(),
+          role: ri>=0?String(r[ri]||'creator').trim().toLowerCase():'creator'
+        })).filter(u=>u.email&&u.pwd);
+        if(!su.length) throw new Error('Users sheet has no valid rows (Email+Password required).');
+        USERS=su; localStorage.setItem('ghj_users',JSON.stringify(USERS)); reloadUsers();
+        console.log('\u2705 Loaded '+su.length+' users from Sheet');
       }
-    }catch(sheetErr){
-      console.warn('Sheet login check failed:',sheetErr.message);
-      // Don't block login — fall back to cached users
-      // But show a warning so the user knows what happened
-      errEl.textContent='⚠️ Could not reach Sheet ('+sheetErr.message+') — trying cached users…';
-      errEl.style.color='#e67e22';
+    }catch(err){
+      console.warn('Sheet user fetch:',err.message);
+      btn.textContent='Sign In'; btn.disabled=false;
+      errEl.innerHTML='\u26a0\ufe0f <b>Sheet unreachable</b><br><small>'+err.message+'</small><br>'
+        +'<small style="color:#888">Trying cached/demo login\u2026</small>';
       errEl.style.display='block';
-      await new Promise(r=>setTimeout(r,1200));
+      await new Promise(r=>setTimeout(r,1500));
       errEl.style.display='none';
-      errEl.style.color='';
     }
   }
 
   btn.textContent='Sign In'; btn.disabled=false;
 
-  // ── Step 2: Verify credentials against (now updated) USERS list ───────────
-  const user = USERS.find(u=>
-    u.email.toLowerCase().trim()===email.toLowerCase().trim() && u.pwd===pwd
-  );
-
+  // ── Match credentials ───────────────────────────────────────────────────
+  const user=USERS.find(u=>u.email.toLowerCase().trim()===email.toLowerCase().trim()&&u.pwd===pwd);
   if(user){
     currentUser=user;
     document.getElementById('loginScreen').style.display='none';
     document.getElementById('appShell').style.display='block';
-    document.getElementById('userBadge').textContent='👤 '+user.name+' ('+user.role+')';
+    document.getElementById('userBadge').textContent='\ud83d\udc64 '+user.name+' ('+user.role+')';
     buildSidebar();
-
     if(url){
-      // Show loading screen while fetching all data from Sheet
-      const mc=document.getElementById('mainContent');
-      mc.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:16px">'
-        +'<div style="font-size:48px">⏳</div>'
-        +'<div style="font-size:18px;font-weight:700;color:var(--primary)">Loading data from Google Sheet…</div>'
-        +'<div style="font-size:13px;color:var(--text-muted)">Fetching cash, bank and allocation data</div>'
-        +'<div id="login_load_msg" style="font-size:12px;color:#e67e22;margin-top:8px"></div>'
-        +'</div>';
-      loadFromSheet().then(function(){
-        updateBadges(); updateSyncTimeDisplay(); showPage('dashboard');
-      }).catch(function(err){
-        const el=document.getElementById('login_load_msg');
-        if(el) el.textContent='⚠️ Sheet unreachable — showing cached data.';
-        setTimeout(function(){ updateBadges(); updateSyncTimeDisplay(); showPage('dashboard'); },1500);
-      });
-    } else {
-      updateBadges(); updateSyncTimeDisplay(); showPage('dashboard');
-    }
+      document.getElementById('mainContent').innerHTML=
+        '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:16px">'
+        +'<div style="font-size:48px">\u23f3</div>'
+        +'<div style="font-size:18px;font-weight:700;color:var(--primary)">Loading data from Google Sheet\u2026</div>'
+        +'<div style="font-size:13px;color:var(--text-muted)">Fetching cash and bank entries</div></div>';
+      loadFromSheet()
+        .then(function(){updateBadges();updateSyncTimeDisplay();showPage('dashboard');})
+        .catch(function(){updateBadges();updateSyncTimeDisplay();showPage('dashboard');});
+    } else { updateBadges();updateSyncTimeDisplay();showPage('dashboard'); }
     return;
   }
 
-  // Login failed — tell user exactly why
-  if(USERS===DEFAULT_USERS||!localStorage.getItem('ghj_users')){
-    errEl.textContent='⚠️ Using demo users only. If you have a Sheet, check URL and Secret in Settings, then try again. Demo: admin@ghj.org / admin123';
-  } else {
-    errEl.textContent='❌ Invalid email or password. Check your credentials.';
-  }
+  // ── Failed ──────────────────────────────────────────────────────────────
+  errEl.innerHTML=!localStorage.getItem('ghj_users')
+    ? '\u274c Wrong password OR Sheet users not loaded.<br><small>Demo: admin@ghj.org / admin123</small>'
+    : '\u274c Invalid email or password.';
   errEl.style.display='block';
 }
 
